@@ -16,13 +16,18 @@ be controlled without the vendor app, an account, or a phone.
 
 The protocol core, `tlcore`, is complete and verified: it produces and parses
 the same bytes as a reference implementation that was validated on real
-hardware. Platform transports and the command-line front end are not yet
-implemented; `tlcore` is currently used as a library.
+hardware. It is wrapped by platform transports and a command-line front end;
+see [Status](#status) below.
 
 ## Status
 
-`tlcore` is complete and byte-for-byte verified. Platform transports and user
-interfaces are still to be built.
+`tlcore` is complete and byte-for-byte verified. The macOS transport, an offline
+replay transport, and a command-line front end are implemented; the graphical
+application is still to be built.
+
+The transport and session layers are exercised offline against recorded fixtures
+(`tests/test_transport_and_session.py`), and the macOS transport has been run
+end to end against a real Buds Air7 Pro (`python -m tlcli smoke`, 2026-10-18).
 
 Verified on hardware (realme Buds Air7 Pro):
 
@@ -54,8 +59,9 @@ Noise-mode values, confirmed by listening on the target device:
 
 The TL protocol runs over Bluetooth Classic RFCOMM/SPP. Because SPP is available
 on **macOS, Windows, Linux, and Android**, the protocol can be driven on any of
-them; it cannot work on iOS or in a web browser, which do not expose SPP. No
-platform transport is implemented yet; macOS is the intended first target.
+them; it cannot work on iOS or in a web browser, which do not expose SPP. The
+macOS transport is implemented; Linux, Windows, and Android transports are still
+to be written.
 
 ## Safety
 
@@ -79,11 +85,11 @@ $ pip install .
 The protocol core has no dependencies and imports no platform-specific module,
 so it can be used and tested anywhere, including against recorded captures.
 
-The planned platform transports ship as optional extras, installed the same way:
+Platform transports are optional extras, installed the same way:
 
 ```console
-$ pip install ".[macos]"   # macOS
-$ pip install ".[linux]"   # Linux
+$ pip install ".[macos]"   # macOS (implemented)
+$ pip install ".[linux]"   # Linux (transport still to be written)
 ```
 
 For development (editable install plus test and lint tools):
@@ -112,15 +118,27 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
     ...  # write frame to the transport, ~10 ms apart for the Air7 Pro
 ```
 
+Or drive a headset from the command line (run from a checkout):
+
+```console
+$ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF smoke      # read-only live check
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
+```
+
+See [`docs/live-test.md`](docs/live-test.md) for a hardware runbook and
+troubleshooting.
+
 ## Project layout
 
 | Path | Contents |
 | --- | --- |
 | `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders |
-| `tltransport/` | Per-platform transports (macOS planned) — not yet implemented |
-| `tlcli/` | Command-line front end — not yet implemented |
+| `tltransport/` | `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport` (offline) |
+| `tlcli/` | Command-line front end, `python -m tlcli` |
 | `fixtures/` | Recorded device traffic used as golden test input |
-| `tests/` | Verification against the reference codec, plus the protocol-docs guard |
+| `tests/` | Reference-codec parity, transport/session, macOS transport, and protocol-docs guards |
 | `docs/` | Protocol reference and design notes |
 
 ## Documentation
@@ -129,6 +147,7 @@ Additional documentation lives in [`docs/`](docs/):
 
 - [`protocol.md`](docs/protocol.md) — the wire format, command set, and which
   commands are implemented and verified
+- [`live-test.md`](docs/live-test.md) — running against real hardware
 - [`architecture.md`](docs/architecture.md) — component layers and library/app split
 - [`stack.md`](docs/stack.md) — implementation stack
 

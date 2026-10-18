@@ -199,7 +199,7 @@ def parity_framing(ref, core) -> None:
                         check(f"{label} frames<=mtu", all(len(f) <= fs for f in got), True)
                         check(f"{label} deframe", core.deframe(got), ref.deframe(want))
                         # Round-trip is NOT a property the reference satisfies at
-                        # every MTU -- see test_known_frame_defect.  Where it
+                        # every MTU -- see check_known_frame_defect.  Where it
                         # holds, assert it; where it does not, assert the port
                         # reproduces the defect rather than silently diverging.
                         ref_round_trip = ref.deframe(want)
@@ -262,7 +262,7 @@ def parity_stream_decoder(ref, core) -> None:
 KNOWN_DEFECT_MTU = 130
 
 
-def test_known_frame_defect(ref, core) -> None:
+def check_known_frame_defect(ref, core) -> None:
     """At MTU 130 the reference cannot round-trip, and the port must not either.
 
     A multi-frame body is ``S - 3`` bytes.  At ``S == 130`` that is exactly 127,
@@ -478,7 +478,7 @@ def main() -> int:
     parity_packet(ref, wire)
     parity_varint(ref, wire)
     parity_framing(ref, wire)
-    test_known_frame_defect(ref, wire)
+    check_known_frame_defect(ref, wire)
     parity_stream_decoder(ref, wire)
     parity_decoders(ref, tlcore)
     parity_payloads(ref, payloads)

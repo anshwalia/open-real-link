@@ -107,6 +107,8 @@ from .wire import (
     varint_decode,
     varint_encode,
 )
+from .session import Session
+from .transport import Transport
 
 __version__ = "0.0.1"
 
@@ -137,4 +139,6 @@ __all__ = [
     # errors
     "TLError", "FrameError", "PacketError", "DeviceRejected", "NotWorn",
     "TransportError", "NotConnected", "ChannelRefused", "PageTimeout", "Timeout",
+    # session
+    "Session", "Transport",
 ]

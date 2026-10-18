@@ -79,7 +79,7 @@ splits a message into frames and `parse_frame` parses one; both live in
 > varint but writes one, shifting the read-back by two bytes. `tlcore` reproduces
 > this byte for byte rather than diverging. The Air7 Pro uses MTU 512, so it is
 > unaffected. The mechanism is documented in
-> `tests/test_parity_tl_frame.py::test_known_frame_defect`.
+> `tests/test_parity_tl_frame.py` (``check_known_frame_defect``).
 
 ## 4. Application layer (`Packet`)
 
@@ -234,12 +234,13 @@ static inference:
 | `0x10` | ANC medium |
 | `0x20` | ANC smart (adaptive) |
 
-Read the active mode with `0x010C 01 01` → `0x810C 00 01 01 <V>`; write it with
-`0x0404 action=1` (the `payload_set_noise_mode` wrapper). The write is accepted
-**only while the buds are worn**; otherwise the device answers `0x8404 0e`
-(`tlcore.NotWorn`). Always read the mode back to confirm: the asynchronous
-`0x0204` push is racy and is a hint, not the source of truth. The read-back body
-has no dedicated decoder; the mode is its final byte.
+Read the active mode with `0x010C` plus selector `01` → `0x810C 00 01 01 <V>`;
+write it with `0x0404 action=1` (the `payload_set_noise_mode` wrapper). The write
+is accepted **only while the buds are worn**; otherwise the device answers
+`0x8404 0e` (`tlcore.NotWorn`). Always read the mode back to confirm: the
+asynchronous `0x0204` push is racy and is a hint, not the source of truth. The
+read-back body has no standalone decoder; the mode is its final byte (see
+`Session.read_noise_mode`).
 
 `payload_set_noise_reduction(action, type, value)` is the general form:
 `action=2` writes the noise *cycle* settings instead of the active mode.
@@ -258,7 +259,35 @@ codec. Field-relevant types include:
 | `PageTimeout` | The device did not answer — asleep, out of range, or off |
 | `Timeout` | A read or write did not complete in time |
 
-## 10. What this document does not cover
+## 10. Driving the protocol
+
+Three objects turn the above into a working client. None of the protocol logic
+lives in a platform module, which is what lets the same code run on hardware and
+over a recording:
+
+* **`tlcore.Transport`** — a six-method byte pipe (`discover_channel`, `open`,
+  `write`, `read`, `close`, `is_connected`). Implementations live in
+  `tltransport`: `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport`
+  (offline, over `fixtures/*.jsonl`).
+* **`tlcore.Session`** — frames a command onto a transport, decodes replies,
+  keeps unsolicited `0x0204` pushes separate in `Session.events`, negotiates the
+  capability bitmap (``negotiate_capabilities`` / ``supports``), and applies the
+  in-ear gate (``set_noise_mode`` raises :class:`~tlcore.errors.NotWorn`).
+  ``read_status`` polls model, firmware, battery, wear, mode, and use time.
+* **`tlcli`** — a command-line front end (`python -m tlcli`) over both. It is the
+  first consumer of the core and the hardware test harness.
+
+```console
+$ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
+```
+
+The replay transport means the entire stack can be exercised with no device
+present, which is how `tests/test_transport_and_session.py` runs in CI. To run
+against a real headset, follow [`live-test.md`](live-test.md).
+
+## 11. What this document does not cover
 
 The remaining command IDs (OTA `0x03xx`, most `0x04xx` settings, most payload
 layouts) are recovered but not transcribed or implemented. They are catalogued in

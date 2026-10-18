@@ -220,15 +220,15 @@ discoverability by project name for discoverability by protocol name.
 ## 9. Build order
 
 1. **`tlcore`** — **done.** Ported from the validated reference by range
-   extraction, verified byte-for-byte against it (23,162 assertions,
-   `PARITY: OK`), no dependencies, no platform imports.
-2. **`tltransport`** — `macos.py` first, lifted from the working
-   `IOBluetoothRFCOMMChannel` link and fitted to the six-method contract in §3;
-   then `replay.py` over `fixtures/*.jsonl`, which needs no hardware at all.
-3. **`tlcli`** — a CLI over `tlcore` + `tltransport`. A few hours' work, and it
-   doubles as the hardware test harness, so it earns its place before any UI
-   exists.
-4. **PySide6 app** — scan/pair, connect, noise selector, battery/wear,
+   extraction, verified byte-for-byte against it (23,162 checks, `PARITY: OK`),
+   no dependencies, no platform imports. `session.py` adds the request/response
+   state machine.
+2. **`tltransport`** — **done.** `macos.py` fitted to the six-method contract in
+   §3, and `replay.py` over `fixtures/*.jsonl`, which needs no hardware at all.
+   The macOS transport has not yet been re-run on a device from this codebase.
+3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
+   hardware test harness. Run it from a checkout with `python -m tlcli`.
+4. **PySide6 app** — **next.** scan/pair, connect, noise selector, battery/wear,
    capability view, EQ, paired list, raw console.
 
 Steps 1–3 are the protocol being made usable. Step 4 is a shell over them, and it

@@ -1,0 +1,200 @@
+"""A request/response session over a :class:`~tlcore.transport.Transport`.
+
+This is the connection state machine the architecture assigns to ``tlcore``: it
+frames commands, reads and decodes replies, keeps unsolicited ``0x0204`` pushes
+separate from replies, negotiates the capability bitmap, and applies the
+in-ear write gate for noise mode. It contains **no platform imports** -- it only
+calls ``write``/``read``/``is_connected`` on whatever transport it is handed, so
+the same code runs against real hardware and against a recorded replay.
+"""
+from __future__ import annotations
+
+import time
+from typing import Optional
+
+from .commands import (
+    ALWAYS_ON,
+    CMD_GET_NOISE_REDUCTION,
+    CMD_GET_REMOTE_CAPABILITY,
+    CMD_SET_NOISE_REDUCTION,
+    RESPONSE_BIT,
+    parse_capabilities,
+)
+from .errors import DeviceRejected, NotConnected, NotWorn, PacketError, Timeout
+from .noise import NOISE_FIELD_MODE, NOISE_MODE_NAMES
+from .payloads import payload_set_noise_mode
+from .wire import StreamDecoder, build_frames, build_packet
+
+class Session:
+    """Drives a transport with TL packets; adds no I/O of its own."""
+
+    def __init__(self, transport, *, max_frame_size: int = 512,
+                 cmd_interval: float = 0.01, read_timeout: float = 1.5):
+        self.transport = transport
+        #: Air7 Pro pacing; set to 0 for replay/tests.
+        self.cmd_interval = cmd_interval
+        self.max_frame_size = max_frame_size
+        self.read_timeout = read_timeout
+        self.decoder = StreamDecoder()
+        self.capabilities: Optional[dict] = None
+        #: Unsolicited packets seen while waiting for a reply.
+        self.events: list[dict] = []
+
+    # -- raw I/O -----------------------------------------------------------
+    def send(self, cmd: int, payload: bytes = b"", type_byte: int = 0) -> list[bytes]:
+        """Frame and write ``cmd``; returns the frames sent."""
+        if not self.transport.is_connected():
+            raise NotConnected("transport is not connected")
+        frames = build_frames(build_packet(cmd, payload, type_byte), self.max_frame_size)
+        for frame in frames:
+            self.transport.write(frame)
+            if self.cmd_interval:
+                time.sleep(self.cmd_interval)
+        return frames
+
+    def _read_packets(self, timeout: float) -> list[dict]:
+        """Read once and return any decoded packets (stops at the first batch)."""
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return []
+            data = self.transport.read(min(remaining, 0.25))
+            if not data:
+                time.sleep(0.002)
+                continue
+            packets = [ev["packet"] for ev in self.decoder.feed(data)
+                       if ev.get("kind") == "packet"]
+            if packets:
+                return packets
+
+    def request(self, cmd: int, payload: bytes = b"", *, timeout: Optional[float] = None,
+                expect: Optional[int] = None, type_byte: int = 0) -> dict:
+        """Send ``cmd`` and return the matching reply packet.
+
+        Non-matching packets (unsolicited pushes) are collected in
+        :attr:`events`. Raises :class:`~tlcore.errors.Timeout` if no reply
+        arrives.
+        """
+        expect = (cmd | RESPONSE_BIT) if expect is None else expect
+        self.send(cmd, payload, type_byte)
+        deadline = time.monotonic() + (self.read_timeout if timeout is None else timeout)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise Timeout(f"no 0x{expect:04X} reply to 0x{cmd:04X}")
+            found: Optional[dict] = None
+            for pkt in self._read_packets(remaining):
+                if found is None and pkt["cmd"] == expect:
+                    found = pkt
+                else:
+                    # keep pushes that shared the read with the reply
+                    self.events.append(pkt)
+            if found is not None:
+                return found
+
+    def listen(self, timeout: float) -> list[dict]:
+        """Read and decode for up to ``timeout`` seconds; return every packet."""
+        deadline = time.monotonic() + timeout
+        packets: list[dict] = []
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            batch = self._read_packets(remaining)
+            if not batch:
+                break
+            packets.extend(batch)
+        return packets
+
+    # -- status helpers ----------------------------------------------------
+    @staticmethod
+    def status_of(packet: dict) -> int:
+        payload = packet.get("payload") or b""
+        return payload[0] if payload else 0
+
+    def check_status(self, packet: dict) -> int:
+        """Raise on a non-zero reply status; return 0 otherwise.
+
+        ``0x0e`` becomes :class:`~tlcore.errors.NotWorn` because it is the
+        expected in-ear gate, not a failure.
+        """
+        status = self.status_of(packet)
+        if status == 0x0E:
+            raise NotWorn(f"0x{packet['cmd']:04X}: buds are not worn (status 0x0e)",
+                          cmd=packet["cmd"], status=status)
+        if status != 0:
+            raise DeviceRejected(
+                f"0x{packet['cmd']:04X}: device rejected with status 0x{status:02X}",
+                cmd=packet["cmd"], status=status)
+        return status
+
+    # -- capability negotiation -------------------------------------------
+    def negotiate_capabilities(self, *, timeout: Optional[float] = None) -> dict:
+        """Send an empty ``0x0100`` and decode the ``0x8100`` capability bitmap."""
+        reply = self.request(CMD_GET_REMOTE_CAPABILITY, b"", timeout=timeout)
+        self.capabilities = parse_capabilities(reply["payload"])
+        return self.capabilities
+
+    def supports(self, cmd: int) -> bool:
+        """Whether the device accepts ``cmd`` (always-on, or advertised)."""
+        if cmd in ALWAYS_ON:
+            return True
+        if self.capabilities is None:
+            return False
+        return cmd in set(self.capabilities["commands"])
+
+    # -- noise mode --------------------------------------------------------
+    def read_noise_mode(self, *, timeout: Optional[float] = None) -> int:
+        """Read the active noise mode (``0x010C`` selector ``1``).
+
+        Reply body is ``[status][field][len][value]``; the value is last.
+        """
+        reply = self.request(CMD_GET_NOISE_REDUCTION, bytes([NOISE_FIELD_MODE]),
+                             timeout=timeout)
+        self.check_status(reply)
+        payload = reply["payload"]
+        if len(payload) < 4:
+            raise PacketError(f"0x810C body too short for a mode value: {payload.hex()}")
+        return payload[3]
+
+    def set_noise_mode(self, value: int, *, timeout: Optional[float] = None) -> int:
+        """Write the active noise mode. Raises :class:`NotWorn` if not in-ear."""
+        if value not in NOISE_MODE_NAMES:
+            raise ValueError(f"0x{value:02X} is not a known noise mode: "
+                             + ", ".join(f"0x{k:02X}" for k in sorted(NOISE_MODE_NAMES)))
+        reply = self.request(CMD_SET_NOISE_REDUCTION, payload_set_noise_mode(value),
+                             timeout=timeout)
+        return self.check_status(reply)
+
+    # -- bulk status -------------------------------------------------------
+    def read_status(self, *, timeout: Optional[float] = None) -> dict:
+        """Poll model, firmware, battery, wear state, noise mode, and use time.
+
+        The order matches a real device conversation (and the recorded fixtures)
+        so a replay reproduces it without skipping records.
+        """
+        from .decoders import (parse_battery, parse_device_version, parse_earbud_status,
+                               parse_model_id, parse_use_time)
+
+        out: dict = {}
+        # ``0x0101`` is the version/property query; the body is not decoded yet,
+        # so expose the raw bytes and the first little-endian halfword.
+        prop = self.request(0x0101, b"", timeout=timeout)
+        prop_pl = prop["payload"]
+        out["version"] = {
+            "status": self.status_of(prop),
+            "value": int.from_bytes(prop_pl[1:3], "little") if len(prop_pl) >= 3 else None,
+            "raw": prop_pl.hex(),
+        }
+        for key, cmd, decoder in (
+            ("model", 0x0103, parse_model_id),
+            ("firmware", 0x0105, parse_device_version),
+            ("battery", 0x0106, parse_battery),
+            ("wear", 0x0109, parse_earbud_status),
+        ):
+            out[key] = decoder(self.request(cmd, b"", timeout=timeout)["payload"])
+        out["noise_mode"] = self.read_noise_mode(timeout=timeout)
+        out["use_time"] = parse_use_time(
+            self.request(0x0128, b"", timeout=timeout)["payload"])
+        return out
