@@ -47,6 +47,9 @@ the app, every UI rewrite drags it along, and nobody else can use it.
 **`tlcore` imports nothing platform-specific.** No `IOBluetooth`, no `socket`,
 no `serial`, no Qt. It takes a `Transport` object and produces/consumes bytes.
 
+> Only `macos.py` and `replay.py` exist today; `linux.py`, `windows.py` and
+> `android/` in the diagram are the planned per-platform shims (see §9).
+
 That rule is the whole point of the split, so it is *enforced* rather than
 intended: the test suite imports `tlcore` in a clean subprocess and fails if any
 platform binding ends up in `sys.modules`. The rule is easy to break by accident
