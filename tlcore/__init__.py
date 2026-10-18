@@ -65,6 +65,18 @@ from .decoders import (
     parse_pairs,
     parse_use_time,
 )
+from .errors import (
+    ChannelRefused,
+    DeviceRejected,
+    FrameError,
+    NotConnected,
+    NotWorn,
+    PacketError,
+    PageTimeout,
+    TLError,
+    Timeout,
+    TransportError,
+)
 from .noise import (
     NOISE_FIELD_CYCLE,
     NOISE_FIELD_MODE,
@@ -122,4 +134,7 @@ __all__ = [
     "decode_state", "parse_battery", "parse_device_version", "parse_earbud_status",
     "parse_eq_info", "parse_feature_detect", "parse_model_id",
     "parse_notification_event", "parse_pairs", "parse_use_time",
+    # errors
+    "TLError", "FrameError", "PacketError", "DeviceRejected", "NotWorn",
+    "TransportError", "NotConnected", "ChannelRefused", "PageTimeout", "Timeout",
 ]

@@ -120,13 +120,15 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
 | `tltransport/` | Per-platform transports (macOS planned) — not yet implemented |
 | `tlcli/` | Command-line front end — not yet implemented |
 | `fixtures/` | Recorded device traffic used as golden test input |
-| `tests/` | Verification against the validated reference codec |
-| `docs/` | Design and architecture notes |
+| `tests/` | Verification against the reference codec, plus the protocol-docs guard |
+| `docs/` | Protocol reference and design notes |
 
 ## Documentation
 
-Additional design notes live in [`docs/`](docs/):
+Additional documentation lives in [`docs/`](docs/):
 
+- [`protocol.md`](docs/protocol.md) — the wire format, command set, and which
+  commands are implemented and verified
 - [`architecture.md`](docs/architecture.md) — component layers and library/app split
 - [`stack.md`](docs/stack.md) — implementation stack
 
