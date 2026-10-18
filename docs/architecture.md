@@ -169,7 +169,8 @@ the split is load-bearing rather than cosmetic:
 `tlcore` keeps the vendor's own two letters and adds only what it is. That also
 names the sibling layers: `tltransport`, `tlcli`.
 
-Verified end to end — installed distribution and import name really do differ:
+The distribution and import names are meant to differ once the package is
+published (it is not on PyPI yet; see the README for the source install):
 
 ```console
 $ pip install open-real-link
@@ -225,7 +226,8 @@ discoverability by project name for discoverability by protocol name.
    state machine.
 2. **`tltransport`** — **done.** `macos.py` fitted to the six-method contract in
    §3, and `replay.py` over `fixtures/*.jsonl`, which needs no hardware at all.
-   The macOS transport has not yet been re-run on a device from this codebase.
+   The macOS transport has been run end to end from this codebase on a device
+   (read-only `smoke` plus the six-mode write, see [`live-test.md`](live-test.md)).
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`.
 4. **PySide6 app** — **next.** scan/pair, connect, noise selector, battery/wear,
