@@ -167,6 +167,8 @@ are “known only” and are listed for identification only.
 | `0x0404` | setNoiseReduction | `payload_set_noise_reduction`, `payload_set_noise_mode` | — | verified |
 | `0x0401` | setKeyFunction | `payload_set_key_function` | — | integrated |
 | `0x0418` | setEqInfo / getEqInfo | `payload_set_eq` | — | integrated |
+| `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
+| `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | `parse_feature_detect` | verified |
 | `0x0204` | notification event | — | `parse_notification_event` | verified |
@@ -261,6 +263,38 @@ read-back body has no standalone decoder; the mode is its final byte (see
 `payload_set_noise_reduction(action, type, value)` is the general form:
 `action=2` writes the noise *cycle* settings instead of the active mode.
 
+### EQ / sound effect
+
+The sound-effect preset is a plain mode value. Read it with `0x010F` →
+`0x810F 00 <mode>` (`parse_eq_mode`); write it with `0x0406`
+(`payload_set_eq_mode`). **Verified live** on the Air7 Pro: the write value is
+read back **identity** over `0..6`, and values `>= 7` clamp to `6`:
+
+| `0x0406` written | `0x810F` read back | `0x0122` `isSelected` |
+| --- | --- | --- |
+| `0`..`3` | `0`..`3` | `0` |
+| `4` | `4` | `1` |
+| `5`, `6` | `5`, `6` | `0` |
+| `7`, `8` | `6` (clamped) | `0` |
+
+Restoring the active preset therefore needs **no mapping table** — it is
+`0x010F` in, `0x0406` out. (The vendor app's `SettingsInfo` enum maps
+`{1,2,4,8} → {1,0,2,3}`, but that is an app-side convenience; the wire mode is
+the raw value.)
+
+`0x0122` (`getAllEqInfo`) returns the preset/custom list and is decoded by
+`parse_eq_info`::
+
+    [status][count] + [isSelected][minValue][maxValue][eqId][nameLen][name utf8]
+                      [freqCount][ (freq uint16 LE)(db int8) x freqCount ]
+
+The Air7 Pro reports one point-less entry — `00 01 01 01 02 04 00 00` → eqId
+`4`, `min=1`, `max=2`, no bands — and `isSelected` is `1` only while the mode is
+`4`. Custom curves are read back faithfully but **not** written: the `0x0418`
+encoder refuses a zero-band record, and the read byte is `isSelected` while the
+write's first byte is `action`, so the bytes cannot be replayed verbatim. Backup
+captures the list and leaves it `not_restored`.
+
 ## 9. Errors
 
 All exceptions derive from `tlcore.TLError`. Wire-level `FrameError` and
@@ -317,10 +351,11 @@ snapshot = tlcore.capture(session)          # reads; safe
 report = tlcore.restore(session, snapshot)  # writes only what it can
 ```
 
-Restore re-applies the three settings whose read and write forms are recovered
+Restore re-applies the four settings whose read and write forms are recovered
 and symmetric -- **noise mode** (`0x010C`/`0x0404`), **key function**
-(`0x0108`/`0x0401`), **switch features** (`0x010D`/`0x0403`) -- and reports the
-rest as `not_restored` rather than guessing at payloads it does not know.
+(`0x0108`/`0x0401`), **EQ mode** (`0x010F`/`0x0406`), **switch features**
+(`0x010D`/`0x0403`) -- and reports the rest as `not_restored` rather than
+guessing at payloads it does not know.
 
 ```console
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json

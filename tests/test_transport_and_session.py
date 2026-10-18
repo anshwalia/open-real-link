@@ -170,6 +170,7 @@ def test_backup_restore() -> None:
     check("backup key-function payload", snapshot["settings"]["key_function"],
           "02" + "02010100" + "02010201")
     check("backup switch features", snapshot["settings"]["switch_features"], [])
+    check("backup eq mode", snapshot["settings"]["eq_mode"], 4)
     check("backup raw captured 0x0108", snapshot["raw"]["key_function"]["reply"],
           "0002" + "02010100" + "02010201")
     check("decode 0x8108", t.parse_key_function(
@@ -178,12 +179,15 @@ def test_backup_restore() -> None:
     kf_payload = bytes.fromhex(snapshot["settings"]["key_function"])
     records = [("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
                ("tx", wire(0x0404, bytes([1, 1, 1]))), ("rx", wire(0x8404, bytes([0]))),
-               ("tx", wire(0x0401, kf_payload)), ("rx", wire(0x8401, bytes([0])))]
+               ("tx", wire(0x0401, kf_payload)), ("rx", wire(0x8401, bytes([0]))),
+               ("tx", wire(0x0406, bytes([4]))), ("rx", wire(0x8406, bytes([0])))]
     transport, session = replay(records)
     report = t.restore(session, snapshot)
     check("restore noise first", report["applied"][0]["setting"], "noise_mode")
     check("restore applied key_function",
           any(a["setting"] == "key_function" for a in report["applied"]), True)
+    check("restore applied eq_mode",
+          any(a["setting"] == "eq_mode" for a in report["applied"]), True)
     check("restore wrote the noise frame", transport.writes[1], wire(0x0404, bytes([1, 1, 1])))
     check("restore reports eq as unrestorable",
           any(s["setting"] == "eq_info" for s in report["not_restored"]), True)
@@ -222,7 +226,9 @@ def test_cli_backup_restore() -> None:
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
             ("tx", wire(0x0404, bytes([1, 1, 1]))), ("rx", wire(0x8404, bytes([0]))),
             ("tx", wire(0x0401, bytes.fromhex(snapshot["settings"]["key_function"]))),
-            ("rx", wire(0x8401, bytes([0])))]))
+            ("rx", wire(0x8401, bytes([0]))),
+            ("tx", wire(0x0406, bytes([snapshot["settings"]["eq_mode"]]))),
+            ("rx", wire(0x8406, bytes([0])))]))
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -235,6 +241,36 @@ def test_cli_backup_restore() -> None:
             rc = main(["--replay", str(rec_path), "restore", str(snap_path)])
         check("cli restore rc", rc, 0)
         check("cli restore applied", "[APPLIED] key_function" in buf.getvalue(), True)
+
+
+def test_eq_session() -> None:
+    transport, session = replay([
+        ("tx", wire(0x010F)), ("rx", wire(0x810F, bytes.fromhex("0004"))),
+        ("tx", wire(0x0122)), ("rx", wire(0x8122, bytes.fromhex("0001010102040000"))),
+        ("tx", wire(0x0406, bytes([2]))), ("rx", wire(0x8406, bytes([0]))),
+        ("tx", wire(0x010F)), ("rx", wire(0x810F, bytes.fromhex("0002"))),
+    ])
+    check("read_eq_mode", session.read_eq_mode(), 4)
+    check("read_eq_info eqId", session.read_eq_info()["entries"][0]["eq_id"], 4)
+    session.set_eq_mode(2)
+    check("set_eq_mode then read", session.read_eq_mode(), 2)
+
+
+def test_cli_eq() -> None:
+    from tlcli.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rec = pathlib.Path(tmpdir) / "eq.jsonl"
+        rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x010F)), ("rx", wire(0x810F, bytes.fromhex("0004"))),
+            ("tx", wire(0x0122)), ("rx", wire(0x8122, bytes.fromhex("0001010102040000")))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(rec), "eq", "get"])
+        check("cli eq get rc", rc, 0)
+        check("cli eq mode line", "eq mode   : 4" in buf.getvalue(), True)
+        check("cli eq entry", "eqId=4" in buf.getvalue(), True)
 
 
 def test_not_worn_and_rejection() -> None:
@@ -451,9 +487,17 @@ def test_decoder_edges() -> None:
     check("use_time too short", t.parse_use_time(b"\x00")["devices"], {})
     check("model_id too short", t.parse_model_id(b"\x00")["model_id"], None)
     check("eq_info too short", t.parse_eq_info(b"\x00")["entries"], [])
-    eq = t.parse_eq_info(bytes.fromhex("00010102040000"))
+    eq = t.parse_eq_info(bytes.fromhex("0001010102040000"))
     check("eq_info count", eq["count"], 1)
-    check("eq_info entries", eq["entries"], [[1, 2, 4]])
+    check("eq_info entry", eq["entries"][0],
+          {"is_selected": 1, "min": 1, "max": 2, "eq_id": 4, "name": "", "points": []})
+    # custom curve: little-endian freq, signed int8 db (matches payload_set_eq)
+    curve = t.parse_eq_info(bytes.fromhex("0001010102040001" + "2a01" + "fb"))
+    check("eq_info curve point", curve["entries"][0]["points"],
+          [{"freq": 0x012A, "db": -5}])
+    check("eq_mode decode", t.parse_eq_mode(bytes.fromhex("0004")), {"status": 0, "mode": 4})
+    check("eq_mode too short", t.parse_eq_mode(b"")["mode"], None)
+    check("payload_set_eq_mode", t.payload_set_eq_mode(4), b"\x04")
     check("decode_state dispatch",
           t.decode_state(0x8106, bytes.fromhex("0003016402640300"))["devices"]["L"]["level"], 100)
     check("decode_state unknown id", t.decode_state(0x9999, b""), None)

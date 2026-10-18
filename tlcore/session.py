@@ -14,15 +14,18 @@ from typing import Optional
 
 from .commands import (
     ALWAYS_ON,
+    CMD_GET_ALL_EQ_INFO,
+    CMD_GET_EQ_MODE,
     CMD_GET_NOISE_REDUCTION,
     CMD_GET_REMOTE_CAPABILITY,
+    CMD_SET_EQ_MODE,
     CMD_SET_NOISE_REDUCTION,
     RESPONSE_BIT,
     parse_capabilities,
 )
 from .errors import DeviceRejected, NotConnected, NotWorn, PacketError, Timeout
 from .noise import NOISE_FIELD_MODE, NOISE_MODE_NAMES
-from .payloads import payload_set_noise_mode
+from .payloads import payload_set_eq_mode, payload_set_noise_mode
 from .wire import StreamDecoder, build_frames, build_packet
 
 class Session:
@@ -166,6 +169,34 @@ class Session:
         reply = self.request(CMD_SET_NOISE_REDUCTION, payload_set_noise_mode(value),
                              timeout=timeout)
         return self.check_status(reply)
+
+    # -- sound effect / EQ -------------------------------------------------
+    def read_eq_mode(self, *, timeout: Optional[float] = None) -> int:
+        """Read the active sound-effect/EQ preset (``0x010F``)."""
+        reply = self.request(CMD_GET_EQ_MODE, b"", timeout=timeout)
+        self.check_status(reply)
+        payload = reply["payload"]
+        if len(payload) < 2:
+            raise PacketError(f"0x810F body too short for an EQ mode: {payload.hex()}")
+        return payload[1]
+
+    def set_eq_mode(self, mode: int, *, timeout: Optional[float] = None) -> int:
+        """Write the active sound-effect/EQ preset (``0x0406``).
+
+        **Verified live** on the Air7 Pro: the value ranges 0..6 and ``0x010F``
+        reads it back identity.  Selecting a mode other than 4 clears the
+        ``isSelected`` flag in the ``0x0122`` EQ list.
+        """
+        reply = self.request(CMD_SET_EQ_MODE, payload_set_eq_mode(mode), timeout=timeout)
+        return self.check_status(reply)
+
+    def read_eq_info(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the EQ preset/custom list (``0x0122``)."""
+        from .decoders import parse_eq_info
+
+        reply = self.request(CMD_GET_ALL_EQ_INFO, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_eq_info(reply["payload"])
 
     # -- bulk status -------------------------------------------------------
     def read_status(self, *, timeout: Optional[float] = None) -> dict:

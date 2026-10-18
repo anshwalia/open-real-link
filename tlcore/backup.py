@@ -13,6 +13,7 @@ setting          read                        write
 ===============  ==========================  ==========================
 noise mode       ``0x010C`` sel ``1``        ``0x0404`` action ``1``
 key function     ``0x0108``                  ``0x0401`` (same records)
+EQ mode          ``0x010F``                  ``0x0406`` (identity)
 switch features  ``0x010D``                  ``0x0403`` (per feature)
 ===============  ==========================  ==========================
 
@@ -27,6 +28,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .commands import (
+    CMD_SET_EQ_MODE,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     CMD_SET_SWITCH_FEATURE,
@@ -54,7 +56,7 @@ READ_PLAN: tuple[tuple[int, bytes, str], ...] = (
     (0x010C, b"\x01", "noise_mode"),
     (0x010C, b"\x02", "noise_cycle"),
     (0x010D, b"", "switch_features"),
-    (0x010F, b"", "status_010f"),
+    (0x010F, b"", "eq_mode"),
     (0x0110, b"", "status_0110"),
     (0x0112, b"", "multi_point"),
     (0x0118, b"", "ear_restore"),
@@ -69,11 +71,11 @@ SETTING_KEYS = frozenset({
     "noise_mode", "noise_cycle", "key_function", "switch_features",
     "eq_info", "bass_engine", "multi_point", "ear_restore",
     "personalized_anc", "ai_status", "status_0104", "status_0107",
-    "status_010b", "status_010f", "status_0110",
+    "status_010b", "status_0110",
 })
 
 #: Settings this module knows how to write back.
-RESTORABLE = frozenset({"noise_mode", "key_function", "switch_features"})
+RESTORABLE = frozenset({"noise_mode", "key_function", "eq_mode", "switch_features"})
 
 
 def _model_string(reply_hex: str) -> Optional[str]:
@@ -105,6 +107,9 @@ def _derive_settings(raw: dict) -> dict:
     if sw:
         out["switch_features"] = parse_switch_features(
             bytes.fromhex(sw["reply"]))["entries"]
+    em = raw.get("eq_mode")
+    if em and em["status"] == 0 and len(em["reply"]) >= 2:
+        out["eq_mode"] = int(em["reply"][-2:], 16)
     return out
 
 
@@ -184,6 +189,11 @@ def restore(session, snapshot: dict, *, timeout: Optional[float] = None,
                                     bytes.fromhex(key_function), timeout=timeout)
             session.check_status(reply)
         _apply("key_function", session.supports(CMD_SET_KEY_FUNCTION), _write_key_function)
+
+    eq_mode = settings.get("eq_mode")
+    if eq_mode is not None:
+        _apply("eq_mode", session.supports(CMD_SET_EQ_MODE),
+               lambda: session.set_eq_mode(eq_mode, timeout=timeout))
 
     for entry in settings.get("switch_features", []):
         def _write_switch(entry=entry) -> None:

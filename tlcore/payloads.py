@@ -79,3 +79,13 @@ def payload_set_eq(mode: int, min_value: int, max_value: int, eq_id: int,
         out += struct.pack("<H", freq & 0xFFFF)
         out.append(db & 0xFF)
     return bytes(out)
+
+
+def payload_set_eq_mode(mode: int) -> bytes:
+    """SetCommandManager.n() / cmd 0x0406: ``[mode]``.
+
+    Selects the active sound-effect/EQ preset.  **Verified live** on the
+    Air7 Pro: ``0x010F`` reads the value back identity over the range 0..6,
+    and values >= 7 clamp to 6.
+    """
+    return bytes([mode & 0xFF])

@@ -202,6 +202,31 @@ boolean toggles therefore go through the dedicated set commands, not `0x0403`.
 The same read also pulls the multi-point paired-device list over a `0x0204`
 push (not shown).
 
+### EQ / sound-effect probe (write, reversible)
+
+The sound-effect preset is a plain mode value: `0x010F` reads it, `0x0406`
+writes it, and the write is **read back identity**, so it is trivially
+reversible. Take a backup first, then:
+
+```console
+$ python3 -m tlcli --address <device> --reset eq
+eq mode   : 4
+  * eqId=4  min=1 max=2  bands=0
+```
+
+Sweeping `0x0406 0`..`6` and restoring the original mode on the Air7 Pro gave:
+
+| `0x0406` written | `0x810F` read back | `0x0122` `isSelected` |
+| --- | --- | --- |
+| `0`..`3` | `0`..`3` | `0` |
+| `4` (baseline) | `4` | `1` |
+| `5`, `6` | `5`, `6` | `0` |
+| `7`, `8` | `6` (clamped) | `0` |
+
+So `0x010F`/`0x0406` need no mapping table, and `restore` re-applies the preset
+from `0x010F` directly. `eq set-mode <n>` writes it by hand; always re-read to
+confirm.
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:
@@ -210,8 +235,8 @@ push (not shown).
 $ python3 -m tlcli --address <device> --reset backup settings.json
 backup written to settings.json
   device    : {'model': '0x064C12', 'firmware': ['1.1.0.85']}
-  captured  : 12 responses
-  restorable: key_function, noise_mode
+  captured  : 17 responses
+  restorable: eq_mode, key_function, noise_mode
 ```
 
 `restore --dry-run` prints the plan without sending a write; `restore` then
@@ -221,12 +246,13 @@ re-applies the symmetric settings and reports everything else as `not_restored`:
 $ python3 -m tlcli --address <device> --reset restore --dry-run settings.json
   [DRY-RUN] noise_mode
   [DRY-RUN] key_function
+  [DRY-RUN] eq_mode
   [SKIP]    eq_info (captured, no restorer)
 ```
 
-Of the three restorable settings, only the **noise-mode write has been verified
-live end to end** (above); the key-function and switch-feature writes are
-covered offline by `tests/test_transport_and_session.py`. As always, a noise
+Of the four restorable settings, the **noise-mode and EQ-mode writes have been
+verified live end to end** (above); the key-function and switch-feature writes
+are covered offline by `tests/test_transport_and_session.py`. As always, a noise
 write requires the buds to be **worn** (§2).
 
 ## 6. What to record

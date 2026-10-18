@@ -182,17 +182,56 @@ def parse_device_version(payload: bytes) -> dict:
 
 
 def parse_eq_info(payload: bytes) -> dict:
-    """``0x8122``: ``[status][count] + 3 bytes per entry``.
+    """``0x8122`` (``getAllEqInfo``): ``[status][count] + records``.
 
-    Air7 Pro: ``00 01 01 01 02 04 00 00``.  The per-entry layout was not
-    recovered, so the raw triples are exposed rather than a guess.
+    Record layout recovered from ``CommandUtil.b`` (``parseAllEqData``)::
+
+        [isSelected][minValue][maxValue][eqId][nameLen][name utf8]
+        [freqCount][ (freq uint16 LE)(db int8) x freqCount ]
+
+    The frequency is read through ``ProtocolUtil.e(..., true)`` -- the same
+    little-endian helper the ``0x0418`` writer uses (docs/12).  The Air7 Pro
+    reports a single point-less entry: ``00 01 01 01 02 04 00 00`` -> eqId 4,
+    selected, ``min=1``, ``max=2``, no bands.
     """
     if len(payload) < 2:
-        return {"status": payload[0] if payload else 0, "entries": []}
-    count = payload[1]
-    entries = [list(payload[2 + 3 * i:5 + 3 * i]) for i in range(count)
-               if 5 + 3 * i <= len(payload)]
-    return {"status": payload[0], "count": count, "entries": entries}
+        return {"status": payload[0] if payload else 0, "count": 0, "entries": []}
+    status, count = payload[0], payload[1]
+    entries: list[dict] = []
+    off = 2
+    for _ in range(count):
+        if off + 5 > len(payload):
+            break
+        is_selected, min_value, max_value, eq_id, name_len = payload[off:off + 5]
+        off += 5
+        if off + name_len + 1 > len(payload):
+            break
+        name = payload[off:off + name_len].decode("utf-8", "replace")
+        off += name_len
+        freq_count = payload[off]
+        off += 1
+        if off + 3 * freq_count > len(payload):
+            break
+        points = []
+        for _band in range(freq_count):
+            points.append({"freq": int.from_bytes(payload[off:off + 2], "little"),
+                           "db": int.from_bytes(payload[off + 2:off + 3], "little", signed=True)})
+            off += 3
+        entries.append({"is_selected": is_selected, "min": min_value, "max": max_value,
+                        "eq_id": eq_id, "name": name, "points": points})
+    return {"status": status, "count": count, "entries": entries}
+
+
+def parse_eq_mode(payload: bytes) -> dict:
+    """``0x810F`` (``getEQStatus``): ``[status][mode]``.
+
+    The mode is the active sound-effect/EQ preset.  **Verified live** on the
+    Air7 Pro: the ``0x0406`` write value is read back here identity over the
+    range 0..6, and >=7 clamps to 6 (see ``docs/protocol.md``).
+    """
+    if len(payload) < 2:
+        return {"status": payload[0] if payload else 0, "mode": None}
+    return {"status": payload[0], "mode": payload[1]}
 
 
 def parse_key_function(payload: bytes) -> dict:
@@ -233,6 +272,7 @@ STATE_DECODERS = {
     0x8103: parse_model_id,
     0x8105: parse_device_version,
     0x8122: parse_eq_info,
+    0x810F: parse_eq_mode,
     0x812A: parse_feature_detect,
     0x8108: parse_key_function,
     0x810D: parse_switch_features,

@@ -231,7 +231,7 @@ discoverability by project name for discoverability by protocol name.
    (read-only `smoke` plus the six-mode write, see [`live-test.md`](live-test.md)).
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`
-   (`info`, `mode`, `smoke`, `send`, and `backup`/`restore`).
+   (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
 4. **PySide6 app** — **next.** scan/pair, connect, noise selector, battery/wear,
    capability view, EQ, paired list, raw console.
 

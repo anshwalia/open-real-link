@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**81 known request IDs**, **17 implemented** in `open-real-link`,
-**64 not implemented**; an Air7 Pro advertises **49** of them
+**81 known request IDs**, **19 implemented** in `open-real-link`,
+**62 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -37,7 +37,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x010b` | 267 | poll | always-on | — | live | — |
 | `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
 | `0x010d` | 269 | poll | cap-bit 7 | send + decode | live | — |
-| `0x010f` | 271 | poll | cap-bit 10 | — | live | — |
+| `0x010f` | 271 | poll | cap-bit 10 | send + decode | live | getEQStatus |
 | `0x0110` | 272 | poll | cap-bit 11 | — | live | — |
 | `0x0111` | 273 | poll | cap-bit 15 | — | — | — |
 | `0x0112` | 274 | poll | cap-bit 29 | — | live | — |
@@ -48,7 +48,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x011e` | 286 | poll | cap-bit 30 | — | live | getEarScanData |
 | `0x011f` | 287 | poll | cap-bit 30 | — | live | getEarScanFilterData |
 | `0x0120` | 288 | poll | cap-bit 32 | — | live | getEarLanguageData |
-| `0x0122` | 290 | poll | cap-bit 34 | decode | live | getAllEqInfo |
+| `0x0122` | 290 | poll | cap-bit 34 | send + decode | live | getAllEqInfo |
 | `0x0124` | 292 | poll | cap-bit 38 | — | live | — |
 | `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
@@ -76,7 +76,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0403` | 1027 | set | cap-bit 7 | build + send | live | setSwitchFeature |
 | `0x0404` | 1028 | set | cap-bit 8 | build + send | live | SetNoiseReduction |
 | `0x0405` | 1029 | set | cap-bit 9 | — | live | — |
-| `0x0406` | 1030 | set | cap-bit 10 | — | live | setEQStatus |
+| `0x0406` | 1030 | set | cap-bit 10 | build + send | live | setEQStatus |
 | `0x0407` | 1031 | set | cap-bit 11 | — | live | setHighVolume |
 | `0x0408` | 1032 | set | cap-bit 13 | — | — | — |
 | `0x0409` | 1033 | set | cap-bit 14 | — | live | — |
@@ -122,7 +122,11 @@ recovered and symmetric end to end:
 | --- | --- | --- |
 | noise mode | `0x010C` sel `1` | `0x0404` action `1` |
 | key function | `0x0108` | `0x0401` |
+| EQ mode | `0x010F` | `0x0406` |
 | switch features | `0x010D` | `0x0403` |
 
 Everything else is captured but reported `not_restored` (payload value
-semantics not recovered).
+semantics not recovered). In particular the `0x0122` EQ list is captured but
+**not** written back: the `0x0418` encoder refuses a zero-band record, and the
+read byte is `isSelected` while the write's first byte is `action`, so the bytes
+cannot be replayed verbatim (see `docs/protocol.md` §8).

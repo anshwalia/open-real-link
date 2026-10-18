@@ -188,6 +188,42 @@ def cmd_info(args) -> int:
     return 0
 
 
+def cmd_eq(args) -> int:
+    """Read the active sound-effect/EQ mode plus the EQ list, or write the mode."""
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        eq_args = list(args.eq_args)
+        action = eq_args[0] if eq_args else "get"
+        if action in ("get", "read"):
+            mode = session.read_eq_mode()
+            info = session.read_eq_info()
+            if args.json:
+                print(json.dumps({"mode": mode, "eq_info": info}, indent=2, default=str))
+                return 0
+            print(f"eq mode   : {mode}")
+            for entry in info["entries"]:
+                name = f'  "{entry["name"]}"' if entry["name"] else ""
+                print(f"  {'*' if entry['is_selected'] else ' '} eqId={entry['eq_id']}"
+                      f"  min={entry['min']} max={entry['max']}"
+                      f"  bands={len(entry['points'])}{name}")
+            if not info["entries"]:
+                print("  (no EQ entries)")
+            return 0
+        if action in ("set-mode", "set"):
+            if len(eq_args) < 2:
+                raise SystemExit("usage: eq set-mode <0..6>")
+            value = int(eq_args[1], 0)
+            session.set_eq_mode(value)
+            mode = session.read_eq_mode()
+            print(f"eq mode   : wrote {value}, read back {mode}"
+                  + ("" if mode == value else "  (MISMATCH)"))
+            return 0
+        raise SystemExit(f"unknown eq action: {action!r} (use 'get' or 'set-mode <n>')")
+    finally:
+        transport.close()
+
+
 def cmd_backup(args) -> int:
     """Capture the device's user settings into a JSON snapshot."""
     transport, session = open_session(args)
@@ -516,6 +552,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("info", parents=[common],
                        help="read model, firmware, battery, wear, mode, use time")
     p.set_defaults(func=cmd_info)
+
+    p = sub.add_parser("eq", parents=[common],
+                       help="read the sound-effect/EQ mode and preset list")
+    p.add_argument("eq_args", nargs="*", metavar="VALUE",
+                   help="'get' (default) to read, or 'set-mode <0..6>' to write")
+    p.set_defaults(func=cmd_eq)
 
     p = sub.add_parser("backup", parents=[common],
                        help="capture the device's user settings into JSON")

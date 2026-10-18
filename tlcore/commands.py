@@ -37,6 +37,9 @@ CMD_SET_KEY_FUNCTION = 0x0401    # SetCommandManager.s
 CMD_SET_SWITCH_FEATURE = 0x0403  # SetCommandManager.y -> setSwitchFeature
 CMD_SET_NOISE_REDUCTION = 0x0404  # SetCommandManager.a
 CMD_EQ_INFO = 0x0418             # SetCommandManager.p (mode 5 == query)
+CMD_GET_EQ_MODE = 0x010F         # PollCommandManager.j -> read the sound-effect/EQ mode
+CMD_GET_ALL_EQ_INFO = 0x0122     # PollCommandManager.d -> read the EQ preset/custom list
+CMD_SET_EQ_MODE = 0x0406         # SetCommandManager.n/.o -> write the sound-effect/EQ mode
 CMD_GET_REMOTE_CAPABILITY = 0x0100  # PollCommandManager.C -> device reports capability bitmap
 CMD_DETECT_FEATURE = 0x012A      # PollCommandManager.b  -> device reports one feature id + uint32 LE
 CMD_GET_STATUS_FEATURE = 0x0129  # PollCommandManager.I

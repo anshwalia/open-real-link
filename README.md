@@ -29,7 +29,8 @@ A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits o
 top of the read-side decoders. Because the protocol has no "read all settings"
 command, it polls the supported status commands and stores each raw reply;
 restore re-applies only the settings whose read and write forms are both
-recovered, and reports the rest as unrestorable rather than guessing. It is
+recovered (noise mode, key function, EQ mode, switch features), and reports the
+rest as unrestorable rather than guessing. It is
 exercised offline against fixtures.
 
 The transport and session layers are exercised offline against recorded fixtures
@@ -42,6 +43,7 @@ Verified on hardware (realme Buds Air7 Pro):
 | --- | --- |
 | Read active noise mode | Verified |
 | Set active noise mode | Verified end to end |
+| Read/write sound-effect (EQ) mode | Verified end to end |
 | Read battery, wear state, firmware, model, and use time | Verified |
 | Read capability bitmap → supported-command set | Verified |
 | Encode/decode parity with the reference codec | Verified (23,162 checks) |
@@ -131,6 +133,7 @@ Or drive a headset from the command line (run from a checkout):
 $ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF smoke      # read-only live check
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF eq          # read the EQ mode + list
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
