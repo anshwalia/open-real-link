@@ -7,10 +7,8 @@ test (`tests/test_protocol_docs.py`) fails if a payload builder or decoder is
 added to the library without being listed here.
 
 The protocol was recovered by static analysis of the realme Link Android app,
-then confirmed against a real Buds Air7 Pro over live SPP. The full
-reverse-engineering record — every command ID, decompiled method, and evidence
-item — lives in a separate, non-public analysis repository. Where this document
-and `tlcore` disagree, `tlcore` wins; where `tlcore` and the original reference
+then confirmed against a real Buds Air7 Pro over live SPP. Where this document
+and `tlcore` disagree, `tlcore` wins; where `tlcore` and an external reference
 codec disagree, the reference codec wins (see `tests/test_parity_tl_frame.py`).
 
 **Verification labels used throughout:**
@@ -195,6 +193,22 @@ Some recovered commands drive **loud, repeated test tones** in the wearer's ears
 Their IDs are recorded so traffic can be identified, but no builder or decoder is
 provided. Do not sweep unknown command space against a worn headset.
 
+### Known but not implemented
+
+Other recovered IDs have no builder or decoder either. They are recorded for
+identification; do not send them blind.
+
+| Command | Purpose | State |
+| --- | --- | --- |
+| `0x010D` | read switch/feature status (the read half of the `0x0403` pair) | observed: the Air7 Pro replies `0x810D 00 00` — status 0, an empty entry list |
+| `0x0403` | `setSwitchFeature` — set one boolean feature switch, payload `[featureId][0 or 1]` | known only |
+
+The Air7 Pro advertises the capability bit that gates `0x0403`/`0x010D`, yet
+reports no switch features, so its boolean toggles go through the dedicated set
+commands instead. The probe is recorded in [`live-test.md`](live-test.md). The
+full known-vs-implemented command catalogue is in
+[`command-coverage.md`](command-coverage.md).
+
 ## 8. Reading device state
 
 Device state arrives two ways and both share the same TLV shapes, so the parsers
@@ -290,7 +304,7 @@ against a real headset, follow [`live-test.md`](live-test.md).
 ## 11. What this document does not cover
 
 The remaining command IDs (OTA `0x03xx`, most `0x04xx` settings, most payload
-layouts) are recovered but not transcribed or implemented. They are catalogued in
-the analysis repository; nothing about them is claimed here. `tlcore` is the
-authority for what is and is not implemented, and the drift-guard test keeps this
-document honest.
+layouts) are recovered but not transcribed or implemented. They are all
+tabulated row by row in [`command-coverage.md`](command-coverage.md); nothing
+about them is claimed here. `tlcore` is the authority for what is and is not
+implemented, and the drift-guard test keeps this document honest.

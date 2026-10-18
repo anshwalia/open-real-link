@@ -1,8 +1,8 @@
 """TL command IDs, manager classes and the capability bitmap.
 
-Ported verbatim from the verified reference codec
-(``the reference codec``).  Pure data and pure functions: no I/O,
-no platform imports.  This is what keeps ``tlcore`` portable.
+Pure data and pure functions: no I/O, no platform imports.  This is what keeps
+``tlcore`` portable.  The tables were recovered by static analysis of the vendor
+app; ``tests/parity_*`` cross-checks them against an external reference codec.
 
 The capability bitmap is the real answer to "what does this device support" --
 see :func:`parse_capabilities`.

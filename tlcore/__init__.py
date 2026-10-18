@@ -14,9 +14,9 @@ Layering, innermost first::
     payloads.py   payload builders for the commands recovered in full
     decoders.py   battery / wear / use-time / events / capability bodies
 
-Everything here is a port of ``the reference codec``, which was
-validated against a real Buds Air7 Pro over live SPP.  ``tests/parity_*`` checks
-that the port still emits identical bytes.
+Everything here was validated against a real Buds Air7 Pro over live SPP.  The
+``tests/parity_*`` harness cross-checks the codec against an external reference
+codec supplied via ``TL_REFERENCE`` and fails if the bytes ever diverge.
 """
 
 from __future__ import annotations

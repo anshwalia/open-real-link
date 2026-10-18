@@ -185,6 +185,23 @@ restored 0x01 (Normal (noise off))
 RESULT: OK
 ```
 
+### Feature-switch probe (read-only)
+
+`0x010D` is the read half of the switch/feature pair (`0x0403` writes it). On
+the Air7 Pro it comes back empty:
+
+```console
+$ python3 -m tlcli --address <device> --reset send 0x010D --read 1.5
+tx 0x010D PollCommandManager       []  (1 frame(s))
+  0x810D  PollCommandManager       len=2    [00 00]
+```
+
+Status 0 with **zero entries**: the unit advertises the capability bit but
+exposes no switch features, and `0x0129 getStatusFeature` went unanswered. Its
+boolean toggles therefore go through the dedicated set commands, not `0x0403`.
+The same read also pulls the multi-point paired-device list over a `0x0204`
+push (not shown).
+
 ## 6. What to record
 
 Copy the `smoke` output into the issue or commit message. A successful run

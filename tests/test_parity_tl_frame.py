@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Byte-for-byte parity between ``tlcore`` and the reference codec it came from.
+"""Byte-for-byte parity between ``tlcore`` and an external reference codec.
 
-``tlcore`` is a port of ``the reference codec`` -- the artifact
-that was actually validated against a real Buds Air7 Pro over live SPP.  A port
-that merely *looks* right is worthless: this harness is the proof that it still
-produces identical bytes, on real recorded traffic as well as synthetic input.
+``tlcore`` was ported from a reference codec that was validated against a real
+Buds Air7 Pro over live SPP.  A port that merely *looks* right is worthless:
+this harness is the proof that it still produces identical bytes, on real
+recorded traffic as well as synthetic input.
 
-This is the only file in the repository permitted to import both.  Once the port
-is trusted it can be frozen as a historical check; until then it is the gate.
+The reference codec is not part of this repository; point the harness at it with
+``TL_REFERENCE``.  This is the only file permitted to import both.  Once the
+port is trusted it can be frozen as a historical check; until then it is the
+gate.
 
-    python3 tests/test_parity_tl_frame.py
     TL_REFERENCE=/path/to/tl_frame.py python3 tests/test_parity_tl_frame.py
 """
 
@@ -26,10 +27,10 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-DEFAULT_REFERENCE = (
-    pathlib.Path.home() / "repos" / "the analysis repository" / "tools" / "tl_frame.py"
-)
-REFERENCE_PATH = pathlib.Path(os.environ.get("TL_REFERENCE", DEFAULT_REFERENCE))
+# The reference codec is supplied out of tree via TL_REFERENCE; the repository
+# does not vendor it or record where it lives.
+_reference = os.environ.get("TL_REFERENCE")
+REFERENCE_PATH = pathlib.Path(_reference) if _reference else None
 FIXTURES = ROOT / "fixtures"
 
 FAILURES: list[str] = []
@@ -466,6 +467,10 @@ def parity_golden_write(ref, core) -> None:
 
 
 def main() -> int:
+    if REFERENCE_PATH is None:
+        print("TL_REFERENCE is not set; skipping the parity check.")
+        print("Set TL_REFERENCE=/path/to/tl_frame.py to run it against the reference codec.")
+        return 0
     ref = load_reference(REFERENCE_PATH)
     import tlcore
     from tlcore import payloads, wire

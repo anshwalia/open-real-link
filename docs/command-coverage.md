@@ -1,0 +1,113 @@
+# Command coverage — every known TL ID vs. what `open-real-link` does
+
+The full recovered TL command catalogue, cross-referenced against the
+`open-real-link` implementation. It answers one question per row: *is this
+ID implemented here, and does an Air7 Pro accept it?*
+
+The command catalogue was recovered by static analysis of the realme Link Android
+app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
+what is implemented; `docs/protocol.md` describes that surface.
+
+**81 known request IDs**, **14 implemented** in `open-real-link`,
+**67 not implemented**; an Air7 Pro advertises **49** of them
+(capability bitmap `00bf4f5ae665dc4004`).
+
+## Legend
+
+| Column | Meaning |
+| --- | --- |
+| **open-real-link** | `build` = payload builder, `send` = sent by `Session`/`tlcli`, `decode` = reply/push decoder; `—` = not implemented |
+| **Air7 Pro** | `live` = enabled by this unit's capability bitmap; `—` = not enabled |
+| **gating** | `always-on`, `cap-bit N` (enabled when capability bit N is set), or `ungated` |
+
+## Full catalogue
+
+| cmd | dec | family | gating | open-real-link | Air7 Pro | observed name |
+|---|---:|---|---|---|---|:--:|---|
+| `0x0100` | 256 | poll | always-on | send + decode | live | getRemoteCapability/getStatusFeature |
+| `0x0101` | 257 | poll | always-on | send | live | getDeviceVersion, getProperty |
+| `0x0102` | 258 | poll | always-on | — | live | — |
+| `0x0103` | 259 | poll | always-on | send + decode | live | — |
+| `0x0104` | 260 | poll | always-on | — | live | getDeviceVersion, getProperty |
+| `0x0105` | 261 | poll | cap-bit 0 | send + decode | live | — |
+| `0x0106` | 262 | poll | cap-bit 1 | send + decode | live | — |
+| `0x0107` | 263 | poll | cap-bit 2 | — | live | — |
+| `0x0108` | 264 | poll | cap-bit 3 | — | live | — |
+| `0x0109` | 265 | poll | cap-bit 4 | send + decode | live | — |
+| `0x010b` | 267 | poll | always-on | — | live | — |
+| `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
+| `0x010d` | 269 | poll | cap-bit 7 | — | live | — |
+| `0x010f` | 271 | poll | cap-bit 10 | — | live | — |
+| `0x0110` | 272 | poll | cap-bit 11 | — | live | — |
+| `0x0111` | 273 | poll | cap-bit 15 | — | — | — |
+| `0x0112` | 274 | poll | cap-bit 29 | — | live | — |
+| `0x0115` | 277 | poll | cap-bit 19 | — | live | — |
+| `0x0116` | 278 | poll | cap-bit 19 | — | live | — |
+| `0x0118` | 280 | poll | cap-bit 25 | — | live | getEarRestoreData |
+| `0x011a` | 282 | poll | cap-bit 26 | — | live | — |
+| `0x011e` | 286 | poll | cap-bit 30 | — | live | getEarScanData |
+| `0x011f` | 287 | poll | cap-bit 30 | — | live | getEarScanFilterData |
+| `0x0120` | 288 | poll | cap-bit 32 | — | live | getEarLanguageData |
+| `0x0122` | 290 | poll | cap-bit 34 | decode | live | getAllEqInfo |
+| `0x0124` | 292 | poll | cap-bit 38 | — | live | — |
+| `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
+| `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
+| `0x012a` | 298 | poll | ungated | decode | — | detectFeature (capability report) |
+| `0x012c` | 300 | poll | cap-bit 54 | — | live | startSocketConnect |
+| `0x0131` | 305 | poll | cap-bit 58 | — | live | — |
+| `0x0200` | 512 | notify | ungated | — | — | getNotificationCapabilities |
+| `0x0201` | 513 | notify | ungated | — | — | — |
+| `0x0202` | 514 | notify | ungated | — | — | registerNotification |
+| `0x0203` | 515 | notify | ungated | — | — | cancelRegisterNotification |
+| `0x0204` | 516 | notify | ungated | decode | — | — |
+| `0x0205` | 517 | notify | cap-bit 22 | — | live | registerMultiNotification |
+| `0x0300` | 768 | OTA | ungated | — | — | — |
+| `0x0301` | 769 | OTA | ungated | — | — | — |
+| `0x0302` | 770 | OTA | ungated | — | — | readSize |
+| `0x0303` | 771 | OTA | ungated | — | — | readSize |
+| `0x0304` | 772 | OTA | ungated | — | — | — |
+| `0x0305` | 773 | OTA | ungated | — | — | — |
+| `0x0306` | 774 | OTA | ungated | — | — | — |
+| `0x0307` | 775 | OTA | ungated | — | — | — |
+| `0x0308` | 776 | OTA | ungated | — | — | — |
+| `0x0400` | 1024 | set | cap-bit 5 | — | live | — |
+| `0x0401` | 1025 | set | cap-bit 3 | build | live | setKeyFunction |
+| `0x0402` | 1026 | set | cap-bit 6 | — | — | — |
+| `0x0403` | 1027 | set | cap-bit 7 | — | live | setSwitchFeature |
+| `0x0404` | 1028 | set | cap-bit 8 | build + send | live | SetNoiseReduction |
+| `0x0405` | 1029 | set | cap-bit 9 | — | live | — |
+| `0x0406` | 1030 | set | cap-bit 10 | — | live | setEQStatus |
+| `0x0407` | 1031 | set | cap-bit 11 | — | live | setHighVolume |
+| `0x0408` | 1032 | set | cap-bit 13 | — | — | — |
+| `0x0409` | 1033 | set | cap-bit 14 | — | live | — |
+| `0x040a` | 1034 | set | cap-bit 15 | — | — | setAutoPowerOffTime |
+| `0x040b` | 1035 | set | cap-bit 29 | — | live | setMultiConnectAction |
+| `0x040d` | 1037 | set | cap-bit 19 | — | live | — |
+| `0x040e` | 1038 | set | cap-bit 19 | — | live | switchProcessHearingDetectionParams |
+| `0x0411` | 1041 | set | cap-bit 25 | — | live | setRestoreData |
+| `0x0412` | 1042 | set | cap-bit 26 | — | live | setPersonalizedNoiseReduction |
+| `0x0415` | 1045 | set | cap-bit 30 | — | live | sendProcessEarScanData |
+| `0x0418` | 1048 | set | cap-bit 34 | build | live | getDbValue, getFrequency, setEqInfo |
+| `0x041b` | 1051 | set | cap-bit 38 | — | live | setBassEngineValue |
+| `0x041e` | 1054 | set | cap-bit 43 | — | live | setSpatialAudioType |
+| `0x0428` | 1064 | set | cap-bit 58 | — | live | setTranslationAppStatus |
+| `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
+| `0x0500` | 1280 | device->app | ungated | — | — | — |
+| `0x0502` | 1282 | device->app | ungated | — | — | — |
+| `0x0503` | 1283 | device->app | ungated | — | — | — |
+| `0x0504` | 1284 | device->app | ungated | — | — | — |
+| `0x0506` | 1286 | device->app | ungated | — | — | — |
+| `0x0508` | 1288 | device->app | ungated | — | — | — |
+| `0x050e` | 1294 | device->app | cap-bit 46 | — | live | — |
+| `0x0516` | 1302 | device->app | ungated | — | — | — |
+| `0x0f00` | 3840 | debug | always-on | — | live | switchDebugStatus |
+| `0x0f01` | 3841 | debug | ungated | — | — | — |
+| `0x0f02` | 3842 | debug | ungated | — | — | — |
+| `0x079a` | 1946 | misc | ungated | — | — | — |
+| `0x7f00` | 32512 | misc | ungated | — | — | — |
+
+## Safety
+
+`0x011E`, `0x011F`, `0x040E` and `0x0415` (the hearing-test / ear-scan family)
+drive **loud, repeated test tones**. They are live on this unit and are
+deliberately left unimplemented. Do not sweep them.

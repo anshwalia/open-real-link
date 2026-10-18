@@ -147,6 +147,8 @@ Additional documentation lives in [`docs/`](docs/):
 
 - [`protocol.md`](docs/protocol.md) — the wire format, command set, and which
   commands are implemented and verified
+- [`command-coverage.md`](docs/command-coverage.md) — every known TL command ID,
+  with what `open-real-link` implements and what an Air7 Pro accepts
 - [`live-test.md`](docs/live-test.md) — running against real hardware
 - [`architecture.md`](docs/architecture.md) — component layers and library/app split
 - [`stack.md`](docs/stack.md) — implementation stack
