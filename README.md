@@ -1,53 +1,43 @@
-# OpenRealLink
+# open-real-link
 
-App-free control of **realme / OPPO "TL" Bluetooth headsets** — the protocol
+App-free control of **realme / OPPO Bluetooth headsets** over the "TL" protocol,
 recovered by reverse engineering the realme Link Android app.
 
-> **Not affiliated with, endorsed by, or supported by realme or OPPO.** "realme",
-> "OPPO" and "realme Link" are trademarks of their respective owners and are used
-> here only to say what this software interoperates with. No vendor code, binary
-> or asset is redistributed.
+> **Not affiliated with, endorsed by, or supported by realme or OPPO.**
+> "realme", "OPPO" and "realme Link" are trademarks of their respective owners
+> and are used here only to describe what this software interoperates with. No
+> vendor code, binary, or asset is redistributed.
 
-## Naming
+## Overview
 
-| | |
-|---|---|
-| distribution | **`open-real-link`** |
-| import | **`tlcore`** |
+`open-real-link` talks to realme/OPPO TL-series earbuds directly over Bluetooth
+Classic RFCOMM/SPP — the same channel the official app uses — so the headset can
+be controlled without the vendor app, an account, or a phone.
 
-They differ on purpose. The distribution name is the public, searchable identity
-and must not present a vendor trademark as its own; the import name is a short,
-stable namespace that sits next to the vendor's own `com.realme.iot.headset.tl`
-package, so a line in the port can be traced back to the class it came from
-without a lookup table. Sibling layers follow the same prefix: `tltransport`,
-`tlcli`.
-
-See [`docs/architecture.md`](docs/architecture.md) §8 for why `tlv`, `tls`, `tl`
-and the other obvious candidates were rejected.
-
-`TL` is never expanded in the vendor's code, so it is not expanded here either.
+The protocol core, `tlcore`, is complete and verified: it produces and parses
+the same bytes as a reference implementation that was validated on real
+hardware. Platform transports and the command-line front end are not yet
+implemented; `tlcore` is currently used as a library.
 
 ## Status
 
-**The protocol core is done; the apps are not.** `tlcore` is ported and verified
-byte-for-byte against the reference codec that was validated on air, and no
-headset control requires anything that is missing from it. What follows is
-transport and UI work, in that order.
+`tlcore` is complete and byte-for-byte verified. Platform transports and user
+interfaces are still to be built.
 
-What is proven today, on hardware:
+Verified on hardware (realme Buds Air7 Pro):
 
-| | |
-|---|---|
-| read noise mode | ✅ |
-| **write** noise mode | ✅ — verified end to end on a Buds Air7 Pro |
-| read battery / wear / firmware / model / use-time | ✅ |
-| capability bitmap → supported-command set | ✅ |
-| encode/decode parity with the validated reference codec | ✅ 23,162 assertions |
+| Capability | Status |
+| --- | --- |
+| Read active noise mode | Verified |
+| Set active noise mode | Verified end to end |
+| Read battery, wear state, firmware, model, and use time | Verified |
+| Read capability bitmap → supported-command set | Verified |
+| Encode/decode parity with the reference codec | Verified (23,162 checks) |
 
-The six-value noise vocabulary, confirmed **by ear** on the target device:
+Noise-mode values, confirmed by listening on the target device:
 
-| value | mode |
-|---|---|
+| Value | Mode |
+| --- | --- |
 | `0x01` | Normal (noise off) |
 | `0x02` | Transparency |
 | `0x04` | ANC light |
@@ -55,53 +45,98 @@ The six-value noise vocabulary, confirmed **by ear** on the target device:
 | `0x10` | ANC medium |
 | `0x20` | ANC smart (adaptive) |
 
-> A mode write is **accepted only while the buds are worn** (in-ear). Otherwise
-> the device answers `0x8404 0e`. Read-back is authoritative; the asynchronous
-> `0x0204` push is racy and is treated as a hint only.
+> A mode change is accepted only while the earbuds are worn. Otherwise the
+> device rejects it. Always read the mode back to confirm the change; the
+> asynchronous status push can arrive out of order and should be treated as a
+> hint, not the source of truth.
 
-## Scope
+## Compatibility
 
-The Buds Air7 Pro speaks **Bluetooth Classic RFCOMM/SPP only** — there is no
-BLE/GATT control key for this model, and that was established by experiment, not
-assumption. So this works on **macOS, Windows, Linux and Android**, and cannot
-work on iOS or in a browser. macOS is the first target; the stack decision and
-its reasoning are in [`docs/stack.md`](docs/stack.md).
+The TL protocol runs over Bluetooth Classic RFCOMM/SPP. Because SPP is available
+on **macOS, Windows, Linux, and Android**, the protocol can be driven on any of
+them; it cannot work on iOS or in a web browser, which do not expose SPP. No
+platform transport is implemented yet; macOS is the intended first target.
 
 ## Safety
 
-Some recovered commands drive **loud, repeated test tones** in the wearer's ears
-— the hearing-test and ear-scan family. Those are documented and deliberately
-**not** implemented. Do not blind-sweep command space against a headset somebody
-is wearing; if you extend this, gate writes behind an explicit opt-in.
+Some commands recovered during reverse engineering drive **loud, repeated test
+tones** in the wearer's ears (the hearing-test and ear-scan family). Their
+command IDs are recorded in `tlcore` for identification, but no payload builder
+or decoder is provided for them. Do not sweep unknown commands against a headset
+that is being worn; any extension of this project should gate writes behind an
+explicit opt-in.
+
+## Installation
+
+The package is **not yet published to PyPI**. Install from source:
+
+```console
+$ git clone https://github.com/anshwalia/open-real-link.git
+$ cd open-real-link
+$ pip install .
+```
+
+The protocol core has no dependencies and imports no platform-specific module,
+so it can be used and tested anywhere, including against recorded captures.
+
+The planned platform transports ship as optional extras, installed the same way:
+
+```console
+$ pip install ".[macos]"   # macOS
+$ pip install ".[linux]"   # Linux
+```
+
+For development (editable install plus test and lint tools):
+
+```console
+$ pip install -e ".[dev]"
+```
 
 ## Quick start
 
 ```console
-$ pip install open-real-link
 $ python -c "import tlcore; print(tlcore.NOISE_MODE_NAMES)"
 {1: 'Normal (noise off)', 2: 'Transparency', 4: 'ANC light', 8: 'ANC deep', 16: 'ANC medium', 32: 'ANC smart'}
 ```
 
-`tlcore` is pure protocol: it has **no dependencies** and imports no platform
-module, so it can be exercised against recorded captures anywhere.
+Build a command and frame it for the device:
 
-## Layout
+```python
+import tlcore
 
-| path | what |
-|---|---|
-| `tlcore/` | protocol core — framing, packets, commands, payloads, decoders |
-| `tltransport/` | per-platform byte movers (macOS IOBluetooth first) |
-| `tlcli/` | command-line front end |
-| `fixtures/` | recorded device traffic, used as golden test input |
-| `tests/` | parity harness against the validated reference codec, plus the
-core-purity check |
-| `docs/` | [`architecture.md`](docs/architecture.md) — the library/app split and
-naming; [`stack.md`](docs/stack.md) — the stack decision |
+packet = tlcore.build_packet(
+    tlcore.CMD_SET_NOISE_REDUCTION,
+    tlcore.payload_set_noise_mode(tlcore.NOISE_MODE_ANC),
+)
+for frame in tlcore.build_frames(packet, max_frame_size=512):
+    ...  # write frame to the transport, ~10 ms apart for the Air7 Pro
+```
+
+## Project layout
+
+| Path | Contents |
+| --- | --- |
+| `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders |
+| `tltransport/` | Per-platform transports (macOS planned) — not yet implemented |
+| `tlcli/` | Command-line front end — not yet implemented |
+| `fixtures/` | Recorded device traffic used as golden test input |
+| `tests/` | Verification against the validated reference codec |
+| `docs/` | Design and architecture notes |
+
+## Documentation
+
+Additional design notes live in [`docs/`](docs/):
+
+- [`architecture.md`](docs/architecture.md) — component layers and library/app split
+- [`stack.md`](docs/stack.md) — implementation stack
 
 ## Provenance
 
-Built by **static** analysis of a shipped APK plus controlled live traffic from a
-device the author owns. The vendor app itself was never executed, and it requires
-a mandatory account login, which this project does not and will not have.
+Built from static analysis of a shipped APK together with controlled live
+traffic from a device owned by the author. The vendor app itself was never
+executed and requires a mandatory account login, which this project does not
+use and will not require.
 
-Licensed **GPL-3.0-or-later** — see [`LICENSE`](LICENSE).
+## License
+
+Licensed under **GPL-3.0-or-later** — see [`LICENSE`](LICENSE).
