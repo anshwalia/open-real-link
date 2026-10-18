@@ -25,6 +25,13 @@ see [Status](#status) below.
 replay transport, and a command-line front end are implemented; the graphical
 application is still to be built.
 
+A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits on
+top of the read-side decoders. Because the protocol has no "read all settings"
+command, it polls the supported status commands and stores each raw reply;
+restore re-applies only the settings whose read and write forms are both
+recovered, and reports the rest as unrestorable rather than guessing. It is
+exercised offline against fixtures.
+
 The transport and session layers are exercised offline against recorded fixtures
 (`tests/test_transport_and_session.py`), and the macOS transport has been run
 end to end against a real Buds Air7 Pro (`python -m tlcli smoke`, 2026-10-18).
@@ -125,6 +132,8 @@ $ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF smoke      # read-only live check
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
 ```
 
 See [`docs/live-test.md`](docs/live-test.md) for a hardware runbook and
@@ -134,7 +143,7 @@ troubleshooting.
 
 | Path | Contents |
 | --- | --- |
-| `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders |
+| `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders, backup/restore |
 | `tltransport/` | `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport` (offline) |
 | `tlcli/` | Command-line front end, `python -m tlcli` |
 | `fixtures/` | Recorded device traffic used as golden test input |

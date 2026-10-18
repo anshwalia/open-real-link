@@ -202,6 +202,33 @@ boolean toggles therefore go through the dedicated set commands, not `0x0403`.
 The same read also pulls the multi-point paired-device list over a `0x0204`
 push (not shown).
 
+### Backup and restore
+
+`backup` is read-only and can be run at any time:
+
+```console
+$ python3 -m tlcli --address <device> --reset backup settings.json
+backup written to settings.json
+  device    : {'model': '0x064C12', 'firmware': ['1.1.0.85']}
+  captured  : 12 responses
+  restorable: key_function, noise_mode
+```
+
+`restore --dry-run` prints the plan without sending a write; `restore` then
+re-applies the symmetric settings and reports everything else as `not_restored`:
+
+```console
+$ python3 -m tlcli --address <device> --reset restore --dry-run settings.json
+  [DRY-RUN] noise_mode
+  [DRY-RUN] key_function
+  [SKIP]    eq_info (captured, no restorer)
+```
+
+Of the three restorable settings, only the **noise-mode write has been verified
+live end to end** (above); the key-function and switch-feature writes are
+covered offline by `tests/test_transport_and_session.py`. As always, a noise
+write requires the buds to be **worn** (§2).
+
 ## 6. What to record
 
 Copy the `smoke` output into the issue or commit message. A successful run

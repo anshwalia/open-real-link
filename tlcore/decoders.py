@@ -195,6 +195,35 @@ def parse_eq_info(payload: bytes) -> dict:
     return {"status": payload[0], "count": count, "entries": entries}
 
 
+def parse_key_function(payload: bytes) -> dict:
+    """``0x8108``: ``[status][count] + 4 bytes per entry`` -- the gesture table.
+
+    The same 4-byte records are what ``0x0401 setKeyFunction`` writes, so the
+    body **minus the status byte** is a valid ``0x0401`` payload and can be
+    replayed to restore the mapping (see :mod:`tlcore.backup`).
+    """
+    if len(payload) < 2:
+        return {"status": payload[0] if payload else 0, "count": 0, "records": []}
+    count = payload[1]
+    records = [payload[2 + 4 * i:6 + 4 * i].hex() for i in range(count)
+               if 6 + 4 * i <= len(payload)]
+    return {"status": payload[0], "count": count, "records": records}
+
+
+def parse_switch_features(payload: bytes) -> dict:
+    """``0x810D``: ``[status][count] + (feature, enabled) x count``.
+
+    Pairs with the write ``0x0403 setSwitchFeature`` (``[feature][enabled]``).
+    The Air7 Pro reports ``count 0`` -- it advertises the capability but exposes
+    no switch features (see ``docs/live-test.md``).
+    """
+    status, pairs = parse_pairs(payload)
+    return {
+        "status": status,
+        "entries": [{"feature": f, "enabled": v} for f, v in pairs],
+    }
+
+
 #: command id -> decoder, for the state bodies we actually understand.
 #: Used by the CLI to decode a poll reply or a push without a switch statement.
 STATE_DECODERS = {
@@ -205,6 +234,8 @@ STATE_DECODERS = {
     0x8105: parse_device_version,
     0x8122: parse_eq_info,
     0x812A: parse_feature_detect,
+    0x8108: parse_key_function,
+    0x810D: parse_switch_features,
 }
 
 

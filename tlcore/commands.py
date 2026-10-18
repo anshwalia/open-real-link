@@ -34,6 +34,7 @@ CMD_NOTIFICATION_CAPS = 0x0200   # NotificationCommandManager.b
 CMD_REGISTER_NOTIFICATION = 0x0202   # NotificationCommandManager.c
 CMD_CANCEL_REGISTER_NOTIFICATION = 0x0203  # NotificationCommandManager.a
 CMD_SET_KEY_FUNCTION = 0x0401    # SetCommandManager.s
+CMD_SET_SWITCH_FEATURE = 0x0403  # SetCommandManager.y -> setSwitchFeature
 CMD_SET_NOISE_REDUCTION = 0x0404  # SetCommandManager.a
 CMD_EQ_INFO = 0x0418             # SetCommandManager.p (mode 5 == query)
 CMD_GET_REMOTE_CAPABILITY = 0x0100  # PollCommandManager.C -> device reports capability bitmap

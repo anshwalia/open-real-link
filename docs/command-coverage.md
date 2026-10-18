@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**81 known request IDs**, **14 implemented** in `open-real-link`,
-**67 not implemented**; an Air7 Pro advertises **49** of them
+**81 known request IDs**, **17 implemented** in `open-real-link`,
+**64 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -32,11 +32,11 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0105` | 261 | poll | cap-bit 0 | send + decode | live | — |
 | `0x0106` | 262 | poll | cap-bit 1 | send + decode | live | — |
 | `0x0107` | 263 | poll | cap-bit 2 | — | live | — |
-| `0x0108` | 264 | poll | cap-bit 3 | — | live | — |
+| `0x0108` | 264 | poll | cap-bit 3 | send + decode | live | — |
 | `0x0109` | 265 | poll | cap-bit 4 | send + decode | live | — |
 | `0x010b` | 267 | poll | always-on | — | live | — |
 | `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
-| `0x010d` | 269 | poll | cap-bit 7 | — | live | — |
+| `0x010d` | 269 | poll | cap-bit 7 | send + decode | live | — |
 | `0x010f` | 271 | poll | cap-bit 10 | — | live | — |
 | `0x0110` | 272 | poll | cap-bit 11 | — | live | — |
 | `0x0111` | 273 | poll | cap-bit 15 | — | — | — |
@@ -73,7 +73,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0400` | 1024 | set | cap-bit 5 | — | live | — |
 | `0x0401` | 1025 | set | cap-bit 3 | build | live | setKeyFunction |
 | `0x0402` | 1026 | set | cap-bit 6 | — | — | — |
-| `0x0403` | 1027 | set | cap-bit 7 | — | live | setSwitchFeature |
+| `0x0403` | 1027 | set | cap-bit 7 | build + send | live | setSwitchFeature |
 | `0x0404` | 1028 | set | cap-bit 8 | build + send | live | SetNoiseReduction |
 | `0x0405` | 1029 | set | cap-bit 9 | — | live | — |
 | `0x0406` | 1030 | set | cap-bit 10 | — | live | setEQStatus |
@@ -111,3 +111,18 @@ what is implemented; `docs/protocol.md` describes that surface.
 `0x011E`, `0x011F`, `0x040E` and `0x0415` (the hearing-test / ear-scan family)
 drive **loud, repeated test tones**. They are live on this unit and are
 deliberately left unimplemented. Do not sweep them.
+
+## Backup and restore coverage
+
+`tlcore.backup.capture` reads every supported poll command above and stores the
+raw reply. `tlcore.backup.restore` writes back only the settings that are both
+recovered and symmetric end to end:
+
+| setting | read | write |
+| --- | --- | --- |
+| noise mode | `0x010C` sel `1` | `0x0404` action `1` |
+| key function | `0x0108` | `0x0401` |
+| switch features | `0x010D` | `0x0403` |
+
+Everything else is captured but reported `not_restored` (payload value
+semantics not recovered).

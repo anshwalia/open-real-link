@@ -188,6 +188,48 @@ def cmd_info(args) -> int:
     return 0
 
 
+def cmd_backup(args) -> int:
+    """Capture the device's user settings into a JSON snapshot."""
+    transport, session = open_session(args)
+    try:
+        snapshot = t.capture(session)
+    finally:
+        transport.close()
+    text = json.dumps(snapshot, indent=2)
+    if args.file == "-":
+        print(text)
+        return 0
+    pathlib.Path(args.file).write_text(text + "\n")
+    print(f"backup written to {args.file}")
+    print(f"  device    : {snapshot['device']}")
+    print(f"  captured  : {len(snapshot['raw'])} responses")
+    print(f"  restorable: {', '.join(sorted(snapshot['settings'])) or 'none'}")
+    if snapshot["skipped"]:
+        print(f"  skipped   : {len(snapshot['skipped'])}")
+    return 0
+
+
+def cmd_restore(args) -> int:
+    """Re-apply the restorable user settings from a backup snapshot."""
+    data = json.loads(pathlib.Path(args.file).read_text())
+    transport, session = open_session(args)
+    try:
+        report = t.restore(session, data, dry_run=args.dry_run)
+    finally:
+        transport.close()
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+    for item in report["applied"]:
+        tag = "DRY-RUN" if item.get("dry_run") else "APPLIED"
+        print(f"  [{tag}] {item['setting']}")
+    for item in report["not_restored"]:
+        print(f"  [SKIP]    {item['setting']} ({item['reason']})")
+    if not report["applied"]:
+        print("(nothing to restore)")
+    return 0
+
+
 #: Canonical order for the ``mode cycle`` hardware test.
 MODE_CYCLE = (
     t.NOISE_MODE_NORMAL, t.NOISE_MODE_TRANSPARENCY, t.NOISE_MODE_ANC_LIGHT,
@@ -474,6 +516,18 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("info", parents=[common],
                        help="read model, firmware, battery, wear, mode, use time")
     p.set_defaults(func=cmd_info)
+
+    p = sub.add_parser("backup", parents=[common],
+                       help="capture the device's user settings into JSON")
+    p.add_argument("file", help="output file, or '-' for stdout")
+    p.set_defaults(func=cmd_backup)
+
+    p = sub.add_parser("restore", parents=[common],
+                       help="re-apply user settings from a backup file")
+    p.add_argument("file", help="backup file to read")
+    p.add_argument("--dry-run", action="store_true",
+                   help="report what would be applied without writing")
+    p.set_defaults(func=cmd_restore)
 
     p = sub.add_parser("mode", help="get or set the active noise mode", parents=[common])
     p.add_argument("mode_args", nargs="*", metavar="VALUE",

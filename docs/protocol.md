@@ -176,6 +176,8 @@ are “known only” and are listed for identification only.
 | `0x8103` | model id | — | `parse_model_id` | verified |
 | `0x8105` | firmware / component versions | — | `parse_device_version` | verified |
 | `0x8122` | EQ info | — | `parse_eq_info` | verified |
+| `0x8108` | key-function / gesture table | — | `parse_key_function` | integrated |
+| `0x810D` | switch / feature status | — | `parse_switch_features` | integrated |
 
 Shared decoders that are not tied to one command:
 
@@ -300,6 +302,31 @@ $ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
 The replay transport means the entire stack can be exercised with no device
 present, which is how `tests/test_transport_and_session.py` runs in CI. To run
 against a real headset, follow [`live-test.md`](live-test.md).
+
+### Backup and restore
+
+`tlcore.backup` turns the above into a settings backup. There is no single
+"read all settings" command, so, like the vendor app, it negotiates the
+capability bitmap and polls a curated set of status commands, storing each raw
+reply:
+
+```python
+import tlcore
+
+snapshot = tlcore.capture(session)          # reads; safe
+report = tlcore.restore(session, snapshot)  # writes only what it can
+```
+
+Restore re-applies the three settings whose read and write forms are recovered
+and symmetric -- **noise mode** (`0x010C`/`0x0404`), **key function**
+(`0x0108`/`0x0401`), **switch features** (`0x010D`/`0x0403`) -- and reports the
+rest as `not_restored` rather than guessing at payloads it does not know.
+
+```console
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF restore settings.json
+```
 
 ## 11. What this document does not cover
 

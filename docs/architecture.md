@@ -223,13 +223,15 @@ discoverability by project name for discoverability by protocol name.
 1. **`tlcore`** — **done.** Ported from the validated reference by range
    extraction, verified byte-for-byte against it (23,162 checks, `PARITY: OK`),
    no dependencies, no platform imports. `session.py` adds the request/response
-   state machine.
+   state machine, and `backup.py` adds settings backup/restore on top of the
+   read-side decoders.
 2. **`tltransport`** — **done.** `macos.py` fitted to the six-method contract in
    §3, and `replay.py` over `fixtures/*.jsonl`, which needs no hardware at all.
    The macOS transport has been run end to end from this codebase on a device
    (read-only `smoke` plus the six-mode write, see [`live-test.md`](live-test.md)).
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
-   hardware test harness. Run it from a checkout with `python -m tlcli`.
+   hardware test harness. Run it from a checkout with `python -m tlcli`
+   (`info`, `mode`, `smoke`, `send`, and `backup`/`restore`).
 4. **PySide6 app** — **next.** scan/pair, connect, noise selector, battery/wear,
    capability view, EQ, paired list, raw console.
 

@@ -123,6 +123,120 @@ def test_mode_cycle_fixture() -> None:
     check("push events were collected", any(p["cmd"] == 0x0204 for p in session.events), True)
 
 
+# -- backup / restore ------------------------------------------------------
+def _canned_replies() -> dict:
+    return {
+        (0x0101, b""): "00c008",
+        (0x0103, b""): "00124c06",
+        (0x0104, b""): "00000001",
+        (0x0105, b""): "00" + b"1,1,111,1,2,1.1.0.85".hex(),
+        (0x0107, b""): "00010103",
+        (0x0108, b""): "0002" + "02010100" + "02010201",
+        (0x010B, b""): "0006",
+        (0x010C, b"\x01"): "00010101",
+        (0x010C, b"\x02"): "00020110",
+        (0x010D, b""): "0000",
+        (0x010F, b""): "0004",
+        (0x0110, b""): "0001",
+        (0x0112, b""): "0001ff",
+        (0x0118, b""): "0001012c00",
+        (0x011A, b""): "0000",
+        (0x0122, b""): "0001010102040000",
+        (0x0124, b""): "0000",
+        (0x0131, b""): "000000",
+    }
+
+
+def _backup_records(canned, bitmap="00bf4f5ae665dc4004") -> list:
+    supported = set(t.parse_capabilities(bytes.fromhex(bitmap))["commands"]) | set(t.ALWAYS_ON)
+    records = [("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(bitmap)))]
+    for cmd, payload, _key in t.READ_PLAN:
+        if cmd not in supported:
+            continue
+        records.append(("tx", wire(cmd, payload)))
+        records.append(("rx", wire(cmd | 0x8000, bytes.fromhex(canned[(cmd, payload)]))))
+    return records
+
+
+def test_backup_restore() -> None:
+    canned = _canned_replies()
+    transport, session = replay(_backup_records(canned))
+    snapshot = t.capture(session)
+
+    check("backup format", snapshot["format"], t.BACKUP_FORMAT)
+    check("backup model", snapshot["device"]["model"], "0x064C12")
+    check("backup firmware", snapshot["device"]["firmware"], ["1.1.0.85"])
+    check("backup noise mode", snapshot["settings"]["noise_mode"], 1)
+    check("backup key-function payload", snapshot["settings"]["key_function"],
+          "02" + "02010100" + "02010201")
+    check("backup switch features", snapshot["settings"]["switch_features"], [])
+    check("backup raw captured 0x0108", snapshot["raw"]["key_function"]["reply"],
+          "0002" + "02010100" + "02010201")
+    check("decode 0x8108", t.parse_key_function(
+        bytes.fromhex(snapshot["raw"]["key_function"]["reply"]))["count"], 2)
+
+    kf_payload = bytes.fromhex(snapshot["settings"]["key_function"])
+    records = [("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+               ("tx", wire(0x0404, bytes([1, 1, 1]))), ("rx", wire(0x8404, bytes([0]))),
+               ("tx", wire(0x0401, kf_payload)), ("rx", wire(0x8401, bytes([0])))]
+    transport, session = replay(records)
+    report = t.restore(session, snapshot)
+    check("restore noise first", report["applied"][0]["setting"], "noise_mode")
+    check("restore applied key_function",
+          any(a["setting"] == "key_function" for a in report["applied"]), True)
+    check("restore wrote the noise frame", transport.writes[1], wire(0x0404, bytes([1, 1, 1])))
+    check("restore reports eq as unrestorable",
+          any(s["setting"] == "eq_info" for s in report["not_restored"]), True)
+
+    # dry-run must not consume a write
+    transport, session = replay(records)
+    dry = t.restore(session, snapshot, dry_run=True)
+    check("dry-run reports noise", dry["applied"][0]["setting"], "noise_mode")
+    check("dry-run wrote nothing past negotiate", len(transport.writes), 1)
+
+    check_raises("restore rejects a foreign file", ValueError,
+                 t.restore, session, {"format": "nope"})
+
+
+def test_cli_backup_restore() -> None:
+    from tlcli.cli import main
+
+    canned = _canned_replies()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = pathlib.Path(tmpdir)
+        cap_path = tmp / "backup.jsonl"
+        cap_path.write_text("\n".join(
+            json.dumps({"dir": d, "hex": b.hex()}) for d, b in _backup_records(canned)))
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(cap_path), "backup", "-"])
+        check("cli backup rc", rc, 0)
+        snapshot = json.loads(buf.getvalue())
+        check("cli backup noise mode", snapshot["settings"]["noise_mode"], 1)
+
+        snap_path = tmp / "snapshot.json"
+        snap_path.write_text(json.dumps(snapshot))
+        rec_path = tmp / "restore.jsonl"
+        rec_path.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0404, bytes([1, 1, 1]))), ("rx", wire(0x8404, bytes([0]))),
+            ("tx", wire(0x0401, bytes.fromhex(snapshot["settings"]["key_function"]))),
+            ("rx", wire(0x8401, bytes([0])))]))
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(rec_path), "restore", "--dry-run", str(snap_path)])
+        check("cli restore dry-run rc", rc, 0)
+        check("cli restore dry-run text", "[DRY-RUN] noise_mode" in buf.getvalue(), True)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(rec_path), "restore", str(snap_path)])
+        check("cli restore rc", rc, 0)
+        check("cli restore applied", "[APPLIED] key_function" in buf.getvalue(), True)
+
+
 def test_not_worn_and_rejection() -> None:
     transport, session = replay([
         ("tx", wire(0x0404, bytes([1, 1, 1]))),

@@ -21,6 +21,7 @@ codec supplied via ``TL_REFERENCE`` and fails if the bytes ever diverge.
 
 from __future__ import annotations
 
+from .backup import BACKUP_FORMAT, READ_PLAN, capture, restore
 from .commands import (
     ALWAYS_ON,
     CAPABILITY_TABLE,
@@ -43,6 +44,7 @@ from .commands import (
     CMD_REGISTER_NOTIFICATION,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
+    CMD_SET_SWITCH_FEATURE,
     RESPONSE_BIT,
     cmd_class,
     is_response,
@@ -60,9 +62,11 @@ from .decoders import (
     parse_earbud_status,
     parse_eq_info,
     parse_feature_detect,
+    parse_key_function,
     parse_model_id,
     parse_notification_event,
     parse_pairs,
+    parse_switch_features,
     parse_use_time,
 )
 from .errors import (
@@ -73,8 +77,8 @@ from .errors import (
     NotWorn,
     PacketError,
     PageTimeout,
-    TLError,
     Timeout,
+    TLError,
     TransportError,
 )
 from .noise import (
@@ -96,6 +100,8 @@ from .payloads import (
     payload_set_noise_mode,
     payload_set_noise_reduction,
 )
+from .session import Session
+from .transport import Transport
 from .wire import (
     SOF,
     StreamDecoder,
@@ -107,8 +113,6 @@ from .wire import (
     varint_decode,
     varint_encode,
 )
-from .session import Session
-from .transport import Transport
 
 __version__ = "0.0.1"
 
@@ -122,7 +126,8 @@ __all__ = [
     "CMD_CANCEL_REGISTER_NOTIFICATION", "CMD_DETECT_FEATURE", "CMD_EQ_INFO",
     "CMD_GET_NOISE_REDUCTION", "CMD_GET_REMOTE_CAPABILITY", "CMD_GET_STATUS_FEATURE",
     "CMD_NAMES", "CMD_NOTIFICATION_CAPS", "CMD_REGISTER_NOTIFICATION",
-    "CMD_SET_KEY_FUNCTION", "CMD_SET_NOISE_REDUCTION", "RESPONSE_BIT",
+    "CMD_SET_KEY_FUNCTION", "CMD_SET_NOISE_REDUCTION", "CMD_SET_SWITCH_FEATURE",
+    "RESPONSE_BIT",
     "cmd_class", "is_response", "parse_capabilities",
     # noise
     "NOISE_FIELD_CYCLE", "NOISE_FIELD_MODE", "NOISE_MODE_ANC", "NOISE_MODE_ANC_DEEP",
@@ -134,11 +139,13 @@ __all__ = [
     # decoders
     "CASE_ID", "DEVICE_NAMES", "EVENT_TYPE_NAMES", "STATE_DECODERS", "WEAR_IN_EAR",
     "decode_state", "parse_battery", "parse_device_version", "parse_earbud_status",
-    "parse_eq_info", "parse_feature_detect", "parse_model_id",
-    "parse_notification_event", "parse_pairs", "parse_use_time",
+    "parse_eq_info", "parse_feature_detect", "parse_key_function", "parse_model_id",
+    "parse_notification_event", "parse_pairs", "parse_switch_features", "parse_use_time",
     # errors
     "TLError", "FrameError", "PacketError", "DeviceRejected", "NotWorn",
     "TransportError", "NotConnected", "ChannelRefused", "PageTimeout", "Timeout",
     # session
     "Session", "Transport",
+    # backup / restore
+    "BACKUP_FORMAT", "READ_PLAN", "capture", "restore",
 ]
