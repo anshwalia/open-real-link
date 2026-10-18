@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "open-real-link"
+version = "0.0.1"
+description = "App-free control of realme / OPPO \"TL\" Bluetooth headsets, recovered by reverse engineering the realme Link app"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "open-real-link contributors" }]
+keywords = ["bluetooth", "spp", "rfcomm", "realme", "oppo", "earbuds", "headset", "anc", "reverse-engineering"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware",
+    "Topic :: Communications",
+]
+
+# tlcore is pure protocol and has no dependencies at all.  Transports bring
+# their own platform bindings, so they are extras rather than requirements.
+dependencies = []
+
+[project.optional-dependencies]
+macos = ["pyobjc-framework-IOBluetooth>=9.0"]
+linux = ["pyserial>=3.5"]
+dev = ["pytest>=7.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/anshwalia/open-real-link"
+Source = "https://github.com/anshwalia/open-real-link"
+
+# The distribution name is "open-real-link"; the import name is "tlcore".
+# They differ on purpose: the distribution name has to be findable and must
+# avoid carrying a vendor trademark, while the import name should stay short
+# and stable and match the vendor's own `headset.tl` package namespace.
+[tool.hatch.build.targets.wheel]
+packages = ["tlcore"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

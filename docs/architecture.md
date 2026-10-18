@@ -155,7 +155,71 @@ Android matter?** (§8).
 
 ---
 
-## 8. Open questions
+## 8. Naming
+
+**Distribution `open-real-link`. Import `tlcore`.** They differ deliberately, and
+the split is load-bearing rather than cosmetic:
+
+* the **distribution** name is the public, searchable identity. It has to be free
+  and unambiguous on PyPI, it must not present a vendor's trademark as if it were
+  ours, and it has to be recognisable to somebody looking for "the realme Link
+  replacement".
+* the **import** name is an internal namespace. It should be short, stable and sit
+  as close as possible to the vendor's own layout, so that a line in the port can
+  be traced back to the class it came from without a lookup table.
+
+`com.realme.iot.headset.tl` is the vendor package this protocol came out of, so
+`tlcore` keeps the vendor's own two letters and adds only what it is. That also
+names the sibling layers: `tltransport`, `tlcli`.
+
+Verified end to end — installed distribution and import name really do differ:
+
+```console
+$ pip install open-real-link
+$ python -c "import tlcore; tlcore.build_frames(tlcore.build_packet(0x0404, b'\x01\x01\x01'))"
+[b'\xaa\n\x00\x00\x04\x04\x00\x03\x00\x01\x01\x01']
+```
+
+### 8.1 Why not the obvious alternatives
+
+| candidate | why not |
+|---|---|
+| `tl` | two letters; unsearchable and unregisterable in practice |
+| `tlv` | **already taken inside this very codebase** — `TLVProtocol`, `TLVStruct`, `TLVDataProcesser{Sender,Receiver}`, `TLVException`, `TLVTemp`. Reusing the prefix would make the port's `tlv.*` collide conceptually with the vendor's TLV layer, which is a *different* thing from the TL protocol |
+| `tls` | reads as Transport Layer Security, and is also already present (`TLSKDF`, `TLSKeyMaterialFactory`, `TLSKeyMaterialSpec`, `TLSSocketFactory`) |
+| `pytl` | taken on PyPI |
+| `oppov1` | names the framing layer only: that is one module (`tlcore.wire`), not the library |
+| `buds-link` / `ear-link` | capability-first, but wrong the moment a non-buds device is supported |
+
+`tlcore`, `tlproto`, `libtl`, `tlsdk`, `oppov1`, `open-real-link`, `buds-link`,
+`ear-link` and `tl-headset` were all free on PyPI; `pytl` was not.
+
+### 8.2 "TL" stays unexplained
+
+`TL` is **never expanded anywhere in the DEX**. The only identifiers carrying it
+are `TLConstant` and `TLHeadsetConnectionImp`, and both use it as a bare prefix,
+exactly like the package name. There is no `TLConstant.txt`, no English gloss and
+no protocol document in the APK.
+
+So the port does not invent one. Docstrings say "the TL headset protocol" and
+leave it there. A made-up expansion would be a claim the evidence does not
+support, and it would be the one thing a reader trusts first and is misled by
+first. The vendor name belongs in the **description** field, where it is a
+factual statement about provenance:
+
+> Python implementation of the TL headset protocol used by realme Link / OPPO
+> headset apps
+
+### 8.3 If it is ever published protocol-only
+
+If `tlcore` turns out to be a deliverable in its own right (open question 2
+below), the distribution name is still `open-real-link`; the alternative worth
+considering then is `tl-headset-protocol`, which trades discoverability by project
+name for discoverability by protocol name. There is no reason to decide that now.
+
+---
+
+## 9. Open questions
 
 1. **Does Android matter?**
    * **Yes, now** → Option **B** (Flutter): port `tlcore` to Dart once, get
@@ -165,9 +229,11 @@ Android matter?** (§8).
      to Dart when Android actually becomes a task. The UI is the part you throw
      away, and the UI is the cheapest part.
    * **No, desktop is enough** → Option **A**, and the question is closed.
-2. **Is the library itself a deliverable** (something others are expected to
-   consume), or is it a private boundary? Affects how much API surface we
-   stabilise and document.
+2. ~~**Is the library itself a deliverable** (something others are expected to
+   consume), or is it a private boundary?~~ **Answered** — see §8. It is a public
+   deliverable: `pip install open-real-link` → `import tlcore`. The remaining
+   question is only how much API surface to *stabilise*, which is a matter of
+   when, not whether.
 3. **CLI/TUI first, or GUI first?** A CLI over `tlcore` is a few hours and
    doubles as the hardware test harness; it is worth having regardless of the
    eventual UI.
