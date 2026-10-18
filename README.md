@@ -29,8 +29,12 @@ and the other obvious candidates were rejected.
 
 ## Status
 
-**Early.** The protocol core is ported and verified; the transport and the CLI
-are next. What is proven today, on hardware:
+**The protocol core is done; the apps are not.** `tlcore` is ported and verified
+byte-for-byte against the reference codec that was validated on air, and no
+headset control requires anything that is missing from it. What follows is
+transport and UI work, in that order.
+
+What is proven today, on hardware:
 
 | | |
 |---|---|
@@ -38,7 +42,7 @@ are next. What is proven today, on hardware:
 | **write** noise mode | ✅ — verified end to end on a Buds Air7 Pro |
 | read battery / wear / firmware / model / use-time | ✅ |
 | capability bitmap → supported-command set | ✅ |
-| encode/decode parity with the validated reference codec | ✅ 23,160 assertions |
+| encode/decode parity with the validated reference codec | ✅ 23,162 assertions |
 
 The six-value noise vocabulary, confirmed **by ear** on the target device:
 
@@ -60,7 +64,8 @@ The six-value noise vocabulary, confirmed **by ear** on the target device:
 The Buds Air7 Pro speaks **Bluetooth Classic RFCOMM/SPP only** — there is no
 BLE/GATT control key for this model, and that was established by experiment, not
 assumption. So this works on **macOS, Windows, Linux and Android**, and cannot
-work on iOS or in a browser.
+work on iOS or in a browser. macOS is the first target; the stack decision and
+its reasoning are in [`docs/stack.md`](docs/stack.md).
 
 ## Safety
 
@@ -88,8 +93,10 @@ module, so it can be exercised against recorded captures anywhere.
 | `tltransport/` | per-platform byte movers (macOS IOBluetooth first) |
 | `tlcli/` | command-line front end |
 | `fixtures/` | recorded device traffic, used as golden test input |
-| `tests/` | parity harness against the validated reference codec |
-| `docs/` | architecture and stack decisions |
+| `tests/` | parity harness against the validated reference codec, plus the
+core-purity check |
+| `docs/` | [`architecture.md`](docs/architecture.md) — the library/app split and
+naming; [`stack.md`](docs/stack.md) — the stack decision |
 
 ## Provenance
 

@@ -20,6 +20,7 @@ import json
 import os
 import pathlib
 import random
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -405,7 +406,46 @@ def parity_payloads(ref, core) -> None:
 
 
 # --------------------------------------------------------------------------
-# 8. the write that must never change
+# 9. the rule the split depends on
+# --------------------------------------------------------------------------
+# Importing any of these from tlcore would break the boundary described in
+# docs/architecture.md 2: the core must be exercisable on a machine with no
+# radio, in CI, and eventually from another language.  The rule is easy to
+# break by accident (one convenient `import serial` inside a decoder) and
+# impossible to notice by reading, so it is checked mechanically.
+BANNED_IN_CORE = (
+    # platform transports
+    "IOBluetooth", "objc", "Foundation", "AppKit",
+    "serial", "serial.tools.list_ports", "socket", "bluetooth", "bleak",
+    # UI toolkits
+    "PySide6", "PyQt5", "PyQt6", "shiboken6",
+)
+
+
+def test_core_purity() -> None:
+    """`tlcore` must import nothing platform-specific.
+
+    Run in a clean subprocess rather than in-process, because this harness has
+    already imported the reference module and a pile of stdlib.
+    """
+    probe = (
+        "import json, sys"
+        f"; import tlcore; print(json.dumps(sorted(set(sys.modules) & set({BANNED_IN_CORE!r}))))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True, text=True, cwd=str(ROOT),
+        env={**os.environ, "PYTHONPATH": str(ROOT)},
+    )
+    check("tlcore imports cleanly in a bare interpreter", proc.returncode, 0)
+    if proc.returncode != 0:
+        print(proc.stderr)
+        return
+    check("tlcore pulls in no platform binding", json.loads(proc.stdout), [])
+
+
+# --------------------------------------------------------------------------
+# 10. the write that must never change
 # --------------------------------------------------------------------------
 def parity_golden_write(ref, core) -> None:
     """The exact frame the Air7 Pro accepted, byte for byte."""
@@ -442,6 +482,7 @@ def main() -> int:
     parity_stream_decoder(ref, wire)
     parity_decoders(ref, tlcore)
     parity_payloads(ref, payloads)
+    test_core_purity()
     parity_golden_write(ref, tlcore)
 
     print(f"checks run: {CHECKS}")

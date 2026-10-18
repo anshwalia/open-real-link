@@ -1,7 +1,7 @@
 # OpenRealLink — architecture: **core library + app**
 
-Status: **decided**. The stack (§7) is still open; this document is about the
-shape of the code, which is independent of it.
+Status: **decided.** Both the shape of the code and the stack are settled. This
+document covers the shape; [`stack.md`](stack.md) covers the stack.
 
 ---
 
@@ -39,15 +39,19 @@ the app, every UI rewrite drags it along, and nobody else can use it.
 └──────────────────────────┬──────────────────────────────┘
                            │ talks to an abstract Transport
 ┌──────────────────────────▼──────────────────────────────┐
-│  transport    macos.py · linux.py · windows.py ·         │
+│  tltransport  macos.py · linux.py · windows.py ·         │
 │  per-platform android/ · replay.py                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
 **`tlcore` imports nothing platform-specific.** No `IOBluetooth`, no `socket`,
 no `serial`, no Qt. It takes a `Transport` object and produces/consumes bytes.
-That rule is the whole point of the split, and it is worth enforcing with a test
-(`--selftest` asserts that `tlcore` imports nothing outside the stdlib).
+
+That rule is the whole point of the split, so it is *enforced* rather than
+intended: the test suite imports `tlcore` in a clean subprocess and fails if any
+platform binding ends up in `sys.modules`. The rule is easy to break by accident
+— one convenient `import serial` deep inside a decoder — and impossible to notice
+by reading.
 
 ---
 
@@ -69,21 +73,23 @@ class Transport(Protocol):
 Three details that are protocol requirements, not style:
 
 * **`is_connected()` must be a local property read.** The passive
-  "watch until the buds raise the ACL" pattern (docs/16) depends on being able
-  to poll link state without putting anything on the radio.
+  "watch until the buds raise the ACL" pattern depends on being able to poll link
+  state without putting anything on the radio.
 * **`read(timeout)` must pump the platform run loop**, not sleep. On macOS a
-  bare `sleep` starves `IOBluetoothRFCOMMChannel` and you get zero bytes
-  (this cost real debugging time).
+  bare `sleep` starves `IOBluetoothRFCOMMChannel` and you get zero bytes — this
+  cost real debugging time.
 * **`open()` must be able to fail with a *refusal* distinct from a *timeout*.**
   `0xE00002BC` (channel refused — recoverable) and `0xE00002D6` (page timeout —
-  buds asleep) mean opposite things; collapsing them loses the diagnosis.
+  buds asleep) mean opposite things; collapsing them loses the diagnosis. Note
+  that macOS returns these as *signed* IOReturns, so compare against
+  `& 0xFFFFFFFF`.
 
 ---
 
 ## 4. Why this pays off: the replay transport
 
-`transport/replay.py` implements `Transport` over a recorded capture
-(`captures/*.jsonl`). **The entire app — protocol, state machine, UI — can then
+`tltransport/replay.py` implements `Transport` over a recorded capture
+(`fixtures/*.jsonl`). **The entire app — protocol, state machine, UI — can then
 run with no hardware present.**
 
 That buys three things:
@@ -94,9 +100,10 @@ That buys three things:
    given the wear-gating (`0x8404 0e`) and the case/sleep behaviour, is a real
    tax on development speed.
 
-The golden fixtures already exist: `captures/read-poll-sweep.txt`,
-`captures/live-caps-fixed.jsonl`, `captures/mode-cycle.jsonl`,
-`captures/spp-smoketest.jsonl`.
+The golden fixtures already exist: `fixtures/mode-cycle.jsonl` and
+`fixtures/spp-smoketest.jsonl`, recorded from a real Buds Air7 Pro. They carry
+only a timestamp, a direction and hex, so they contain no device address and are
+safe to publish.
 
 ---
 
@@ -111,16 +118,18 @@ The golden fixtures already exist: `captures/read-poll-sweep.txt`,
 | noise vocabulary + the UI↔wire permutation (`O5`) | `tlcore` |
 | connection state machine, write gating, retry/backoff | `tlcore` |
 | **which bytes go on the wire** | `tlcore` |
-| **how bytes physically move** | `transport` |
+| **how bytes physically move** | `tltransport` |
 | layout, widgets, wording, accessibility | `app` |
 
 ---
 
 ## 6. What we deliberately do **not** do
 
-* **No publishing yet.** Monorepo, two packages, one repo. Publish the core
-  separately only once its API stops moving — a published API you then change is
-  worse than no package.
+* **One distribution, published late.** The repository is a monorepo, but only
+  the core is a package: `open-real-link`, which is `tlcore`. The app ships from
+  the same repository and is not published separately, so installing the library
+  never drags in a UI toolkit. Release when the API stops moving — a published
+  API you then change is worse than no package.
 * **No plugin architecture.** One transport is selected at runtime by platform;
   there is no registry, no entry points, no dynamic loading.
 * **No "extract the library later".** Retrofitting the boundary is exactly the
@@ -130,28 +139,16 @@ The golden fixtures already exist: `captures/read-poll-sweep.txt`,
 
 ---
 
-## 7. How this interacts with the stack choice
+## 7. The stack
 
-The layering is language-agnostic and holds for every option in
-[`stack-options.md`](stack-options.md). What changes is **only the port cost of
-`tlcore`** — because the transport is written per-platform in every stack
-anyway, it is never "reused", so it never drives the decision.
+**Python 3.9+ throughout, PySide6 (Qt 6) for the UI, built CLI-first.** The
+reasoning, the constraint that forced it and the alternatives that lost are in
+[`stack.md`](stack.md).
 
-| stack | `tlcore` | port cost | verdict |
-|---|---|---|---|
-| **A** Python + PySide6 | `tl_frame.py` imported as-is | **zero** | fastest to a real app |
-| **B** Flutter + plugin | ported to Dart, ~600 lines, mechanical | ~1–2 days, fixture-verified | the only route to Android **and** desktop |
-| **C** Rust + Tauri | ported to Rust | ~3 days + `serde` types | best long-term library artifact |
-| **D** Qt 6 / C++ | ported to C++ | ~3 days | one RFCOMM API for all platforms |
-| **E** .NET + Avalonia | ported to C# | ~3 days | macOS transport missing — backwards |
-| **F** KMP + Compose | ported to Kotlin | ~3 days | worst desktop transport |
-
-**Key consequence:** the port is bounded and mechanical, and it is verified
-against fixtures that already exist. So "which language" is *not* a bet on
-rewriting the project — it is a 1–3 day cost on one layer, paid once.
-
-This means the stack decision reduces to a single product question: **does
-Android matter?** (§8).
+The layering above is language-agnostic, which is what keeps this decision cheap
+if it ever needs revisiting. It is nevertheless not expected to change, and
+`tlcore` is imported directly rather than ported — the protocol work is reused
+verbatim.
 
 ---
 
@@ -210,32 +207,29 @@ factual statement about provenance:
 > Python implementation of the TL headset protocol used by realme Link / OPPO
 > headset apps
 
-### 8.3 If it is ever published protocol-only
+### 8.3 The core publishes alone
 
-If `tlcore` turns out to be a deliverable in its own right (open question 2
-below), the distribution name is still `open-real-link`; the alternative worth
-considering then is `tl-headset-protocol`, which trades discoverability by project
-name for discoverability by protocol name. There is no reason to decide that now.
+`open-real-link` is the core. The app ships from the same repository but is not a
+separate distribution, so `pip install open-real-link` gives you the protocol and
+nothing else. If the protocol is ever wanted as a name in its own right, the
+alternative worth considering is `tl-headset-protocol`, which trades
+discoverability by project name for discoverability by protocol name.
 
 ---
 
-## 9. Open questions
+## 9. Build order
 
-1. **Does Android matter?**
-   * **Yes, now** → Option **B** (Flutter): port `tlcore` to Dart once, get
-     Android + macOS + Windows + Linux from one UI codebase.
-   * **Yes, eventually** → Option **A** now (ship a desktop app in ~a week),
-     structured so `tlcore` is a clean, fixture-tested Python package; port it
-     to Dart when Android actually becomes a task. The UI is the part you throw
-     away, and the UI is the cheapest part.
-   * **No, desktop is enough** → Option **A**, and the question is closed.
-2. ~~**Is the library itself a deliverable** (something others are expected to
-   consume), or is it a private boundary?~~ **Answered** — see §8. It is a public
-   deliverable: `pip install open-real-link` → `import tlcore`. The remaining
-   question is only how much API surface to *stabilise*, which is a matter of
-   when, not whether.
-3. **CLI/TUI first, or GUI first?** A CLI over `tlcore` is a few hours and
-   doubles as the hardware test harness; it is worth having regardless of the
-   eventual UI.
-4. **Do we want the core usable from *other* languages** via FFI? If yes, that
-   is the argument for **C** (Rust) specifically.
+1. **`tlcore`** — **done.** Ported from the validated reference by range
+   extraction, verified byte-for-byte against it (23,162 assertions,
+   `PARITY: OK`), no dependencies, no platform imports.
+2. **`tltransport`** — `macos.py` first, lifted from the working
+   `IOBluetoothRFCOMMChannel` link and fitted to the six-method contract in §3;
+   then `replay.py` over `fixtures/*.jsonl`, which needs no hardware at all.
+3. **`tlcli`** — a CLI over `tlcore` + `tltransport`. A few hours' work, and it
+   doubles as the hardware test harness, so it earns its place before any UI
+   exists.
+4. **PySide6 app** — scan/pair, connect, noise selector, battery/wear,
+   capability view, EQ, paired list, raw console.
+
+Steps 1–3 are the protocol being made usable. Step 4 is a shell over them, and it
+is the only step that gets thrown away if the stack ever changes.
