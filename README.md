@@ -14,16 +14,16 @@ recovered by reverse engineering the realme Link Android app.
 Classic RFCOMM/SPP — the same channel the official app uses — so the headset can
 be controlled without the vendor app, an account, or a phone.
 
-The protocol core, `tlcore`, is complete and verified: it produces and parses
+The protocol core, `tlcore`, is byte-for-byte verified: it produces and parses
 the same bytes as a reference implementation that was validated on real
 hardware. It is wrapped by platform transports and a command-line front end;
 see [Status](#status) below.
 
 ## Status
 
-`tlcore` is complete and byte-for-byte verified. The macOS transport, an offline
-replay transport, and a command-line front end are implemented; the graphical
-application is still to be built.
+The recovered protocol core, `tlcore`, is byte-for-byte verified. The macOS
+transport, an offline replay transport, and a command-line front end are
+implemented; the graphical application is still to be built.
 
 A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits on
 top of the read-side decoders. Because the protocol has no "read all settings"

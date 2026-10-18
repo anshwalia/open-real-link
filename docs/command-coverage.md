@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**81 known request IDs**, **19 implemented** in `open-real-link`,
-**62 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **19 implemented** in `open-real-link`,
+**60 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -105,6 +105,11 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0f02` | 3842 | debug | ungated | — | — | — |
 | `0x079a` | 1946 | misc | ungated | — | — | — |
 | `0x7f00` | 32512 | misc | ungated | — | — | — |
+
+Two of the 81 rows are **not** TL commands and are not counted above: `0x7F00`
+is the manager-class mask (`cmd & 0x7F00`, `Protocol.b`) and `0x079A` is the
+OPPO interaction service's 16-bit UUID (`0000079A-D102-…`), not a request the
+app sends. That is why the catalogue has 81 rows but only **79 command IDs**.
 
 ## Safety
 
