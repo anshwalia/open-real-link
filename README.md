@@ -22,8 +22,10 @@ see [Status](#status) below.
 ## Status
 
 The recovered protocol core, `tlcore`, is byte-for-byte verified. The macOS
-transport, an offline replay transport, and a command-line front end are
-implemented; the graphical application is still to be built.
+transport, an offline replay transport, a command-line front end and the first
+slice of a PySide6 desktop app are implemented. The app opens a device, reads
+its capability bitmap and status, and gets/sets the noise mode; see
+[`docs/app.md`](docs/app.md). It is built one verified feature at a time.
 
 A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits on
 top of the read-side decoders. Because the protocol has no "read all settings"
@@ -159,6 +161,13 @@ $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
 See [`docs/live-test.md`](docs/live-test.md) for a hardware runbook and
 troubleshooting.
 
+Or open the desktop app (run from a checkout, with the app extra installed):
+
+```console
+$ python -m tlapp --replay fixtures/spp-smoketest.jsonl   # no device needed
+$ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
+```
+
 ## Project layout
 
 | Path | Contents |
@@ -166,6 +175,7 @@ troubleshooting.
 | `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders, backup/restore |
 | `tltransport/` | `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport` (offline) |
 | `tlcli/` | Command-line front end, `python -m tlcli` |
+| `tlapp/` | PySide6 desktop app, `python -m tlapp` (Qt-free controller + widgets) |
 | `fixtures/` | Recorded device traffic used as golden test input |
 | `tests/` | Reference-codec parity, transport/session, macOS transport, and protocol-docs guards |
 | `docs/` | Protocol reference and design notes |
@@ -181,6 +191,8 @@ Additional documentation lives in [`docs/`](docs/):
 - [`device-compatibility.md`](docs/device-compatibility.md) — the static
   candidate list of models, tiered by protocol shape
 - [`live-test.md`](docs/live-test.md) — running against real hardware
+- [`app.md`](docs/app.md) — the desktop app: what it exposes, how it is tested,
+  and the safety model
 - [`architecture.md`](docs/architecture.md) — component layers and library/app split
 - [`stack.md`](docs/stack.md) — implementation stack
 
