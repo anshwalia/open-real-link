@@ -44,12 +44,89 @@ FAMILY_BY_CLASS = {
 FAILURES: list[str] = []
 CHECKS = 0
 
+DOC = ROOT / "docs" / "command-coverage.md"
+
+#: Recorded Air7 Pro capability bitmap -- the advertised-count cross-check.
+AIR7PRO_CAPS = "00bf4f5ae665dc4004"
+
+EMPTY = "\u2014"  # the doc's "not implemented" mark
+
 
 def check(label: str, got, want) -> None:
     global CHECKS
     CHECKS += 1
     if got != want:
         FAILURES.append(f"{label}\n       got  {got!r}\n       want {want!r}")
+
+
+def _read_doc_tables() -> tuple[dict, dict, dict]:
+    """Parse the class-wise summary, the catalogue, and the totals row."""
+    summary: dict[int, dict] = {}
+    catalogue: dict[int, dict] = {}
+    total: dict = {}
+    section = None
+    for line in DOC.read_text().splitlines():
+        if line.startswith("## "):
+            section = line[3:].strip()
+            continue
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if section == "By manager class" and len(cells) == 6:
+            if cells[1].strip("`").startswith("0x"):
+                mask = int(cells[1].strip("`"), 16)
+                summary[mask] = {"class": cells[0].replace("`", ""), "count": int(cells[2]),
+                                 "impl": int(cells[3]), "adv": int(cells[4]),
+                                 "gating": cells[5]}
+            elif "total" in cells[0]:
+                total = {"count": int(cells[2].strip("*")),
+                         "impl": int(cells[3].strip("*")),
+                         "adv": int(cells[4].strip("*"))}
+        elif (section == "Full catalogue" and len(cells) == 7
+              and cells[0].startswith("`0x") and cells[2] != "misc"):
+            cmd = int(cells[0].strip("`"), 16)
+            catalogue[cmd] = {"family": cells[2], "impl": cells[4] != EMPTY}
+    return summary, catalogue, total
+
+
+def check_class_breakdown() -> None:
+    """The class-wise table and catalogue must match tlcore and each other."""
+    summary, catalogue, total = _read_doc_tables()
+    specs = tlcore.ALL_COMMANDS
+
+    check("class summary rows", len(summary), len(tlcore.CLASS_NAMES))
+    check("catalogue rows", len(catalogue), len(specs))
+    check("catalogue ids == registry", set(catalogue), {s.cmd for s in specs})
+
+    advertised = set(tlcore.parse_capabilities(bytes.fromhex(AIR7PRO_CAPS))["commands"])
+    per_class: dict[int, dict] = {}
+    for spec in specs:
+        check(f"0x{spec.cmd:04X} doc family", catalogue[spec.cmd]["family"], spec.family)
+        cls = tlcore.cmd_class(spec.cmd)
+        entry = per_class.setdefault(
+            cls, {"count": 0, "impl": 0, "adv": 0,
+                  "always-on": 0, "cap-bit": 0, "ungated": 0})
+        entry["count"] += 1
+        entry["impl"] += 1 if catalogue[spec.cmd]["impl"] else 0
+        entry["adv"] += 1 if spec.cmd in advertised else 0
+        entry[spec.gating.split()[0]] += 1
+
+    for mask, entry in per_class.items():
+        got = summary.get(mask)
+        check(f"0x{mask:04X} in summary", got is not None, True)
+        if got is None:
+            continue
+        check(f"0x{mask:04X} class name", got["class"].startswith(tlcore.CLASS_NAMES[mask]), True)
+        check(f"0x{mask:04X} count", got["count"], entry["count"])
+        check(f"0x{mask:04X} implemented", got["impl"], entry["impl"])
+        check(f"0x{mask:04X} advertised", got["adv"], entry["adv"])
+        want_gating = ", ".join(f"{entry[k]} {k}" for k in ("always-on", "cap-bit", "ungated")
+                                if entry[k])
+        check(f"0x{mask:04X} gating", got["gating"], want_gating)
+
+    check("total count", total.get("count"), len(specs))
+    check("total implemented", total.get("impl"), sum(e["impl"] for e in per_class.values()))
+    check("total advertised", total.get("adv"), len(advertised))
 
 
 def main() -> int:
@@ -100,6 +177,9 @@ def main() -> int:
     # 5. lookup helper
     check("command_spec known", tlcore.command_spec(0x0404).cmd, 0x0404)
     check("command_spec unknown", tlcore.command_spec(0x1234), None)
+
+    # 6. the class-wise table in docs/command-coverage.md matches the registry
+    check_class_breakdown()
 
     if FAILURES:
         print(f"checks run: {CHECKS}")

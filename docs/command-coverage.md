@@ -20,6 +20,22 @@ what is implemented; `docs/protocol.md` describes that surface.
 | **Air7 Pro** | `live` = *advertised* by this unit's capability bitmap — **not** a claim that it was exercised end to end; `—` = not enabled |
 | **gating** | `always-on`, `cap-bit N` (enabled when capability bit N is set), or `ungated` |
 
+## By manager class
+
+Every one of the 79 IDs, grouped by its manager class (`cmd & 0x7F00`, the
+family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
+*implemented* is the number of rows whose **open-real-link** column is not `—`.
+
+| Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
+| --- | --- | ---: | ---: | ---: | --- |
+| `PollCommandManager` | `0x0100` | 31 | 14 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `NotificationCommandManager` | `0x0200` | 6 | 1 | 1 | 1 cap-bit, 5 ungated |
+| `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
+| `SetCommandManager` | `0x0400` | 22 | 6 | 18 | 22 cap-bit |
+| `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
+| `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
+| **total** | | **79** | **29** | **49** | |
+
 ## Full catalogue
 
 | cmd | dec | family | gating | open-real-link | Air7 Pro | observed name |
