@@ -352,6 +352,13 @@ the body (after the type byte) to `parse_user_interaction`::
 The write is whole-table, so a client reads `0x0108`, patches one
 `KeyFunctionInfo`, and writes the full table back with `payload_set_key_function`.
 
+A `function` of `0` means **off** (`FUNCTION_NAMES[0]`): setting a gesture to
+`0` disables it. Long press is the records whose `action` is `4` or `5`, and
+`0` is a menu-valid function for them. Redirecting every such record to `0`
+(a whole-table write) therefore turns long press off; a real Buds Air7 Pro
+accepted it (`0x8401 status=0`) and read the change back, and the original table
+restored cleanly.
+
 ### Device -> app requests (`0x05xx`)
 
 These are unsolicited requests the *device* makes of the host;
