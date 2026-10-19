@@ -146,6 +146,45 @@ tx 0x010C PollCommandManager       [01]  (1 frame(s))
 
 Add `--json` to any subcommand for machine-readable output.
 
+### Step 6 — the gesture map (read, and an optional reversible write)
+
+```console
+$ python3 -m tlcli --address "$BUDS" keys get
+key functions: status=0 count=10
+  2:1:1:0   right single-click -> off
+  2:1:2:1   right double-click -> play-pause
+  2:1:3:6   right triple-click -> next-track
+  2:1:4:8   right long-press -> noise-control
+```
+
+`keys get` is read-only. `keys set DEVICE:BUTTON:ACTION:FUNCTION` patches one
+row and writes the **whole** table back; `keys disable-long-press` sets every
+long-press row (`action` 4 or 5) to `0` (off). Both are writes: they refuse
+without `--confirm`, and `--save FILE` keeps a restore point. Each field takes a
+number (`0x` allowed) or a label such as `right`, `long-press` or
+`noise-control`.
+
+```console
+$ python3 -m tlcli --address "$BUDS" keys set left:1:4:noise-control --save before.json --confirm
+$ python3 -m tlcli --address "$BUDS" keys disable-long-press --save before.json --confirm
+```
+
+A `restore` of a `backup` snapshot re-applies the table too.
+
+### Step 7 — decode what the device pushes
+
+```console
+$ python3 -m tlcli --address "$BUDS" events --seconds 15
+listened 15s: 3 packet(s)
+  0x0500  requestHostTime  request: {'raw': '670a0800', 'value_le': 526951}
+  0x0204  notificationEvent  event=battery  body=03016402640300
+  0x0204  notificationEvent  button press: play-pause  (dev=2 btn=1 action=2 scene=0)
+```
+
+`events` listens and decodes `0x0204` notifications (button presses, battery,
+wear), device → app `0x05xx` requests, and any state push it recognises. Apart
+from the read-only capability poll it sends nothing.
+
 ## 4. Troubleshooting
 
 | Symptom | Meaning | Fix |

@@ -16,9 +16,11 @@ from .commands import (
     ALWAYS_ON,
     CMD_GET_ALL_EQ_INFO,
     CMD_GET_EQ_MODE,
+    CMD_GET_KEY_FUNCTION,
     CMD_GET_NOISE_REDUCTION,
     CMD_GET_REMOTE_CAPABILITY,
     CMD_SET_EQ_MODE,
+    CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     RESPONSE_BIT,
     parse_capabilities,
@@ -197,6 +199,35 @@ class Session:
         reply = self.request(CMD_GET_ALL_EQ_INFO, b"", timeout=timeout)
         self.check_status(reply)
         return parse_eq_info(reply["payload"])
+
+    # -- key functions / gestures ------------------------------------------
+    def read_key_function(self, *, timeout: float | None = None) -> dict:
+        """Read the key-function/gesture table (``0x0108``).
+
+        Returns ``{"status", "count", "entries", "records"}`` -- ``entries``
+        are :class:`~tlcore.buttons.KeyFunctionInfo` records; ``records`` the
+        same rows as hex.  Pairs with :meth:`set_key_function`.
+        """
+        from .buttons import parse_key_function_table
+
+        reply = self.request(CMD_GET_KEY_FUNCTION, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_key_function_table(reply["payload"])
+
+    def set_key_function(self, entries, *, timeout: float | None = None) -> int:
+        """Write the **whole** key-function table (``0x0401``).
+
+        ``entries`` is a sequence of :class:`~tlcore.buttons.KeyFunctionInfo`
+        (or 4-byte blobs).  The command replaces every row, so read the table
+        first and patch it -- see :func:`tlcore.patch_key_functions` and
+        :func:`tlcore.disable_long_press`.
+        """
+        from .payloads import payload_set_key_function
+
+        blobs = [e.to_bytes() if hasattr(e, "to_bytes") else bytes(e) for e in entries]
+        reply = self.request(CMD_SET_KEY_FUNCTION, payload_set_key_function(blobs),
+                             timeout=timeout)
+        return self.check_status(reply)
 
     # -- bulk status -------------------------------------------------------
     def read_status(self, *, timeout: Optional[float] = None) -> dict:

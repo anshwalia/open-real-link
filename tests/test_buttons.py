@@ -87,6 +87,33 @@ def check_key_function_round_trip() -> None:
           t.parse_key_function_table(b"\x00" + write)["entries"], table["entries"])
 
 
+def check_key_function_patch() -> None:
+    """Patching and long-press disable only touch the intended rows."""
+    table = t.parse_key_function_table(KF_TABLE)["entries"]
+    check("long-press actions", t.LONG_PRESS_ACTIONS, (4, 5))
+
+    patched = t.patch_key_functions(table, {(2, 1, 4): 4})  # right long -> voice
+    check("patch keeps length", len(patched), len(table))
+    check("patch changes the target", patched[3], t.KeyFunctionInfo(2, 1, 4, 4))
+    check("patch keeps the others",
+          [e for i, e in enumerate(patched) if i != 3],
+          [e for i, e in enumerate(table) if i != 3])
+    check("patch is a copy", table[3], t.KeyFunctionInfo(2, 1, 4, 8))
+    check("unmatched patch is a no-op",
+          t.patch_key_functions(table, {(9, 9, 9): 1}), table)
+
+    off = t.disable_long_press(table)
+    check("disable keeps length", len(off), len(table))
+    check("disable turns long press off", off[3], t.KeyFunctionInfo(2, 1, 4, 0))
+    check("disable keeps non-long-press",
+          [e for e in off if e.action not in t.LONG_PRESS_ACTIONS],
+          [e for e in table if e.action not in t.LONG_PRESS_ACTIONS])
+    check("disable is a copy", table[3], t.KeyFunctionInfo(2, 1, 4, 8))
+    mixed = [t.KeyFunctionInfo(1, 1, 5, 8), t.KeyFunctionInfo(1, 1, 3, 5)]
+    check("disable action 5", t.disable_long_press(mixed)[0], t.KeyFunctionInfo(1, 1, 5, 0))
+    check("disable keeps triple", t.disable_long_press(mixed)[1], mixed[1])
+
+
 def check_user_interaction_event() -> None:
     body = bytes([2, 1, 2, 1, 0, 0x34, 0x12])
     ev = t.parse_user_interaction(body)
@@ -211,7 +238,8 @@ def check_switch_feature_builder() -> None:
 
 def main() -> int:
     for fn in (check_key_function_info, check_parse_key_function_table,
-               check_key_function_round_trip, check_user_interaction_event,
+               check_key_function_round_trip, check_key_function_patch,
+               check_user_interaction_event,
                check_key_function_fixture, check_host_time_request,
                check_operation_request, check_feature_switch_status,
                check_eq_mode_and_bass, check_use_time_list, check_oneshot_audio,

@@ -359,6 +359,11 @@ the body (after the type byte) to `parse_user_interaction`::
 
 The write is whole-table, so a client reads `0x0108`, patches one
 `KeyFunctionInfo`, and writes the full table back with `payload_set_key_function`.
+Two pure helpers make that safe: `patch_key_functions(entries, updates)` changes
+only the `(deviceType, button, action)` rows named in `updates`, and
+`disable_long_press(entries)` sets every long-press row to `0`. A
+`tlcore.Session` wraps the commands as `read_key_function()` (returns the parsed
+table) and `set_key_function(entries)` (writes it back).
 
 A `function` of `0` means **off** (`FUNCTION_NAMES[0]`): setting a gesture to
 `0` disables it. Long press is the records whose `action` is `4` or `5`, and

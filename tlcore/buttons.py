@@ -40,6 +40,10 @@ ACTION_NAMES = {
     6: "extra-gesture",
 }
 
+#: Actions that mean "long press": the app maps both settingKey 4 and 5 to the
+#: long-press function, so a table can hold either (or both).
+LONG_PRESS_ACTIONS = (4, 5)
+
 #: ``KeyFunctionInfo.function`` -- the wire byte.  ``KeyTextUtils.a`` labels the
 #: app's ``settingValue`` and ``ParamsConverter.A`` maps it to this byte.
 FUNCTION_NAMES = {
@@ -136,3 +140,34 @@ def parse_user_interaction(payload: bytes) -> dict:
     for i in range(len(rest) // 2):
         out["options"].append(int.from_bytes(rest[2 * i:2 * i + 2], "little"))
     return out
+
+
+def patch_key_functions(
+    entries: list[KeyFunctionInfo],
+    updates: dict[tuple[int, int, int], int],
+) -> list[KeyFunctionInfo]:
+    """Return ``entries`` with selected ``(device, button, action)`` rows changed.
+
+    ``updates`` maps ``(device_type, button, action)`` to a new ``function``.
+    Rows not named in ``updates`` are preserved, so a partial edit cannot wipe
+    the rest of the table (``0x0401`` always writes the **whole** table).
+    """
+    out = []
+    for entry in entries:
+        key = (entry.device_type, entry.button, entry.action)
+        if key in updates:
+            entry = entry._replace(function=updates[key])
+        out.append(entry)
+    return out
+
+
+def disable_long_press(entries: list[KeyFunctionInfo]) -> list[KeyFunctionInfo]:
+    """Return ``entries`` with every long-press gesture turned off.
+
+    A ``function`` of ``0`` (``FUNCTION_NAMES[0]``, the app's "off") disables a
+    gesture.  **Verified live** on a Buds Air7 Pro: the whole-table write was
+    accepted (``0x8401 status=0``), persisted across a read-back, and the
+    original table restored cleanly.
+    """
+    return [e._replace(function=0) if e.action in LONG_PRESS_ACTIONS else e
+            for e in entries]

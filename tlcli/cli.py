@@ -241,6 +241,211 @@ def cmd_eq(args) -> int:
         transport.close()
 
 
+# --------------------------------------------------------------------------
+# keys / gestures
+# --------------------------------------------------------------------------
+def _lookup_name(names: dict, text: str, what: str) -> int:
+    """Resolve ``text`` as an int (``0x`` allowed) or a label from ``names``."""
+    try:
+        return int(text, 0)
+    except ValueError:
+        pass
+    wanted = text.strip().lower().replace("_", "-")
+    for value, name in names.items():
+        if name == wanted:
+            return value
+    raise SystemExit(f"unknown {what} {text!r}; use a number or one of "
+                     + ", ".join(sorted(names.values())))
+
+
+def parse_key_update(spec: str) -> tuple[tuple[int, int, int], int]:
+    """Parse ``DEVICE:BUTTON:ACTION:FUNCTION`` -> ``((device, button, action), function)``.
+
+    Each field is an integer (``0x`` allowed) or, where a label exists, a name
+    such as ``right``, ``long-press`` or ``noise-control``.
+    """
+    parts = spec.replace(":", ",").split(",")
+    if len(parts) != 4:
+        raise SystemExit(f"want DEVICE:BUTTON:ACTION:FUNCTION (got {spec!r})")
+    device = _lookup_name(t.DEVICE_TYPE_NAMES, parts[0], "device")
+    button = _lookup_name({}, parts[1], "button")
+    action = _lookup_name(t.ACTION_NAMES, parts[2], "action")
+    function = _lookup_name(t.FUNCTION_NAMES, parts[3], "function")
+    return (device, button, action), function
+
+
+def _key_table_dict(table: dict) -> dict:
+    return {
+        "status": table["status"],
+        "count": table["count"],
+        "entries": [
+            {"device_type": e.device_type, "button": e.button, "action": e.action,
+             "function": e.function, "describe": e.describe()}
+            for e in table["entries"]
+        ],
+    }
+
+
+def print_key_table(table: dict) -> None:
+    print(f"key functions: status={table['status']} count={table['count']}")
+    for entry in table["entries"]:
+        print(f"  {entry.device_type}:{entry.button}:{entry.action}:{entry.function}"
+              f"   {entry.describe()}")
+
+
+def cmd_keys(args) -> int:
+    """Read the gesture table, or write it back patched / with long press off."""
+    tokens = list(args.key_args)
+    action = tokens[0].lower() if tokens else "get"
+    if action in ("get", "read"):
+        return _keys_get(args)
+    if action in ("set", "disable-long-press"):
+        return _keys_write(args, action, tokens[1:])
+    raise SystemExit(f"unknown keys action {action!r} (use 'get', "
+                     "'set DEVICE:BUTTON:ACTION:FUNCTION', or 'disable-long-press')")
+
+
+def _keys_get(args) -> int:
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities(timeout=args.timeout)
+        if not session.supports(t.CMD_GET_KEY_FUNCTION):
+            raise SystemExit("device does not advertise the key-function table (0x0108)")
+        table = session.read_key_function(timeout=args.timeout)
+    finally:
+        transport.close()
+    if args.json:
+        print(json.dumps(_key_table_dict(table), indent=2))
+    else:
+        print_key_table(table)
+    return 0
+
+
+def _keys_write(args, action: str, specs: list[str]) -> int:
+    updates: dict = {}
+    for spec in specs:
+        key, function = parse_key_update(spec)
+        updates[key] = function
+    if action == "set" and not updates:
+        raise SystemExit("keys set needs at least one DEVICE:BUTTON:ACTION:FUNCTION")
+
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities(timeout=args.timeout)
+        if not session.supports(t.CMD_SET_KEY_FUNCTION):
+            raise SystemExit("device does not advertise setKeyFunction (0x0401)")
+        table = session.read_key_function(timeout=args.timeout)
+        if not table["entries"]:
+            raise SystemExit("device returned an empty key-function table; refusing to write")
+        if action == "set":
+            present = {(e.device_type, e.button, e.action) for e in table["entries"]}
+            missing = [key for key in updates if key not in present]
+            if missing:
+                raise SystemExit("no such gesture in the device's table: "
+                                 + ", ".join(f"{d}:{b}:{a}" for d, b, a in missing))
+            entries = t.patch_key_functions(table["entries"], updates)
+        else:
+            entries = t.disable_long_press(table["entries"])
+        changes = [{"device_type": old.device_type, "button": old.button,
+                    "action": old.action, "from": old.function, "to": new.function}
+                   for old, new in zip(table["entries"], entries) if old != new]
+        if args.save:
+            pathlib.Path(args.save).write_text(
+                json.dumps(_key_table_dict(table), indent=2) + "\n")
+            print(f"saved the original table to {args.save}")
+        if not args.confirm:
+            if args.json:
+                print(json.dumps({"dry_run": True, "changes": changes}, indent=2))
+            else:
+                print("dry run: pass --confirm to write the new table")
+                for change in changes:
+                    print(f"  {change['device_type']}:{change['button']}:{change['action']}: "
+                          f"{change['from']} -> {change['to']}")
+            return 0
+        if not changes:
+            print("no change needed")
+            return 0
+        status = session.set_key_function(entries, timeout=args.timeout)
+        after = session.read_key_function(timeout=args.timeout)
+    finally:
+        transport.close()
+    if args.json:
+        print(json.dumps({"status": status, "changes": changes,
+                          "entries": _key_table_dict(after)["entries"]}, indent=2))
+        return 0
+    print(f"wrote {len(entries)} entries; 0x8401 status={status}")
+    print_key_table(after)
+    return 0
+
+
+# --------------------------------------------------------------------------
+# events
+# --------------------------------------------------------------------------
+def decode_event(packet: dict) -> dict:
+    """Decode one pushed packet into a serializable dict."""
+    cmd = packet["cmd"]
+    payload = packet["payload"]
+    out = {"cmd": f"0x{cmd:04X}", "cmd_int": cmd,
+           "name": t.CMD_NAMES.get(cmd, ""), "payload": payload.hex()}
+    if cmd == t.CMD_NOTIFICATION_EVENT:
+        event = t.parse_notification_event(payload)
+        out["event"] = event["event_name"]
+        out["event_int"] = event["event"]
+        if event["body"]:
+            out["body"] = event["body"].hex()
+        if event["tlv"]:
+            out["tlv"] = event["tlv"]
+        if event["event"] == t.EVENT_USER_INTERACTION:
+            press = t.parse_user_interaction(event["body"])
+            if press:
+                out["press"] = press
+    elif cmd in t.REQUEST_DECODERS:
+        out["request"] = t.decode_request(cmd, payload)
+    else:
+        state = t.decode_state(cmd, payload)
+        if state is not None:
+            out["state"] = state
+    return out
+
+
+def _print_event(row: dict) -> None:
+    head = f"  0x{row['cmd_int']:04X}  {row['name'] or '?'}"
+    if "press" in row:
+        press = row["press"]
+        print(f"{head}  button press: {press['function_name']}"
+              f"  (dev={press['device_type']} btn={press['button']}"
+              f" action={press['button_action']} scene={press['scene']})")
+    elif "event" in row:
+        print(f"{head}  event={row['event']}  body={row.get('body', '')}")
+    elif "request" in row:
+        print(f"{head}  request: {row['request']}")
+    elif "state" in row:
+        print(f"{head}  {row['state']}")
+    else:
+        print(f"{head}  [{row['payload']}]")
+
+
+def cmd_events(args) -> int:
+    """Listen for pushes and decode them (button presses, battery, requests)."""
+    transport, session = open_session(args)
+    try:
+        try:
+            session.negotiate_capabilities(timeout=args.timeout)
+        except t.TLError:
+            pass
+        packets = list(session.events) + session.listen(args.seconds)
+    finally:
+        transport.close()
+    rows = [decode_event(p) for p in packets]
+    if args.json:
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
+    print(f"listened {args.seconds:g}s: {len(rows)} packet(s)")
+    for row in rows:
+        _print_event(row)
+    return 0
+
+
 def cmd_backup(args) -> int:
     """Capture the device's user settings into a JSON snapshot."""
     transport, session = open_session(args)
@@ -577,6 +782,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("eq_args", nargs="*", metavar="VALUE",
                    help="'get' (default) to read, or 'set-mode <0..6>' to write")
     p.set_defaults(func=cmd_eq)
+
+    p = sub.add_parser("keys", parents=[common],
+                       help="read or write the key-function/gesture table")
+    p.add_argument("key_args", nargs="*", metavar="ACTION",
+                   help="'get' (default), 'set DEVICE:BUTTON:ACTION:FUNCTION ...', "
+                        "or 'disable-long-press'")
+    p.add_argument("--save", metavar="JSON",
+                   help="save the original table before writing")
+    p.add_argument("--confirm", action="store_true", help="required to write")
+    p.set_defaults(func=cmd_keys)
+
+    p = sub.add_parser("events", parents=[common],
+                       help="listen for device pushes and decode them")
+    p.add_argument("--seconds", type=float, default=10.0, metavar="N",
+                   help="seconds to listen (default 10)")
+    p.set_defaults(func=cmd_events)
 
     p = sub.add_parser("backup", parents=[common],
                        help="capture the device's user settings into JSON")

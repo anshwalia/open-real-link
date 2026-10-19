@@ -30,9 +30,12 @@ from .buttons import (
     DEVICE_TYPE_NAMES,
     EVENT_USER_INTERACTION,
     FUNCTION_NAMES,
+    LONG_PRESS_ACTIONS,
     KeyFunctionInfo,
+    disable_long_press,
     parse_key_function_table,
     parse_user_interaction,
+    patch_key_functions,
 )
 from .commands import (
     ALL_COMMANDS,
@@ -207,7 +210,8 @@ __all__ = [
     "parse_notification_event", "parse_pairs", "parse_switch_features", "parse_use_time",
     # buttons / key functions
     "ACTION_NAMES", "DEVICE_TYPE_NAMES", "EVENT_USER_INTERACTION", "FUNCTION_NAMES",
-    "KeyFunctionInfo", "parse_key_function_table", "parse_user_interaction",
+    "LONG_PRESS_ACTIONS", "KeyFunctionInfo", "disable_long_press", "parse_key_function_table",
+    "parse_user_interaction", "patch_key_functions",
     # device -> app requests (0x05xx)
     "OPERATION_MESSAGES", "REQUEST_DECODERS", "decode_request", "payload_host_time_reply",
     "parse_bass_engine_status", "parse_custom_eq", "parse_eq_mode_request",

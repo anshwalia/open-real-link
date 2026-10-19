@@ -273,6 +273,100 @@ def test_cli_eq() -> None:
         check("cli eq entry", "eqId=4" in buf.getvalue(), True)
 
 
+def test_keys_session_and_cli() -> None:
+    from tlcli.cli import decode_event, main, parse_key_update
+
+    kf_table = bytes.fromhex(
+        "000a"
+        "02010100" "02010201" "02010306" "02010408" "02010600"
+        "01010100" "01010201" "01010305" "01010408" "01010600")
+    caps = "00bf4f5ae665dc4004"
+
+    # session: read -> patch -> whole-table write -> read back
+    patched = t.patch_key_functions(
+        t.parse_key_function_table(kf_table)["entries"], {(2, 1, 4): 4})
+    written = t.payload_set_key_function([e.to_bytes() for e in patched])
+    new_table = b"\x00\x0a" + written[1:]
+    transport, session = replay([
+        ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
+        ("tx", wire(0x0108)), ("rx", wire(0x8108, kf_table)),
+        ("tx", wire(0x0401, written)), ("rx", wire(0x8401, b"\x00")),
+        ("tx", wire(0x0108)), ("rx", wire(0x8108, new_table)),
+    ])
+    session.negotiate_capabilities()
+    check("read_key_function count", session.read_key_function()["count"], 10)
+    check("set_key_function status", session.set_key_function(patched), 0)
+    check("read-back changed", session.read_key_function()["entries"][3],
+          t.KeyFunctionInfo(2, 1, 4, 4))
+
+    # parse_key_update accepts names and ints
+    check("parse_key_update names", parse_key_update("right:1:long-press:noise-control"),
+          ((2, 1, 4), 8))
+    check("parse_key_update ints", parse_key_update("2:1:4:8"), ((2, 1, 4), 8))
+    check("parse_key_update off", parse_key_update("1:1:5:off"), ((1, 1, 5), 0))
+    check_raises("parse_key_update bad arity", SystemExit, parse_key_update, "2:1:4")
+
+    # decode_event: button press, battery, and a device -> app request
+    press = decode_event({"cmd": 0x0204, "payload": bytes.fromhex("f102010200000000")})
+    check("event name", press["event"], "userInteraction")
+    check("event press function", press["press"]["function_name"], "off")
+    check("event press action", press["press"]["button_action"], 2)
+    battery = decode_event({"cmd": 0x0204, "payload": bytes.fromhex("0103016402640300")})
+    check("event battery tlv", battery["tlv"], {1: 100, 2: 100, 3: 0})
+    req = decode_event({"cmd": 0x0504, "payload": bytes([4])})
+    check("event request", req["request"], {"eq_mode": 4})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        get_rec = pathlib.Path(tmpdir) / "keys-get.jsonl"
+        get_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
+            ("tx", wire(0x0108)), ("rx", wire(0x8108, kf_table))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(get_rec), "keys", "get"])
+        out = buf.getvalue()
+        check("cli keys get rc", rc, 0)
+        check("cli keys get count", "count=10" in out, True)
+        check("cli keys get label", "right triple-click -> next-track" in out, True)
+
+        buf = io.StringIO()
+        rejected = False
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            try:
+                main(["--replay", str(get_rec), "keys", "set", "9:9:9:0", "--confirm"])
+            except SystemExit:
+                rejected = True
+        check("cli keys set rejects an unknown gesture", rejected, True)
+
+        off = t.disable_long_press(t.parse_key_function_table(kf_table)["entries"])
+        off_payload = t.payload_set_key_function([e.to_bytes() for e in off])
+        off_table = b"\x00\x0a" + off_payload[1:]
+        off_rec = pathlib.Path(tmpdir) / "keys-off.jsonl"
+        off_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
+            ("tx", wire(0x0108)), ("rx", wire(0x8108, kf_table)),
+            ("tx", wire(0x0401, off_payload)), ("rx", wire(0x8401, b"\x00")),
+            ("tx", wire(0x0108)), ("rx", wire(0x8108, off_table))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            rc = main(["--replay", str(off_rec), "keys", "disable-long-press", "--confirm"])
+        out = buf.getvalue()
+        check("cli keys disable rc", rc, 0)
+        check("cli keys disable wrote", "0x8401 status=0" in out, True)
+        check("cli keys disable off", "2:1:4:0" in out, True)
+
+        ev_rec = pathlib.Path(tmpdir) / "events.jsonl"
+        ev_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
+            ("rx", wire(0x0204, bytes.fromhex("f102010200000000")))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            rc = main(["--replay", str(ev_rec), "events", "--seconds", "0.1"])
+        out = buf.getvalue()
+        check("cli events rc", rc, 0)
+        check("cli events press", "button press: off" in out, True)
+
+
 def test_not_worn_and_rejection() -> None:
     transport, session = replay([
         ("tx", wire(0x0404, bytes([1, 1, 1]))),
