@@ -145,6 +145,7 @@ $ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF eq          # read the EQ mode + list
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF keys        # read the gesture table
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF events --seconds 15   # decode pushes
+$ python -m tlcli say "Noise control is on."            # host-side TTS via the headset
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json

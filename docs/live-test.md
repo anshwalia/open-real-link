@@ -185,6 +185,27 @@ listened 15s: 3 packet(s)
 wear), device → app `0x05xx` requests, and any state push it recognises. Apart
 from the read-only capability poll it sends nothing.
 
+### Step 8 — voice over: speak text through the headset (host-side)
+
+The TL protocol has **no text-to-speech command** — the AI/translation family
+(`0x0428 setTranslationAppStatus`, `0x0516` device→app audio,
+`0x012C startSocketConnect`) is a server/app feature with an unrecovered, unverified
+wire layout, so it is not implemented. `tlcli say` instead synthesizes speech on
+the host and plays it to the **current audio output**, so set the headset as the
+macOS output device.
+
+```console
+$ python3 -m tlcli say "Noise control is on."
+$ echo "piped text works too" | python3 -m tlcli say
+$ python3 -m tlcli say --voice Samantha --rate 180 --repeat 2 "pairing mode"
+$ python3 -m tlcli say --out cue.aiff "write a file instead of playing"
+$ python3 -m tlcli say --list-voices | grep en_
+```
+
+`--out` writes an AIFF and plays nothing, which also lets the feature be tested
+without making noise. macOS only (it uses `say`); on other platforms play the
+text with your own TTS engine to the headset's audio output.
+
 ## 4. Troubleshooting
 
 | Symptom | Meaning | Fix |

@@ -512,15 +512,73 @@ SPOKEN_MODES = {
 SAY_TAIL_SILENCE_MS = 1000
 
 
+def say_command(text: str, *, voice, rate, out) -> list[str]:
+    """Build the macOS ``say`` argv for ``text``. Pure; used by the tests."""
+    cmd = ["say"]
+    if out:
+        cmd += ["-o", out]
+    if voice:
+        cmd += ["-v", voice]
+    if rate:
+        cmd += ["-r", str(int(rate))]
+    cmd.append(text)
+    return cmd
+
+
+def say_text(text: str, *, voice=None, rate=None,
+             tail_silence_ms: int = SAY_TAIL_SILENCE_MS) -> None:
+    """Speak ``text`` through the current audio output (macOS ``say``).
+
+    This is **host-side**: the TL protocol has no text-to-speech command, so the
+    headset is used as an ordinary audio sink. Set the headset as the macOS
+    output device first. The trailing ``[[slnc]]`` keeps the last phoneme from
+    being clipped when the Bluetooth buffer tears down.
+    """
+    if sys.platform != "darwin":
+        raise SystemExit("speaking needs macOS 'say'; on other systems play the text "
+                         "with your own TTS engine to the headset's audio output")
+    cue = f"{text} [[slnc {tail_silence_ms}]]" if tail_silence_ms else text
+    subprocess.run(say_command(cue, voice=voice, rate=rate, out=None), check=False)
+
+
 def announce(text: str) -> None:
-    """Speak ``text`` with the macOS ``say`` command; silently no-op elsewhere."""
+    """Speak a short mode cue; silently no-op off macOS (used by ``mode cycle``)."""
     if sys.platform != "darwin":
         return
-    cue = f"{text} [[slnc {SAY_TAIL_SILENCE_MS}]]"
     try:
-        subprocess.run(["say", cue], check=False)
+        say_text(text)
     except OSError:
         pass
+
+
+def cmd_say(args) -> int:
+    """Speak text through the headset (host-side TTS; the device has no such command)."""
+    if args.list_voices:
+        try:
+            listing = subprocess.run(["say", "-v", "?"], capture_output=True,
+                                     text=True, check=False)
+        except OSError as exc:
+            raise SystemExit(f"cannot run 'say': {exc}") from exc
+        print(listing.stdout.rstrip())
+        return 0
+    text = " ".join(args.text).strip()
+    if not text and not sys.stdin.isatty():
+        text = sys.stdin.read().strip()
+    if not text:
+        raise SystemExit("nothing to say; pass text, or pipe it in")
+    if args.out:
+        if sys.platform != "darwin":
+            raise SystemExit("macOS-only: 'say' is the synthesis engine")
+        subprocess.run(say_command(text, voice=args.voice, rate=args.rate, out=args.out),
+                       check=False)
+        print(f"wrote {args.out} ({len(text)} chars)")
+        return 0
+    repeat = max(1, args.repeat)
+    for i in range(repeat):
+        if repeat > 1:
+            print(f"speaking {i + 1}/{repeat}", file=sys.stderr)
+        say_text(text, voice=args.voice, rate=args.rate)
+    return 0
 
 
 def cmd_mode(args) -> int:
@@ -835,6 +893,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true",
                    help="allow the blocked families (tone, OTA, debug)")
     p.set_defaults(func=cmd_send)
+
+    p = sub.add_parser("say", help="speak text through the headset (host-side macOS TTS)")
+    p.add_argument("text", nargs="*", help="words to speak; read stdin if omitted")
+    p.add_argument("--voice", metavar="NAME", help="macOS voice (see --list-voices)")
+    p.add_argument("--rate", type=float, metavar="WPM", help="words per minute")
+    p.add_argument("--repeat", type=int, default=1, metavar="N",
+                   help="speak it N times (default 1)")
+    p.add_argument("--out", metavar="FILE", help="write AIFF to FILE instead of playing")
+    p.add_argument("--list-voices", action="store_true",
+                   help="list installed voices and exit")
+    p.set_defaults(func=cmd_say)
 
     return ap
 

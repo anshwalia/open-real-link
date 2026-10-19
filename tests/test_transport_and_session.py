@@ -785,6 +785,28 @@ def test_cli_mode_cycle() -> None:
         check("mode cycle reports FAIL", "RESULT: FAIL" in buf.getvalue(), True)
 
 
+def test_cli_say() -> None:
+    from tlcli.cli import main, say_command
+
+    check("say plain", say_command("hello", voice=None, rate=None, out=None),
+          ["say", "hello"])
+    check("say out/voice/rate",
+          say_command("hi", voice="Alex", rate=180, out="/tmp/x.aiff"),
+          ["say", "-o", "/tmp/x.aiff", "-v", "Alex", "-r", "180", "hi"])
+    check("say rate truncates",
+          say_command("x", voice=None, rate=180.7, out=None), ["say", "-r", "180", "x"])
+
+    # a real synthesis with --out writes an audio file (no sound is played)
+    if sys.platform == "darwin":
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "cue.aiff"
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                rc = main(["say", "--out", str(out), "hello"])
+            check("cli say --out rc", rc, 0)
+            check("cli say --out file", out.exists() and out.stat().st_size > 0, True)
+
+
 def main() -> int:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
