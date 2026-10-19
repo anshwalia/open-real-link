@@ -17,7 +17,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | Column | Meaning |
 | --- | --- |
 | **open-real-link** | `build` = payload builder, `send` = sent by `Session`/`tlcli`, `decode` = reply/push decoder; `—` = not implemented |
-| **Air7 Pro** | `live` = enabled by this unit's capability bitmap; `—` = not enabled |
+| **Air7 Pro** | `live` = *advertised* by this unit's capability bitmap — **not** a claim that it was exercised end to end; `—` = not enabled |
 | **gating** | `always-on`, `cap-bit N` (enabled when capability bit N is set), or `ungated` |
 
 ## Full catalogue
@@ -110,6 +110,26 @@ Two of the 81 rows are **not** TL commands and are not counted above: `0x7F00`
 is the manager-class mask (`cmd & 0x7F00`, `Protocol.b`) and `0x079A` is the
 OPPO interaction service's 16-bit UUID (`0000079A-D102-…`), not a request the
 app sends. That is why the catalogue has 81 rows but only **79 command IDs**.
+
+## Implemented but not live-verified
+
+The project rule is **implement only what is verified on hardware and live-tested**
+(`AGENTS.md`). The `Air7 Pro: live` column only means the ID is *advertised*; it
+is not proof that this project exercised it. The rows below are implemented from
+static recovery alone, are **not** covered by the rule, and are candidates for a
+live test or removal. Their obstacle is named.
+
+| What | Symbol | Obstacle |
+| --- | --- | --- |
+| bass-engine read `0x0124` | `parse_bass_engine` | cap-bit 38 is set, but the unit answers an empty `0x0124` with `00 00` — no reading to decode |
+| bass-engine write `0x041B` | `payload_set_bass_engine`, `restore` | never driven; the read gives no value to write back |
+| EQ write `0x0418` | `payload_set_eq` | the read (`0x0122`) and write are asymmetric (`isSelected` vs `action`) and the encoder refuses a zero-band record; never driven |
+| switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
+| feature detect `0x012A` | `parse_feature_detect` | not in the capability bitmap; the unit does not answer |
+| `0x0502`, `0x0503`, `0x0504`, `0x0506`, `0x0508`, `0x050E`, `0x0516` | `tlcore.requests` decoders | recovered statically; only `0x0500` has been observed live |
+
+Everything else implemented — the `0x01xx` reads, the noise / EQ-mode /
+key-function writes, `0x0204`, `0x0500` — has been exercised on hardware.
 
 ## Safety
 

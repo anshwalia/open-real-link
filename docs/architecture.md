@@ -128,6 +128,14 @@ safe to publish.
 
 ## 6. What we deliberately do **not** do
 
+* **Nothing is implemented that has not been verified live.** A payload builder,
+  sender, decoder, `Session` method, CLI command, backup/restore entry or UI
+  control is added **only** for a fact confirmed on hardware and live-tested end
+  to end. An `observed` or `inferred` fact is **documented** — what it is, why it
+  matters, how it would be used, and the obstacle that blocks verification — and
+  left unimplemented. The one exception is a guard that *prevents* traffic (the
+  `send` refusal for the tone / OTA / debug families), which is not an
+  implementation of the blocked feature.
 * **One distribution, published late.** The repository is a monorepo, but only
   the core is a package: `open-real-link`, which is `tlcore`. The app ships from
   the same repository and is not published separately, so installing the library

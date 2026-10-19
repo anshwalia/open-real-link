@@ -24,6 +24,31 @@ commit, and do not paste into a doc or test:
 If a protocol fact needs a raw capture or a decompiled excerpt to explain it,
 state the **finding** here and keep the artifact elsewhere.
 
+## Implement only what is verified and live-tested
+
+**Do not implement a protocol fact that has not been verified on hardware and
+live-tested end to end.** "Implement" means anything that makes the project
+*do* the thing: a payload builder, a sender, a decoder, a `Session` method, a
+CLI command, a backup/restore entry, or a UI control.
+
+The evidence tag is the gate:
+
+| tag | meaning | allowed here |
+| --- | --- | --- |
+| `verified` | confirmed on hardware, end to end | implement **and** document |
+| `observed` | seen live, not fully confirmed | document only |
+| `inferred` | derived by static analysis, never run | document only |
+
+An `observed` or `inferred` fact is still worth recording — as **documentation**:
+*what* it is, *why* it matters, *how* it would be used, and *what blocks
+verification* (the obstacle). Name the obstacle explicitly (device refuses it,
+no read-back path, needs a worn headset, unsafe to drive, layout unconfirmed),
+and say it is not implemented. A documented gap is fine; a silent guess is not.
+
+One narrow exception: a guard whose only job is to **prevent** traffic — the
+`send` refusal for the tone / OTA / debug families — is not an implementation of
+the blocked feature, and is allowed even though the feature is not.
+
 ## Conventions
 
 - `tlcore` is **pure**: no platform imports and no I/O. Transports live in
