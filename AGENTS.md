@@ -55,6 +55,22 @@ existed. They are **kept and tracked, not hidden**: the ledger in
 obstacle. Do not add a new exception, and do not extend an existing one — the
 ledger may only shrink. Resolve them as described under "Before releasing".
 
+## Dev environment
+
+Use the virtualenv at the **repository root**. Do not install the project or its
+dependencies into the system or user site.
+
+```console
+$ python3 -m venv .venv
+$ .venv/bin/pip install -e ".[dev,macos,gui]"
+$ .venv/bin/python -m pytest -q
+```
+
+`.[macos]` is the IOBluetooth transport, `.[gui]` is PySide6 for the app, and
+`.[dev]` is the test/lint tools. Every command in this repository is run through
+`.venv/bin/python` (or `.venv/bin/pip`); the bare `python3` used in older notes
+means that interpreter.
+
 ## Conventions
 
 - `tlcore` is **pure**: no platform imports and no I/O. Transports live in
@@ -80,10 +96,10 @@ ledger may only shrink. Resolve them as described under "Before releasing".
 
 ## Before committing
 
-- `python3 -m pytest -q` passes.
-- `python3 tests/test_protocol_docs.py` prints `DOCS: OK`.
-- `TL_REFERENCE=… python3 tests/test_parity_tl_frame.py` prints `PARITY: OK`
-  (or skips cleanly when the reference is unavailable).
+- `.venv/bin/python -m pytest -q` passes.
+- `.venv/bin/python tests/test_protocol_docs.py` prints `DOCS: OK`.
+- `TL_REFERENCE=… .venv/bin/python tests/test_parity_tl_frame.py` prints
+  `PARITY: OK` (or skips cleanly when the reference is unavailable).
 - Nothing from the "Do not add here" list is staged.
 
 ## Before releasing

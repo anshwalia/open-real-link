@@ -110,11 +110,15 @@ $ pip install ".[macos]"   # macOS (implemented)
 $ pip install ".[linux]"   # Linux (transport still to be written)
 ```
 
-For development (editable install plus test and lint tools):
+For development, use the virtualenv at the repository root:
 
 ```console
-$ pip install -e ".[dev]"
+$ python3 -m venv .venv
+$ .venv/bin/pip install -e ".[dev,macos,gui]"
 ```
+
+`[macos]` is the IOBluetooth transport, `[gui]` adds PySide6 for the desktop
+app, and `[dev]` adds the test and lint tools.
 
 ## Quick start
 
