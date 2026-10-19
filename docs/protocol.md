@@ -162,6 +162,11 @@ sending an optional command; the `ALWAYS_ON` set (`{0x0100, 0x0101, 0x0102,
 `0x012A` is a different query — “which single feature does this device support”
 — answered by an `0x812A` body decoded by `parse_feature_detect`.
 
+Because the accepted set is a runtime property of the unit, no per-model
+capability table is shipped. What *is* shipped is a static, tiered list of
+models and the transport shape they use: see
+[`device-compatibility.md`](device-compatibility.md).
+
 ## 7. Command surface
 
 This is the set `tlcore` implements. A builder (`payload_*`) constructs a

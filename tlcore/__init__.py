@@ -13,6 +13,7 @@ Layering, innermost first::
     noise.py      the six noise-mode values and the read selectors
     payloads.py   payload builders for the commands recovered in full
     decoders.py   battery / wear / use-time / events / capability bodies
+    devices.py    static per-model compatibility table (candidate list, no I/O)
 
 Everything here was validated against a real Buds Air7 Pro over live SPP.  The
 ``tests/parity_*`` harness cross-checks the codec against an external reference
@@ -76,6 +77,13 @@ from .decoders import (
     parse_pairs,
     parse_switch_features,
     parse_use_time,
+)
+from .devices import (
+    KNOWN_DEVICES,
+    MODEL_IDS,
+    DeviceSpec,
+    device_spec,
+    devices_for_model,
 )
 from .errors import (
     ChannelRefused,
@@ -160,4 +168,6 @@ __all__ = [
     "Session", "Transport",
     # backup / restore
     "BACKUP_FORMAT", "READ_PLAN", "capture", "restore",
+    # devices
+    "KNOWN_DEVICES", "MODEL_IDS", "DeviceSpec", "device_spec", "devices_for_model",
 ]
