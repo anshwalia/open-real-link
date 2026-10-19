@@ -97,3 +97,18 @@ def payload_set_eq_mode(mode: int) -> bytes:
     and values >= 7 clamp to 6.
     """
     return bytes([mode & 0xFF])
+
+
+def payload_set_bass_engine(min_value: int, max_value: int, current_value: int,
+                            type: int | None = None) -> bytes:
+    """SetCommandManager.l()/m() / cmd 0x041B.
+
+    ``[minValue][maxValue][currentValue]`` -- 3 bytes; a ``type`` byte is
+    appended only when ``type > 0`` (``SetCommandManager.m`` passes ``-1`` for
+    the plain 3-byte form).  The matching read is ``0x0124``
+    (:func:`tlcore.decoders.parse_bass_engine`).
+    """
+    body = bytes([min_value & 0xFF, max_value & 0xFF, current_value & 0xFF])
+    if type is not None and type > 0:
+        body += bytes([type & 0xFF])
+    return body

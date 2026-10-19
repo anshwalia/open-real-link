@@ -15,11 +15,16 @@ noise mode       ``0x010C`` sel ``1``        ``0x0404`` action ``1``
 key function     ``0x0108``                  ``0x0401`` (same records)
 EQ mode          ``0x010F``                  ``0x0406`` (identity)
 switch features  ``0x010D``                  ``0x0403`` (per feature)
+bass engine      ``0x0124``                  ``0x041B`` (same value)
 ===============  ==========================  ==========================
 
 Everything else is stored faithfully but reported as *not restorable* rather
 than guessed at, because its payload value semantics were not recovered (see
-``docs/command-coverage.md``).  This module is pure: it talks only to a
+``docs/command-coverage.md``).  The bass-engine layout is recovered from the
+decompiler but is **not** live-verified (the Air7 Pro does not answer
+``0x0124``), and is captured only when the reply carries a reading.
+
+This module is pure: it talks only to a
 :class:`~tlcore.session.Session`, never to a file or a platform API.
 """
 from __future__ import annotations
@@ -28,18 +33,22 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .commands import (
+    CMD_SET_BASS_ENGINE,
     CMD_SET_EQ_MODE,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     CMD_SET_SWITCH_FEATURE,
 )
 from .decoders import (
+    parse_bass_engine,
     parse_device_version,
+    parse_eq_mode,
+    parse_key_function,
     parse_model_id,
     parse_switch_features,
 )
 from .errors import TLError
-from .payloads import payload_set_switch_feature
+from .payloads import payload_set_bass_engine, payload_set_switch_feature
 
 #: Format tag written into (and required by) every backup file.
 BACKUP_FORMAT = "open-real-link.backup/1"
@@ -76,7 +85,8 @@ SETTING_KEYS = frozenset({
 })
 
 #: Settings this module knows how to write back.
-RESTORABLE = frozenset({"noise_mode", "key_function", "eq_mode", "switch_features"})
+RESTORABLE = frozenset({"noise_mode", "key_function", "eq_mode", "switch_features",
+                        "bass_engine"})
 
 
 def _model_string(reply_hex: str) -> Optional[str]:
@@ -101,16 +111,25 @@ def _derive_settings(raw: dict) -> dict:
     if nm and nm["status"] == 0 and len(nm["reply"]) >= 2:
         out["noise_mode"] = int(nm["reply"][-2:], 16)
     kf = raw.get("key_function")
-    if kf and kf["status"] == 0 and len(kf["reply"]) >= 4:
-        # drop the status byte: [count][records...] is exactly the 0x0401 body
-        out["key_function"] = kf["reply"][2:]
+    if kf and kf["status"] == 0:
+        table = parse_key_function(bytes.fromhex(kf["reply"]))
+        # [count][records...] is exactly the 0x0401 body; count 0 is not writable
+        if table["count"]:
+            out["key_function"] = f"{table['count']:02x}" + "".join(table["records"])
     sw = raw.get("switch_features")
     if sw:
         out["switch_features"] = parse_switch_features(
             bytes.fromhex(sw["reply"]))["entries"]
     em = raw.get("eq_mode")
-    if em and em["status"] == 0 and len(em["reply"]) >= 2:
-        out["eq_mode"] = int(em["reply"][-2:], 16)
+    if em and em["status"] == 0:
+        mode = parse_eq_mode(bytes.fromhex(em["reply"]))["mode"]
+        if mode is not None:
+            out["eq_mode"] = mode
+    be = raw.get("bass_engine")
+    if be:
+        value = parse_bass_engine(bytes.fromhex(be["reply"]))["value"]
+        if value is not None:
+            out["bass_engine"] = value
     return out
 
 
@@ -195,6 +214,18 @@ def restore(session, snapshot: dict, *, timeout: Optional[float] = None,
     if eq_mode is not None:
         _apply("eq_mode", session.supports(CMD_SET_EQ_MODE),
                lambda: session.set_eq_mode(eq_mode, timeout=timeout))
+
+    bass_engine = settings.get("bass_engine")
+    if bass_engine:
+        def _write_bass_engine() -> None:
+            reply = session.request(
+                CMD_SET_BASS_ENGINE,
+                payload_set_bass_engine(
+                    bass_engine["min"], bass_engine["max"], bass_engine["current"],
+                    bass_engine.get("type")),
+                timeout=timeout)
+            session.check_status(reply)
+        _apply("bass_engine", session.supports(CMD_SET_BASS_ENGINE), _write_bass_engine)
 
     for entry in settings.get("switch_features", []):
         def _write_switch(entry=entry) -> None:

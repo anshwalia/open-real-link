@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **27 implemented** in `open-real-link`,
-**52 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **29 implemented** in `open-real-link`,
+**50 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -49,7 +49,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x011f` | 287 | poll | cap-bit 30 | — | live | getEarScanFilterData |
 | `0x0120` | 288 | poll | cap-bit 32 | — | live | getEarLanguageData |
 | `0x0122` | 290 | poll | cap-bit 34 | send + decode | live | getAllEqInfo |
-| `0x0124` | 292 | poll | cap-bit 38 | — | live | — |
+| `0x0124` | 292 | poll | cap-bit 38 | send + decode | live | — |
 | `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
 | `0x012a` | 298 | poll | ungated | decode | — | detectFeature |
@@ -88,7 +88,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0412` | 1042 | set | cap-bit 26 | — | live | setPersonalizedNoiseReduction |
 | `0x0415` | 1045 | set | cap-bit 30 | — | live | sendProcessEarScanData |
 | `0x0418` | 1048 | set | cap-bit 34 | build | live | getDbValue, getFrequency, setEqInfo |
-| `0x041b` | 1051 | set | cap-bit 38 | — | live | setBassEngineValue |
+| `0x041b` | 1051 | set | cap-bit 38 | build + send | live | setBassEngineValue |
 | `0x041e` | 1054 | set | cap-bit 43 | — | live | setSpatialAudioType |
 | `0x0428` | 1064 | set | cap-bit 58 | — | live | setTranslationAppStatus |
 | `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
@@ -129,9 +129,14 @@ recovered and symmetric end to end:
 | key function | `0x0108` | `0x0401` |
 | EQ mode | `0x010F` | `0x0406` |
 | switch features | `0x010D` | `0x0403` |
+| bass engine | `0x0124` | `0x041B` |
 
 Everything else is captured but reported `not_restored` (payload value
 semantics not recovered). In particular the `0x0122` EQ list is captured but
 **not** written back: the `0x0418` encoder refuses a zero-band record, and the
 read byte is `isSelected` while the write's first byte is `action`, so the bytes
 cannot be replayed verbatim (see `docs/protocol.md` §8).
+
+The bass-engine layout is recovered from the decompiler but is **not**
+live-verified: the Air7 Pro advertises capability bit 38 yet does not answer
+`0x0124`, so no bass value is derived on this unit and no `0x041B` write is sent.

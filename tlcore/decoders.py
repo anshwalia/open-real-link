@@ -234,6 +234,28 @@ def parse_eq_mode(payload: bytes) -> dict:
     return {"status": payload[0], "mode": payload[1]}
 
 
+def parse_bass_engine(payload: bytes) -> dict:
+    """``0x8124``: ``[status][min][max][current]([type])`` -- the bass engine.
+
+    Pairs with ``0x041B setBassEngineValue``
+    (:func:`tlcore.payloads.payload_set_bass_engine`).  The layout is recovered
+    from ``PollCommandManager.Q``
+    (which reads the status, then ``CommandUtil.c(1, body)``); it is **inferred**,
+    not live-verified -- the Air7 Pro advertises the capability bit but does not
+    answer ``0x0124``.  ``value`` is ``None`` when the reply carries no reading.
+    """
+    status = payload[0] if payload else 0
+    value = None
+    if status == 0 and len(payload) >= 4:
+        value = {
+            "min": payload[1],
+            "max": payload[2],
+            "current": payload[3],
+            "type": payload[4] if len(payload) >= 5 else None,
+        }
+    return {"status": status, "value": value}
+
+
 def parse_key_function(payload: bytes) -> dict:
     """``0x8108``: ``[status][count] + 4 bytes per entry`` -- the gesture table.
 
@@ -272,6 +294,7 @@ STATE_DECODERS = {
     0x8103: parse_model_id,
     0x8105: parse_device_version,
     0x8122: parse_eq_info,
+    0x8124: parse_bass_engine,
     0x810F: parse_eq_mode,
     0x812A: parse_feature_detect,
     0x8108: parse_key_function,

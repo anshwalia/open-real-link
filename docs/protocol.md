@@ -184,6 +184,8 @@ are “known only” and are listed for identification only.
 | `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
+| `0x0124` | bass engine (read) | — | `parse_bass_engine` | inferred |
+| `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | inferred |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | `parse_feature_detect` | verified |
 | `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_user_interaction` | verified |
