@@ -128,6 +128,14 @@ across frames) into decoded packets. Callers working at the byte level can use
 
 A response is the request with the top bit set (`0x0404` → `0x8404`).
 
+The complete recovered catalogue is `tlcore.ALL_COMMANDS` — all **79** request
+IDs with their family, capability gating and observed name — with
+`tlcore.COMMAND_IDS` for membership tests and `tlcore.command_spec(cmd)` for
+lookup. `CAPABILITY_TABLE` + `ALWAYS_ON` describe only the gated subset (48
+IDs); `ALL_COMMANDS` also covers the ungated families (notify, OTA,
+device→app, debug). [`command-coverage.md`](command-coverage.md) is the prose
+view of the same table.
+
 ## 6. Capability negotiation
 
 Most commands are gated: a device only accepts commands it has advertised. To

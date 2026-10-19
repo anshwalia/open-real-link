@@ -110,6 +110,8 @@ def parity_constants(ref, core) -> None:
     check("CAPABILITY_TABLE length", len(core.CAPABILITY_TABLE), 61)
     check("ALWAYS_ON", core.ALWAYS_ON, ref.ALWAYS_ON)
     check("CMD_NAMES", core.CMD_NAMES, ref.CMD_NAMES)
+    check("ALL_COMMANDS", core.ALL_COMMANDS, ref.ALL_COMMANDS)
+    check("COMMAND_IDS", core.COMMAND_IDS, ref.COMMAND_IDS)
     check("NOISE_MODE_NAMES", core.NOISE_MODE_NAMES, ref.NOISE_MODE_NAMES)
     check("EVENT_TYPE_NAMES", core.EVENT_TYPE_NAMES, ref.EVENT_TYPE_NAMES)
 

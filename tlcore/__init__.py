@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from .backup import BACKUP_FORMAT, READ_PLAN, capture, restore
 from .commands import (
+    ALL_COMMANDS,
     ALWAYS_ON,
     CAPABILITY_TABLE,
     CLASS_DEBUG,
@@ -48,8 +49,11 @@ from .commands import (
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     CMD_SET_SWITCH_FEATURE,
+    COMMAND_IDS,
     RESPONSE_BIT,
+    CommandSpec,
     cmd_class,
+    command_spec,
     is_response,
     parse_capabilities,
 )
@@ -126,7 +130,7 @@ __all__ = [
     "SOF", "StreamDecoder", "build_frames", "build_packet", "deframe",
     "parse_frame", "parse_packet", "varint_decode", "varint_encode",
     # commands
-    "ALWAYS_ON", "CAPABILITY_TABLE", "CLASS_DEBUG", "CLASS_MASK", "CLASS_NAMES",
+    "ALL_COMMANDS", "ALWAYS_ON", "CAPABILITY_TABLE", "CLASS_DEBUG", "CLASS_MASK", "CLASS_NAMES",
     "CLASS_NOTIFY", "CLASS_POLL", "CLASS_REQUEST", "CLASS_SET", "CLASS_UPGRADE",
     "CMD_CANCEL_REGISTER_NOTIFICATION", "CMD_DETECT_FEATURE", "CMD_EQ_INFO",
     "CMD_GET_ALL_EQ_INFO", "CMD_GET_EQ_MODE", "CMD_GET_NOISE_REDUCTION",
@@ -134,8 +138,9 @@ __all__ = [
     "CMD_NAMES", "CMD_NOTIFICATION_CAPS", "CMD_REGISTER_NOTIFICATION",
     "CMD_SET_EQ_MODE", "CMD_SET_KEY_FUNCTION", "CMD_SET_NOISE_REDUCTION",
     "CMD_SET_SWITCH_FEATURE",
+    "COMMAND_IDS", "CommandSpec",
     "RESPONSE_BIT",
-    "cmd_class", "is_response", "parse_capabilities",
+    "cmd_class", "command_spec", "is_response", "parse_capabilities",
     # noise
     "NOISE_FIELD_CYCLE", "NOISE_FIELD_MODE", "NOISE_MODE_ANC", "NOISE_MODE_ANC_DEEP",
     "NOISE_MODE_ANC_LIGHT", "NOISE_MODE_ANC_MEDIUM", "NOISE_MODE_ANC_SMART",

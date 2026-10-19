@@ -9,6 +9,8 @@ see :func:`parse_capabilities`.
 """
 from __future__ import annotations
 
+from typing import NamedTuple
+
 # --- command families: Protocol.a(cmd) = cmd & 0x7F00 -----------------------
 CLASS_MASK = 0x7F00
 RESPONSE_BIT = 0x8000
@@ -85,7 +87,7 @@ CMD_NAMES = {
     0x0120: "getEarLanguageData",
     0x0122: "getAllEqInfo",
     0x0129: "getStatusFeature",
-    0x012A: "detectFeature (capability report)",
+    0x012A: "detectFeature",
     0x012C: "startSocketConnect",
     0x0200: "getNotificationCapabilities",
     0x0202: "registerNotification",
@@ -111,6 +113,125 @@ CMD_NAMES = {
 }
 
 assert len(CAPABILITY_TABLE) == 61, len(CAPABILITY_TABLE)
+
+
+class CommandSpec(NamedTuple):
+    """One request command in the full recovered catalogue.
+
+    ``family`` is the manager family ("poll", "notify", "OTA", "set",
+    "device->app", "debug"); ``gating`` is "always-on" (in ``Protocol.c2``),
+    "ungated" (sent with no capability check), or "cap-bit N" (enabled when the
+    device sets capability bit N).  ``name`` is the observed name where one was
+    recovered, else "".
+    """
+
+    cmd: int
+    family: str
+    gating: str
+    name: str
+
+
+#: The **complete** recovered command catalogue: all 79 request IDs the TL
+#: protocol defines, whether or not ``tlcore`` implements them.
+#: ``CAPABILITY_TABLE`` + ``ALWAYS_ON`` cover only the gated subset (48 IDs);
+#: this is the full list, so a caller can identify any ID it sees on the wire.
+#: ``docs/command-coverage.md`` is the prose view of the same table.
+#: (``0x0F00`` is both always-on and in capability group 23; always-on wins.)
+#:
+#: The parity harness compares this against the reference codec, and
+#: ``tests/test_command_registry.py`` checks it against ``CAPABILITY_TABLE``,
+#: ``ALWAYS_ON`` and ``CMD_NAMES``.
+ALL_COMMANDS: tuple[CommandSpec, ...] = (
+    CommandSpec(0x0100, "poll", "always-on", "getRemoteCapability/getStatusFeature"),
+    CommandSpec(0x0101, "poll", "always-on", "getDeviceVersion/getProperty"),
+    CommandSpec(0x0102, "poll", "always-on", ""),
+    CommandSpec(0x0103, "poll", "always-on", ""),
+    CommandSpec(0x0104, "poll", "always-on", "getDeviceVersion, getProperty"),
+    CommandSpec(0x0105, "poll", "cap-bit 0", ""),
+    CommandSpec(0x0106, "poll", "cap-bit 1", ""),
+    CommandSpec(0x0107, "poll", "cap-bit 2", ""),
+    CommandSpec(0x0108, "poll", "cap-bit 3", ""),
+    CommandSpec(0x0109, "poll", "cap-bit 4", ""),
+    CommandSpec(0x010B, "poll", "always-on", ""),
+    CommandSpec(0x010C, "poll", "cap-bit 8", ""),
+    CommandSpec(0x010D, "poll", "cap-bit 7", ""),
+    CommandSpec(0x010F, "poll", "cap-bit 10", ""),
+    CommandSpec(0x0110, "poll", "cap-bit 11", ""),
+    CommandSpec(0x0111, "poll", "cap-bit 15", ""),
+    CommandSpec(0x0112, "poll", "cap-bit 29", ""),
+    CommandSpec(0x0115, "poll", "cap-bit 19", ""),
+    CommandSpec(0x0116, "poll", "cap-bit 19", ""),
+    CommandSpec(0x0118, "poll", "cap-bit 25", "getEarRestoreData"),
+    CommandSpec(0x011A, "poll", "cap-bit 26", ""),
+    CommandSpec(0x011E, "poll", "cap-bit 30", "getEarScanData"),
+    CommandSpec(0x011F, "poll", "cap-bit 30", "getEarScanFilterData"),
+    CommandSpec(0x0120, "poll", "cap-bit 32", "getEarLanguageData"),
+    CommandSpec(0x0122, "poll", "cap-bit 34", "getAllEqInfo"),
+    CommandSpec(0x0124, "poll", "cap-bit 38", ""),
+    CommandSpec(0x0128, "poll", "cap-bit 46", ""),
+    CommandSpec(0x0129, "poll", "ungated", "getStatusFeature"),
+    CommandSpec(0x012A, "poll", "ungated", "detectFeature"),
+    CommandSpec(0x012C, "poll", "cap-bit 54", "startSocketConnect"),
+    CommandSpec(0x0131, "poll", "cap-bit 58", ""),
+    CommandSpec(0x0200, "notify", "ungated", "getNotificationCapabilities"),
+    CommandSpec(0x0201, "notify", "ungated", ""),
+    CommandSpec(0x0202, "notify", "ungated", "registerNotification"),
+    CommandSpec(0x0203, "notify", "ungated", "cancelRegisterNotification"),
+    CommandSpec(0x0204, "notify", "ungated", ""),
+    CommandSpec(0x0205, "notify", "cap-bit 22", "registerMultiNotification"),
+    CommandSpec(0x0300, "OTA", "ungated", ""),
+    CommandSpec(0x0301, "OTA", "ungated", ""),
+    CommandSpec(0x0302, "OTA", "ungated", "readSize"),
+    CommandSpec(0x0303, "OTA", "ungated", "readSize"),
+    CommandSpec(0x0304, "OTA", "ungated", ""),
+    CommandSpec(0x0305, "OTA", "ungated", ""),
+    CommandSpec(0x0306, "OTA", "ungated", ""),
+    CommandSpec(0x0307, "OTA", "ungated", ""),
+    CommandSpec(0x0308, "OTA", "ungated", ""),
+    CommandSpec(0x0400, "set", "cap-bit 5", ""),
+    CommandSpec(0x0401, "set", "cap-bit 3", "setKeyFunction"),
+    CommandSpec(0x0402, "set", "cap-bit 6", ""),
+    CommandSpec(0x0403, "set", "cap-bit 7", "setSwitchFeature"),
+    CommandSpec(0x0404, "set", "cap-bit 8", "setNoiseReduction"),
+    CommandSpec(0x0405, "set", "cap-bit 9", ""),
+    CommandSpec(0x0406, "set", "cap-bit 10", "setEQStatus"),
+    CommandSpec(0x0407, "set", "cap-bit 11", "setHighVolume"),
+    CommandSpec(0x0408, "set", "cap-bit 13", ""),
+    CommandSpec(0x0409, "set", "cap-bit 14", ""),
+    CommandSpec(0x040A, "set", "cap-bit 15", "setAutoPowerOffTime"),
+    CommandSpec(0x040B, "set", "cap-bit 29", "setMultiConnectAction"),
+    CommandSpec(0x040D, "set", "cap-bit 19", ""),
+    CommandSpec(0x040E, "set", "cap-bit 19", "switchProcessHearingDetectionParams"),
+    CommandSpec(0x0411, "set", "cap-bit 25", "setRestoreData"),
+    CommandSpec(0x0412, "set", "cap-bit 26", "setPersonalizedNoiseReduction"),
+    CommandSpec(0x0415, "set", "cap-bit 30", "sendProcessEarScanData"),
+    CommandSpec(0x0418, "set", "cap-bit 34", "setEqInfo/getEqInfo"),
+    CommandSpec(0x041B, "set", "cap-bit 38", "setBassEngineValue"),
+    CommandSpec(0x041E, "set", "cap-bit 43", "setSpatialAudioType"),
+    CommandSpec(0x0428, "set", "cap-bit 58", "setAIStatus/setTranslationAppStatus"),
+    CommandSpec(0x042C, "set", "cap-bit 60", "setHeadsetMicStatus"),
+    CommandSpec(0x0500, "device->app", "ungated", ""),
+    CommandSpec(0x0502, "device->app", "ungated", ""),
+    CommandSpec(0x0503, "device->app", "ungated", ""),
+    CommandSpec(0x0504, "device->app", "ungated", ""),
+    CommandSpec(0x0506, "device->app", "ungated", ""),
+    CommandSpec(0x0508, "device->app", "ungated", ""),
+    CommandSpec(0x050E, "device->app", "cap-bit 46", ""),
+    CommandSpec(0x0516, "device->app", "ungated", ""),
+    CommandSpec(0x0F00, "debug", "always-on", "switchDebugStatus"),
+    CommandSpec(0x0F01, "debug", "ungated", ""),
+    CommandSpec(0x0F02, "debug", "ungated", ""),
+)
+
+#: Every command ID in :data:`ALL_COMMANDS`.
+COMMAND_IDS = frozenset(spec.cmd for spec in ALL_COMMANDS)
+
+_COMMANDS_BY_ID = {spec.cmd: spec for spec in ALL_COMMANDS}
+
+
+def command_spec(cmd: int) -> CommandSpec | None:
+    """Return the :class:`CommandSpec` for ``cmd``, or ``None`` if unknown."""
+    return _COMMANDS_BY_ID.get(cmd)
 
 
 def parse_capabilities(payload: bytes) -> dict:

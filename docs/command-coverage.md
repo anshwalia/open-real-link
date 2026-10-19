@@ -52,7 +52,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0124` | 292 | poll | cap-bit 38 | — | live | — |
 | `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
-| `0x012a` | 298 | poll | ungated | decode | — | detectFeature (capability report) |
+| `0x012a` | 298 | poll | ungated | decode | — | detectFeature |
 | `0x012c` | 300 | poll | cap-bit 54 | — | live | startSocketConnect |
 | `0x0131` | 305 | poll | cap-bit 58 | — | live | — |
 | `0x0200` | 512 | notify | ungated | — | — | getNotificationCapabilities |
