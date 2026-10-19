@@ -197,14 +197,23 @@ macOS output device.
 ```console
 $ python3 -m tlcli say "Noise control is on."
 $ echo "piped text works too" | python3 -m tlcli say
+$ python3 -m tlcli --address AA-BB-CC-DD-EE-FF say --status   # speak a live summary
 $ python3 -m tlcli say --voice Samantha --rate 180 --repeat 2 "pairing mode"
 $ python3 -m tlcli say --out cue.aiff "write a file instead of playing"
 $ python3 -m tlcli say --list-voices | grep en_
 ```
 
-`--out` writes an AIFF and plays nothing, which also lets the feature be tested
-without making noise. macOS only (it uses `say`); on other platforms play the
-text with your own TTS engine to the headset's audio output.
+`--status` connects, negotiates capabilities, reads the device, and speaks one
+sentence (it also prints it):
+
+> realme Buds Air7 Pro, firmware 1.1.0.85, battery 100 percent left and 100
+> percent right, in ear, noise mode normal, use time 16 hours 6 minutes left and
+> 16 hours 9 minutes right.
+
+Pieces the device does not report are skipped. `--out` writes an AIFF and plays
+nothing, which also lets the feature be tested without making noise. macOS only
+(it uses `say`); on other platforms play the text with your own TTS engine to the
+headset's audio output.
 
 ## 4. Troubleshooting
 

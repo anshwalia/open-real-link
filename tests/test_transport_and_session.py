@@ -786,7 +786,7 @@ def test_cli_mode_cycle() -> None:
 
 
 def test_cli_say() -> None:
-    from tlcli.cli import main, say_command
+    from tlcli.cli import main, say_command, status_sentence
 
     check("say plain", say_command("hello", voice=None, rate=None, out=None),
           ["say", "hello"])
@@ -795,6 +795,19 @@ def test_cli_say() -> None:
           ["say", "-o", "/tmp/x.aiff", "-v", "Alex", "-r", "180", "hi"])
     check("say rate truncates",
           say_command("x", voice=None, rate=180.7, out=None), ["say", "-r", "180", "x"])
+
+    check("status sentence", status_sentence({
+        "model": {"model_id": 0x064C12},
+        "firmware": {"versions": ["1.1.0.85"]},
+        "battery": {"devices": {"L": {"level": 100}, "R": {"level": 100},
+                                 "CASE": {"level": 0}}},
+        "wear": {"devices": {"L": 3, "R": 3, "CASE": 4}},
+        "noise_mode": 0x01,
+        "use_time": {"devices": {"L": 3600, "R": 3900}},
+    }), "realme Buds Air7 Pro, firmware 1.1.0.85, battery 100 percent left and "
+        "100 percent right, in ear, noise mode normal, use time 1 hour left "
+        "and 1 hour 5 minutes right.")
+    check("status sentence skips unknowns", status_sentence({}), "the headset.")
 
     # a real synthesis with --out writes an audio file (no sound is played)
     if sys.platform == "darwin":
@@ -805,6 +818,18 @@ def test_cli_say() -> None:
                 rc = main(["say", "--out", str(out), "hello"])
             check("cli say --out rc", rc, 0)
             check("cli say --out file", out.exists() and out.stat().st_size > 0, True)
+
+            # --status reads a replay fixture and speaks the summary to a file
+            replay = _fixture_file(tmp, _status_records(0x01))
+            out2 = pathlib.Path(tmp) / "status.aiff"
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                rc = main(["--replay", replay, "say", "--status", "--out", str(out2)])
+            check("cli say --status rc", rc, 0)
+            check("cli say --status names the model",
+                  "realme Buds Air7 Pro" in buf.getvalue(), True)
+            check("cli say --status wrote audio",
+                  out2.exists() and out2.stat().st_size > 0, True)
 
 
 def main() -> int:

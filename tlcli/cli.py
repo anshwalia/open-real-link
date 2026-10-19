@@ -551,8 +551,71 @@ def announce(text: str) -> None:
         pass
 
 
+def _seconds_phrase(seconds: int) -> str:
+    hours, rem = divmod(int(seconds), 3600)
+    minutes = rem // 60
+    if hours and minutes:
+        return f"{hours} hour{'s' if hours != 1 else ''} {minutes} minutes"
+    if hours:
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    return f"{minutes} minute" + ("" if minutes == 1 else "s")
+
+
+def _battery_phrase(devices: dict) -> str:
+    parts = []
+    for key, label in (("L", "left"), ("R", "right")):
+        reading = devices.get(key)
+        if reading:
+            parts.append(f"{reading['level']} percent {label}")
+    case = devices.get("CASE")
+    if case and case["level"]:
+        parts.append(f"case {case['level']} percent")
+    if not parts:
+        return ""
+    return " and ".join(parts) if len(parts) == 2 else ", ".join(parts)
+
+
+def status_sentence(status: dict) -> str:
+    """Compose a short spoken summary from a ``Session.read_status()`` dict.
+
+    Pure. Pieces the device did not report are skipped rather than spoken as
+    noise; this is the only caller of ``say --status``.
+    """
+    model = (status.get("model") or {}).get("model_id")
+    if model is None:
+        name = "the headset"
+    else:
+        spec = t.device_spec(f"{model:06X}")
+        name = spec.name if spec else f"model 0x{model:06X}"
+    clauses = [name]
+    firmware = (status.get("firmware") or {}).get("versions") or []
+    if firmware:
+        clauses.append(f"firmware {firmware[0]}")
+    battery = _battery_phrase((status.get("battery") or {}).get("devices") or {})
+    if battery:
+        clauses.append(f"battery {battery}")
+    wear = (status.get("wear") or {}).get("devices") or {}
+    in_ear = [d for d in ("L", "R") if wear.get(d) == t.WEAR_IN_EAR]
+    if len(in_ear) == 2:
+        clauses.append("in ear")
+    elif in_ear:
+        clauses.append(f"only the {'left' if in_ear[0] == 'L' else 'right'} earbud in ear")
+    elif wear:
+        clauses.append("not worn")
+    mode = status.get("noise_mode")
+    if mode is not None:
+        spoken = t.NOISE_MODE_NAMES.get(mode, f"0x{mode:02X}").split(" (")[0]
+        clauses.append(f"noise mode {spoken.lower()}")
+    use = (status.get("use_time") or {}).get("devices") or {}
+    use_parts = [f"{_seconds_phrase(use[d])} {label}"
+                 for d, label in (("L", "left"), ("R", "right")) if use.get(d)]
+    if use_parts:
+        clauses.append("use time " + " and ".join(use_parts))
+    return ", ".join(clauses) + "."
+
+
 def cmd_say(args) -> int:
-    """Speak text through the headset (host-side TTS; the device has no such command)."""
+    """Speak text or a live status summary through the headset (host-side TTS)."""
     if args.list_voices:
         try:
             listing = subprocess.run(["say", "-v", "?"], capture_output=True,
@@ -561,11 +624,23 @@ def cmd_say(args) -> int:
             raise SystemExit(f"cannot run 'say': {exc}") from exc
         print(listing.stdout.rstrip())
         return 0
-    text = " ".join(args.text).strip()
-    if not text and not sys.stdin.isatty():
-        text = sys.stdin.read().strip()
-    if not text:
-        raise SystemExit("nothing to say; pass text, or pipe it in")
+    if args.status:
+        if args.text:
+            raise SystemExit("give either text or --status, not both")
+        transport, session = open_session(args)
+        try:
+            session.negotiate_capabilities(timeout=args.timeout)
+            status = session.read_status(timeout=args.timeout)
+        finally:
+            transport.close()
+        text = status_sentence(status)
+        print(text)
+    else:
+        text = " ".join(args.text).strip()
+        if not text and not sys.stdin.isatty():
+            text = sys.stdin.read().strip()
+        if not text:
+            raise SystemExit("nothing to say; pass text, --status, or pipe it in")
     if args.out:
         if sys.platform != "darwin":
             raise SystemExit("macOS-only: 'say' is the synthesis engine")
@@ -894,7 +969,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="allow the blocked families (tone, OTA, debug)")
     p.set_defaults(func=cmd_send)
 
-    p = sub.add_parser("say", help="speak text through the headset (host-side macOS TTS)")
+    p = sub.add_parser("say", parents=[common],
+                       help="speak text through the headset (host-side macOS TTS)")
     p.add_argument("text", nargs="*", help="words to speak; read stdin if omitted")
     p.add_argument("--voice", metavar="NAME", help="macOS voice (see --list-voices)")
     p.add_argument("--rate", type=float, metavar="WPM", help="words per minute")
@@ -903,6 +979,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", metavar="FILE", help="write AIFF to FILE instead of playing")
     p.add_argument("--list-voices", action="store_true",
                    help="list installed voices and exit")
+    p.add_argument("--status", action="store_true",
+                   help="read the live device and speak a status summary")
     p.set_defaults(func=cmd_say)
 
     return ap
