@@ -320,6 +320,15 @@ def test_cli_replay() -> None:
         message = str(exc)
     check("ear-scan is refused", "hearing" in message.lower(), True)
 
+    # the OTA and debug families are refused too (both deliberately unimplemented)
+    for cmd, needle in (("0x0302", "ota"), ("0x0f00", "debug")):
+        message = ""
+        try:
+            main(["--replay", "fixtures/mode-cycle.jsonl", "send", cmd])
+        except SystemExit as exc:
+            message = str(exc)
+        check(f"{cmd} is refused", needle in message.lower(), True)
+
 
 def test_replay_edges() -> None:
     from tlcore.errors import NotConnected

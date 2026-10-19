@@ -122,10 +122,10 @@ identification:
   refuses them without `--force`.
 * `0x0300`–`0x0308` (OTA) is a firmware **push** state machine with **no
   read-back** path; it is ungated, so a stray write could begin a flash. Never
-  driven on hardware.
+  driven on hardware; `send` refuses it without `--force`.
 * `0x0F00`–`0x0F02` (debug) is a device → app log stream that toggles real
   firmware verbosity; a retail Buds Air7 Pro refuses it. Never driven on
-  hardware.
+  hardware; `send` refuses it without `--force`.
 
 Do not sweep unknown command space.
 

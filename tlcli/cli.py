@@ -22,13 +22,30 @@ import tlcore as t
 from tltransport import SPP_UUID, open_transport
 from tltransport.replay import FIXTURES_DIR, ReplayError, ReplayTransport
 
-#: Commands that drive loud test tones (hearing / ear-scan). Refused unless
-#: ``--force``; see docs/protocol.md section 7.
+#: Command families the ``send`` subcommand refuses unless ``--force`` is given.
+#: These are the deliberately-unimplemented families (docs/protocol.md section
+#: 7): the hearing / ear-scan tone sweep, the OTA firmware-push machine, and the
+#: debug log stream. Each ID maps to the family label used in the refusal.
 DANGEROUS = {
-    0x011E: "getEarScanData",
-    0x011F: "getEarScanFilterData",
-    0x040E: "switchProcessHearingDetectionParams",
-    0x0415: "sendProcessEarScanData",
+    # loud, repeated test tones in the wearer's ears
+    0x011E: "hearing / ear-scan tone family",
+    0x011F: "hearing / ear-scan tone family",
+    0x040E: "hearing / ear-scan tone family",
+    0x0415: "hearing / ear-scan tone family",
+    # firmware push with no read-back path; ungated, so a stray write can flash
+    0x0300: "OTA firmware-push family",
+    0x0301: "OTA firmware-push family",
+    0x0302: "OTA firmware-push family",
+    0x0303: "OTA firmware-push family",
+    0x0304: "OTA firmware-push family",
+    0x0305: "OTA firmware-push family",
+    0x0306: "OTA firmware-push family",
+    0x0307: "OTA firmware-push family",
+    0x0308: "OTA firmware-push family",
+    # toggles real firmware verbosity
+    0x0F00: "debug log family",
+    0x0F01: "debug log family",
+    0x0F02: "debug log family",
 }
 
 MODE_ALIASES = {
@@ -474,9 +491,11 @@ def cmd_smoke(args) -> int:
 def cmd_send(args) -> int:
     cmd = parse_cmd(args.command)
     if cmd in DANGEROUS and not args.force:
+        name = t.CMD_NAMES.get(cmd, "")
+        label = f" ({name})" if name else ""
         raise SystemExit(
-            f"0x{cmd:04X} ({DANGEROUS[cmd]}) is part of the hearing/ear-scan family "
-            "and may play loud tones; refusing. Pass --force to override.")
+            f"0x{cmd:04X}{label} is part of the {DANGEROUS[cmd]}, which is "
+            "deliberately not implemented; refusing. Pass --force to override.")
     payload = bytes.fromhex(args.payload) if args.payload else b""
     transport, session = open_session(args)
     try:
@@ -592,7 +611,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("payload", nargs="?", help="payload bytes as hex, e.g. '01 01 20'")
     p.add_argument("--type", type=int, default=0, help="type/flags byte (default 0)")
     p.add_argument("--read", type=float, default=1.0, help="seconds to listen (default 1.0)")
-    p.add_argument("--force", action="store_true", help="allow hearing/ear-scan commands")
+    p.add_argument("--force", action="store_true",
+                   help="allow the blocked families (tone, OTA, debug)")
     p.set_defaults(func=cmd_send)
 
     return ap

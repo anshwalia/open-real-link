@@ -44,7 +44,11 @@ hyphens). Do **not** commit your own address into the repository.
   (`0x011E`, `0x011F`, `0x040E`, `0x0415`) drives **loud, repeated tones** in the
   wearer's ears. The CLI refuses those unless `--force` is given; do not pass it
   on a worn headset.
-* `send` will happily transmit an arbitrary command id. Prefer the named
+* **The OTA and debug families are refused too.** `send` blocks
+  `0x0300`–`0x0308` (firmware push, no read-back) and `0x0F00`–`0x0F02` (debug
+  log) unless `--force` is given. Both are deliberately unimplemented; there is
+  no reason to override this.
+* `send` will otherwise transmit an arbitrary command id. Prefer the named
   subcommands.
 
 ## 3. Run it
