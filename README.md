@@ -74,12 +74,21 @@ to be written.
 
 ## Safety
 
-Some commands recovered during reverse engineering drive **loud, repeated test
-tones** in the wearer's ears (the hearing-test and ear-scan family). Their
-command IDs are recorded in `tlcore` for identification, but no payload builder
-or decoder is provided for them. Do not sweep unknown commands against a headset
-that is being worn; any extension of this project should gate writes behind an
-explicit opt-in.
+Three recovered command families are **documented but not implemented** — no
+builder, decoder, or CLI command is provided for any of them, and their IDs are
+recorded only so their traffic can be identified:
+
+* the **hearing-test / ear-scan** family (`0x011E`, `0x011F`, `0x040E`, `0x0415`)
+  drives **loud, repeated test tones** in the wearer's ears;
+* the **OTA** family (`0x0300`–`0x0308`) is a firmware **push** state machine with
+  **no read-back** path, and it is ungated, so a stray write could start a flash;
+* the **debug** family (`0x0F00`–`0x0F02`) toggles real firmware verbosity and is
+  refused by retail units.
+
+Do not sweep unknown commands against a headset that is being worn; any extension
+of this project should gate writes behind an explicit opt-in. See
+[`docs/protocol.md`](docs/protocol.md) §7 for the recorded shapes and the
+deliberate non-implementation rationale.
 
 ## Installation
 

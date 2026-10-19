@@ -72,10 +72,14 @@ Two assets make both the remaining work and any future port cheap:
 1. **Never expose the hearing / ear-scan commands** (`0x040E`, `0x0415`,
    capability bits 19/30) in the UI without a hard warning — they drive **loud
    test tones**. Only `0x0404 action=1` (noise mode) is safe.
-2. **Noise writes are gated on in-ear detection** — the UI must explain
+2. **Never expose OTA (`0x0300`–`0x0308`) or debug (`0x0F00`–`0x0F02`).** OTA is
+   a firmware push with no read-back; debug toggles firmware verbosity. Neither
+   has a builder, decoder or CLI command — they are documented in
+   [`protocol.md`](protocol.md) §7 only.
+3. **Noise writes are gated on in-ear detection** — the UI must explain
    `0x8404 0e` ("put the buds in") rather than look broken.
-3. **No account, no telemetry, no vendor server.**
-4. **GPL-3.0-or-later.**
+4. **No account, no telemetry, no vendor server.**
+5. **GPL-3.0-or-later.**
 
 ---
 

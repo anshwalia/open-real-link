@@ -217,10 +217,18 @@ Shared decoders that are not tied to one command:
 
 ### Deliberately not implemented
 
-Some recovered commands drive **loud, repeated test tones** in the wearer's ears
-(the hearing-test / ear-scan family: `0x011E`, `0x011F`, `0x040E`, `0x0415`).
-Their IDs are recorded so traffic can be identified, but no builder or decoder is
-provided. Do not sweep unknown command space against a worn headset.
+Three recovered families are **documented here but never driven**: no builder,
+decoder, sender or CLI command is provided for them, and the IDs are recorded
+only so their traffic can be identified. The IDs are still listed in
+`ALL_COMMANDS` (family and gating; most have no recovered name).
+
+| Family | IDs | What it is | Why it is not implemented |
+| --- | --- | --- | --- |
+| hearing-test / ear-scan | `0x011E`, `0x011F`, `0x040E`, `0x0415` | a loud, repeated test-tone sweep | it plays **loud tones in the wearer's ears**; `send` refuses it without `--force` |
+| OTA | `0x0300`–`0x0308` | a firmware **push** state machine — `0x0302` is `[fileOffset:4][fileData]` streamed from a local file | there is **no firmware-read command**, and the family is **ungated**, so a stray write could begin a flash. Never driven on hardware |
+| debug | `0x0F00`–`0x0F02` | a device → app **log stream** — `0x0F00` `[earSide][level][module]` starts it, `0x0F01` carries chunks, `0x0F02` stops it | it toggles real firmware verbosity; a retail Buds Air7 Pro **refuses it** (`0x8F00 status=1 total=0` for every documented variant). Never driven on hardware |
+
+Do not sweep unknown command space against a worn headset.
 
 ### Known but not implemented
 
@@ -229,10 +237,10 @@ identification; do not send them blind.
 
 | Family | IDs | Why |
 | --- | --- | --- |
-| OTA | `0x0300`–`0x0308` | firmware push state machine, ungated, **no read-back**; deliberately not implemented |
 | set | the `0x04xx` IDs not in the table above (minus the tone family) | ID + gating known, payload layout not recovered |
 | poll | the `0x01xx` IDs not in the table above | ID + gating known, reply layout not mapped |
-| device→app | — | all eight `0x05xx` IDs now have a decoder |
+
+All eight device → app `0x05xx` IDs have a decoder (see §8).
 
 The Air7 Pro advertises the capability bit that gates `0x0403`/`0x010D`, and both
 are implemented; it simply reports no switch features, so its boolean toggles go

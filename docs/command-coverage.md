@@ -113,9 +113,21 @@ app sends. That is why the catalogue has 81 rows but only **79 command IDs**.
 
 ## Safety
 
-`0x011E`, `0x011F`, `0x040E` and `0x0415` (the hearing-test / ear-scan family)
-drive **loud, repeated test tones**. They are live on this unit and are
-deliberately left unimplemented. Do not sweep them.
+Three recovered families are **documented but not implemented** — no builder,
+decoder or CLI command is provided, and their IDs are recorded only for
+identification:
+
+* `0x011E`, `0x011F`, `0x040E`, `0x0415` (the hearing-test / ear-scan family)
+  drive **loud, repeated test tones**. They are live on this unit, and `send`
+  refuses them without `--force`.
+* `0x0300`–`0x0308` (OTA) is a firmware **push** state machine with **no
+  read-back** path; it is ungated, so a stray write could begin a flash. Never
+  driven on hardware.
+* `0x0F00`–`0x0F02` (debug) is a device → app log stream that toggles real
+  firmware verbosity; a retail Buds Air7 Pro refuses it. Never driven on
+  hardware.
+
+Do not sweep unknown command space.
 
 ## Backup and restore coverage
 
