@@ -250,10 +250,12 @@ $ python3 -m tlcli --address <device> --reset restore --dry-run settings.json
   [SKIP]    eq_info (captured, no restorer)
 ```
 
-Of the four restorable settings, the **noise-mode and EQ-mode writes have been
-verified live end to end** (above); the key-function and switch-feature writes
-are covered offline by `tests/test_transport_and_session.py`. As always, a noise
-write requires the buds to be **worn** (§2).
+Of the five restorable settings, the **noise-mode, EQ-mode and key-function
+writes have been verified live end to end** (above, and the long-press disable
+in `docs/protocol.md` §8); the switch-feature write is covered offline by
+`tests/test_transport_and_session.py` (the Air7 Pro exposes no switch features),
+and the bass-engine write is inferred. As always, a noise write requires the
+buds to be **worn** (§2).
 
 ## 6. What to record
 
