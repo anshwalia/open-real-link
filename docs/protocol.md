@@ -178,21 +178,30 @@ are “known only” and are listed for identification only.
 | Command | Purpose | Builder | Decoder | Status |
 | --- | --- | --- | --- | --- |
 | `0x0404` | setNoiseReduction | `payload_set_noise_reduction`, `payload_set_noise_mode` | — | verified |
-| `0x0401` | setKeyFunction | `payload_set_key_function` | — | integrated |
+| `0x0401` | setKeyFunction (write the gesture table) | `payload_set_key_function` | — | verified |
+| `0x0403` | setSwitchFeature | `payload_set_switch_feature` | — | integrated |
 | `0x0418` | setEqInfo / getEqInfo | `payload_set_eq` | — | integrated |
+| `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | `parse_feature_detect` | verified |
-| `0x0204` | notification event | — | `parse_notification_event` | verified |
+| `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_user_interaction` | verified |
 | `0x8106` | battery | — | `parse_battery` | verified |
 | `0x8109` | earbud / wear status | — | `parse_earbud_status` | verified |
 | `0x8128` | use time | — | `parse_use_time` | verified |
 | `0x8103` | model id | — | `parse_model_id` | verified |
 | `0x8105` | firmware / component versions | — | `parse_device_version` | verified |
 | `0x8122` | EQ info | — | `parse_eq_info` | verified |
-| `0x8108` | key-function / gesture table | — | `parse_key_function` | integrated |
 | `0x810D` | switch / feature status | — | `parse_switch_features` | integrated |
+| `0x0500` | device asks for the host time | `payload_host_time_reply` | `parse_host_time_request` | integrated |
+| `0x0502` | device operation request | — | `parse_operation_request` | integrated |
+| `0x0503` | feature-switch status sync | — | `parse_feature_switch_status` | integrated |
+| `0x0504` | device changed EQ mode | — | `parse_eq_mode_request` | integrated |
+| `0x0506` | custom-EQ list | — | `parse_custom_eq` | integrated |
+| `0x0508` | bass-engine status | — | `parse_bass_engine_status` | integrated |
+| `0x050E` | per-device use time | — | `parse_use_time_list` | integrated |
+| `0x0516` | framed audio data from the device | — | `parse_oneshot_audio` | integrated |
 
 Shared decoders that are not tied to one command:
 
@@ -200,6 +209,7 @@ Shared decoders that are not tied to one command:
 | --- | --- |
 | `parse_pairs` | Generic `[status][count][id, value]×count` TLV helper (used by the battery and wear decoders) |
 | `decode_state` | Dispatches a `0x81xx` reply to its decoder via `STATE_DECODERS`, or returns `None` |
+| `decode_request` | Dispatches a device → app `0x05xx` body to its decoder via `REQUEST_DECODERS`, or returns `None` |
 
 <!-- command-surface:end -->
 
@@ -212,19 +222,21 @@ provided. Do not sweep unknown command space against a worn headset.
 
 ### Known but not implemented
 
-Other recovered IDs have no builder or decoder either. They are recorded for
+Other recovered IDs have no builder or decoder. They are recorded for
 identification; do not send them blind.
 
-| Command | Purpose | State |
+| Family | IDs | Why |
 | --- | --- | --- |
-| `0x010D` | read switch/feature status (the read half of the `0x0403` pair) | observed: the Air7 Pro replies `0x810D 00 00` — status 0, an empty entry list |
-| `0x0403` | `setSwitchFeature` — set one boolean feature switch, payload `[featureId][0 or 1]` | known only |
+| OTA | `0x0300`–`0x0308` | firmware push state machine, ungated, **no read-back**; deliberately not implemented |
+| set | the `0x04xx` IDs not in the table above (minus the tone family) | ID + gating known, payload layout not recovered |
+| poll | the `0x01xx` IDs not in the table above | ID + gating known, reply layout not mapped |
+| device→app | — | all eight `0x05xx` IDs now have a decoder |
 
-The Air7 Pro advertises the capability bit that gates `0x0403`/`0x010D`, yet
-reports no switch features, so its boolean toggles go through the dedicated set
-commands instead. The probe is recorded in [`live-test.md`](live-test.md). The
-full known-vs-implemented command catalogue is in
-[`command-coverage.md`](command-coverage.md).
+The Air7 Pro advertises the capability bit that gates `0x0403`/`0x010D`, and both
+are implemented; it simply reports no switch features, so its boolean toggles go
+through the dedicated set commands instead. The probe is recorded in
+[`live-test.md`](live-test.md). The full known-vs-implemented command catalogue is
+in [`command-coverage.md`](command-coverage.md).
 
 ## 8. Reading device state
 
@@ -307,6 +319,53 @@ The Air7 Pro reports one point-less entry — `00 01 01 01 02 04 00 00` → eqId
 encoder refuses a zero-band record, and the read byte is `isSelected` while the
 write's first byte is `action`, so the bytes cannot be replayed verbatim. Backup
 captures the list and leaves it `not_restored`.
+
+### Buttons and gestures
+
+A headset stores a **key-function table** binding a gesture on an earbud to a
+function. Read it with an empty `0x0108`, write it with `0x0401`; both carry the
+same 4-byte record (`tlcore.KeyFunctionInfo`)::
+
+    [deviceType][button][action][function]
+
+`parse_key_function_table` returns the records as `KeyFunctionInfo` entries plus
+the labels from `DEVICE_TYPE_NAMES`, `ACTION_NAMES` and `FUNCTION_NAMES`. The
+Air7 Pro reports 10 entries (5 gestures x left/right):
+
+```python
+>>> entry = tlcore.parse_key_function_table(
+...     bytes.fromhex("000a0201010002010201020103060201040802010600"))["entries"][2]
+>>> entry
+KeyFunctionInfo(device_type=2, button=1, action=3, function=6)
+>>> entry.describe()
+'right triple-click -> next-track'
+```
+
+A **press** is not a `0x8108` frame: the device pushes a `0x0204` notification
+whose first byte is the event type `0xF1` (`tlcore.EVENT_USER_INTERACTION`). Pass
+the body (after the type byte) to `parse_user_interaction`::
+
+    [deviceType][button][buttonAction][function][scene] + options(uint16 LE)
+
+The write is whole-table, so a client reads `0x0108`, patches one
+`KeyFunctionInfo`, and writes the full table back with `payload_set_key_function`.
+
+### Device -> app requests (`0x05xx`)
+
+These are unsolicited requests the *device* makes of the host;
+`tlcore.decode_request(cmd, payload)` dispatches them via `REQUEST_DECODERS`.
+Only `0x0500` expects a reply. All multi-byte fields are little-endian.
+
+| Command | Body | Decoder |
+| --- | --- | --- |
+| `0x0500` | asks the host for the time; answer `0x8500` with `payload_host_time_reply(unix)` | `parse_host_time_request` |
+| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` |
+| `0x0503` | `[count] + count x [featureType][status]` | `parse_feature_switch_status` |
+| `0x0504` | `[eqMode]` | `parse_eq_mode_request` |
+| `0x0506` | custom-EQ list | `parse_custom_eq` |
+| `0x0508` | `[min][max][current]` + optional `[type]` | `parse_bass_engine_status` |
+| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` |
+| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | `parse_oneshot_audio` |
 
 ## 9. Errors
 

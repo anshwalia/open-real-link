@@ -57,6 +57,14 @@ def payload_set_key_function(entries: list[bytes]) -> bytes:
     return bytes([len(entries) & 0xFF]) + b"".join(e[:4].ljust(4, b"\x00") for e in entries)
 
 
+def payload_set_switch_feature(feature: int, enabled: bool | int) -> bytes:
+    """SetCommandManager.y() / cmd 0x0403: ``[featureId][enabled ? 1 : 0]``.
+
+    The read half is ``0x010D`` (:func:`tlcore.decoders.parse_switch_features`).
+    """
+    return bytes([feature & 0xFF, 1 if enabled else 0])
+
+
 def payload_set_eq(mode: int, min_value: int, max_value: int, eq_id: int,
                    name: str = "", points: list[tuple[int, int]] | None = None) -> bytes:
     """SetCommandManager.p() / cmd 0x0418.

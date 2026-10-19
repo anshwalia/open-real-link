@@ -46,6 +46,16 @@ CMD_GET_REMOTE_CAPABILITY = 0x0100  # PollCommandManager.C -> device reports cap
 CMD_DETECT_FEATURE = 0x012A      # PollCommandManager.b  -> device reports one feature id + uint32 LE
 CMD_GET_STATUS_FEATURE = 0x0129  # PollCommandManager.I
 CMD_GET_NOISE_REDUCTION = 0x010C  # PollCommandManager.h/.y/z -> read a NoiseReductionInfo field
+CMD_GET_KEY_FUNCTION = 0x0108    # PollCommandManager.h0 -> the gesture/key-function table
+CMD_NOTIFICATION_EVENT = 0x0204  # NotificationCommandManager.k -> device -> app event push
+CMD_REQUEST_HOST_TIME = 0x0500   # RequestCommandManager.i -> device asks the host for the time
+CMD_REQUEST_OPERATION = 0x0502   # RequestCommandManager.h -> device asks the app to run an action
+CMD_FEATURE_SWITCH_STATUS = 0x0503  # RequestCommandManager.a -> feature-switch sync
+CMD_EQUALIZER_MODE = 0x0504      # RequestCommandManager.e -> the device changed EQ mode
+CMD_CUSTOM_EQ = 0x0506           # RequestCommandManager.d -> custom-EQ list
+CMD_BASS_ENGINE_STATUS = 0x0508  # RequestCommandManager.c -> bass-engine status
+CMD_USE_TIME = 0x050E            # RequestCommandManager.g -> per-device use time
+CMD_ONESHOT_AUDIO_DATA = 0x0516  # RequestCommandManager.b -> framed audio from the device
 
 # 0x0404 action=1 payload[2] values (VERIFIED LIVE on Air7 Pro, buds WORN).
 # These are the values the firmware both accepts on write and reports on
@@ -81,6 +91,7 @@ ALWAYS_ON = {0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x010B, 0x0F00}
 CMD_NAMES = {
     0x0100: "getRemoteCapability/getStatusFeature",
     0x0101: "getDeviceVersion/getProperty",
+    0x0108: "getKeyFunction",
     0x0118: "getEarRestoreData",
     0x011E: "getEarScanData",
     0x011F: "getEarScanFilterData",
@@ -92,6 +103,7 @@ CMD_NAMES = {
     0x0200: "getNotificationCapabilities",
     0x0202: "registerNotification",
     0x0203: "cancelRegisterNotification",
+    0x0204: "notificationEvent",
     0x0205: "registerMultiNotification",
     0x0401: "setKeyFunction",
     0x0403: "setSwitchFeature",
@@ -109,6 +121,14 @@ CMD_NAMES = {
     0x041E: "setSpatialAudioType",
     0x0428: "setAIStatus/setTranslationAppStatus",
     0x042C: "setHeadsetMicStatus",
+    0x0500: "requestHostTime",
+    0x0502: "requestOperation",
+    0x0503: "featureSwitchStatus",
+    0x0504: "equalizerMode",
+    0x0506: "customEq",
+    0x0508: "bassEngineStatus",
+    0x050E: "useTime",
+    0x0516: "oneshotAudioData",
     0x0F00: "switchDebugStatus",
 }
 
@@ -150,7 +170,7 @@ ALL_COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(0x0105, "poll", "cap-bit 0", ""),
     CommandSpec(0x0106, "poll", "cap-bit 1", ""),
     CommandSpec(0x0107, "poll", "cap-bit 2", ""),
-    CommandSpec(0x0108, "poll", "cap-bit 3", ""),
+    CommandSpec(0x0108, "poll", "cap-bit 3", "getKeyFunction"),
     CommandSpec(0x0109, "poll", "cap-bit 4", ""),
     CommandSpec(0x010B, "poll", "always-on", ""),
     CommandSpec(0x010C, "poll", "cap-bit 8", ""),
@@ -177,7 +197,7 @@ ALL_COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(0x0201, "notify", "ungated", ""),
     CommandSpec(0x0202, "notify", "ungated", "registerNotification"),
     CommandSpec(0x0203, "notify", "ungated", "cancelRegisterNotification"),
-    CommandSpec(0x0204, "notify", "ungated", ""),
+    CommandSpec(0x0204, "notify", "ungated", "notificationEvent"),
     CommandSpec(0x0205, "notify", "cap-bit 22", "registerMultiNotification"),
     CommandSpec(0x0300, "OTA", "ungated", ""),
     CommandSpec(0x0301, "OTA", "ungated", ""),
@@ -210,14 +230,14 @@ ALL_COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(0x041E, "set", "cap-bit 43", "setSpatialAudioType"),
     CommandSpec(0x0428, "set", "cap-bit 58", "setAIStatus/setTranslationAppStatus"),
     CommandSpec(0x042C, "set", "cap-bit 60", "setHeadsetMicStatus"),
-    CommandSpec(0x0500, "device->app", "ungated", ""),
-    CommandSpec(0x0502, "device->app", "ungated", ""),
-    CommandSpec(0x0503, "device->app", "ungated", ""),
-    CommandSpec(0x0504, "device->app", "ungated", ""),
-    CommandSpec(0x0506, "device->app", "ungated", ""),
-    CommandSpec(0x0508, "device->app", "ungated", ""),
-    CommandSpec(0x050E, "device->app", "cap-bit 46", ""),
-    CommandSpec(0x0516, "device->app", "ungated", ""),
+    CommandSpec(0x0500, "device->app", "ungated", "requestHostTime"),
+    CommandSpec(0x0502, "device->app", "ungated", "requestOperation"),
+    CommandSpec(0x0503, "device->app", "ungated", "featureSwitchStatus"),
+    CommandSpec(0x0504, "device->app", "ungated", "equalizerMode"),
+    CommandSpec(0x0506, "device->app", "ungated", "customEq"),
+    CommandSpec(0x0508, "device->app", "ungated", "bassEngineStatus"),
+    CommandSpec(0x050E, "device->app", "cap-bit 46", "useTime"),
+    CommandSpec(0x0516, "device->app", "ungated", "oneshotAudioData"),
     CommandSpec(0x0F00, "debug", "always-on", "switchDebugStatus"),
     CommandSpec(0x0F01, "debug", "ungated", ""),
     CommandSpec(0x0F02, "debug", "ungated", ""),

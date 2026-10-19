@@ -39,6 +39,7 @@ from .decoders import (
     parse_switch_features,
 )
 from .errors import TLError
+from .payloads import payload_set_switch_feature
 
 #: Format tag written into (and required by) every backup file.
 BACKUP_FORMAT = "open-real-link.backup/1"
@@ -197,9 +198,10 @@ def restore(session, snapshot: dict, *, timeout: Optional[float] = None,
 
     for entry in settings.get("switch_features", []):
         def _write_switch(entry=entry) -> None:
-            reply = session.request(CMD_SET_SWITCH_FEATURE,
-                                    bytes([entry["feature"] & 0xFF, entry["enabled"] & 0xFF]),
-                                    timeout=timeout)
+            reply = session.request(
+                CMD_SET_SWITCH_FEATURE,
+                payload_set_switch_feature(entry["feature"], entry["enabled"]),
+                timeout=timeout)
             session.check_status(reply)
         _apply(f"switch_feature[0x{entry['feature']:02X}]",
                session.supports(CMD_SET_SWITCH_FEATURE), _write_switch)

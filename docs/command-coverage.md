@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **19 implemented** in `open-real-link`,
-**60 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **27 implemented** in `open-real-link`,
+**52 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -32,7 +32,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0105` | 261 | poll | cap-bit 0 | send + decode | live | — |
 | `0x0106` | 262 | poll | cap-bit 1 | send + decode | live | — |
 | `0x0107` | 263 | poll | cap-bit 2 | — | live | — |
-| `0x0108` | 264 | poll | cap-bit 3 | send + decode | live | — |
+| `0x0108` | 264 | poll | cap-bit 3 | send + decode | live | getKeyFunction |
 | `0x0109` | 265 | poll | cap-bit 4 | send + decode | live | — |
 | `0x010b` | 267 | poll | always-on | — | live | — |
 | `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
@@ -59,7 +59,7 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x0201` | 513 | notify | ungated | — | — | — |
 | `0x0202` | 514 | notify | ungated | — | — | registerNotification |
 | `0x0203` | 515 | notify | ungated | — | — | cancelRegisterNotification |
-| `0x0204` | 516 | notify | ungated | decode | — | — |
+| `0x0204` | 516 | notify | ungated | decode | — | notificationEvent |
 | `0x0205` | 517 | notify | cap-bit 22 | — | live | registerMultiNotification |
 | `0x0300` | 768 | OTA | ungated | — | — | — |
 | `0x0301` | 769 | OTA | ungated | — | — | — |
@@ -92,14 +92,14 @@ what is implemented; `docs/protocol.md` describes that surface.
 | `0x041e` | 1054 | set | cap-bit 43 | — | live | setSpatialAudioType |
 | `0x0428` | 1064 | set | cap-bit 58 | — | live | setTranslationAppStatus |
 | `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
-| `0x0500` | 1280 | device->app | ungated | — | — | — |
-| `0x0502` | 1282 | device->app | ungated | — | — | — |
-| `0x0503` | 1283 | device->app | ungated | — | — | — |
-| `0x0504` | 1284 | device->app | ungated | — | — | — |
-| `0x0506` | 1286 | device->app | ungated | — | — | — |
-| `0x0508` | 1288 | device->app | ungated | — | — | — |
-| `0x050e` | 1294 | device->app | cap-bit 46 | — | live | — |
-| `0x0516` | 1302 | device->app | ungated | — | — | — |
+| `0x0500` | 1280 | device->app | ungated | build + decode | — | requestHostTime |
+| `0x0502` | 1282 | device->app | ungated | decode | — | requestOperation |
+| `0x0503` | 1283 | device->app | ungated | decode | — | featureSwitchStatus |
+| `0x0504` | 1284 | device->app | ungated | decode | — | equalizerMode |
+| `0x0506` | 1286 | device->app | ungated | decode | — | customEq |
+| `0x0508` | 1288 | device->app | ungated | decode | — | bassEngineStatus |
+| `0x050e` | 1294 | device->app | cap-bit 46 | decode | live | useTime |
+| `0x0516` | 1302 | device->app | ungated | decode | — | oneshotAudioData |
 | `0x0f00` | 3840 | debug | always-on | — | live | switchDebugStatus |
 | `0x0f01` | 3841 | debug | ungated | — | — | — |
 | `0x0f02` | 3842 | debug | ungated | — | — | — |
