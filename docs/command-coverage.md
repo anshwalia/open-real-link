@@ -116,8 +116,9 @@ app sends. That is why the catalogue has 81 rows but only **79 command IDs**.
 The project rule is **implement only what is verified on hardware and live-tested**
 (`AGENTS.md`). The `Air7 Pro: live` column only means the ID is *advertised*; it
 is not proof that this project exercised it. The rows below are implemented from
-static recovery alone, are **not** covered by the rule, and are candidates for a
-live test or removal. Their obstacle is named.
+static recovery alone and are **kept and tracked**, not extended — this ledger
+may only shrink. Each must be either live-verified (and struck from the list) or
+removed **before a release**. Their obstacle is named.
 
 | What | Symbol | Obstacle |
 | --- | --- | --- |

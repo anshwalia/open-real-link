@@ -135,7 +135,9 @@ safe to publish.
   matters, how it would be used, and the obstacle that blocks verification — and
   left unimplemented. The one exception is a guard that *prevents* traffic (the
   `send` refusal for the tone / OTA / debug families), which is not an
-  implementation of the blocked feature.
+  implementation of the blocked feature. Implementations that predate the rule
+  are kept in a **tracked ledger** (`docs/command-coverage.md`) that may only
+  shrink; each entry must be live-verified or removed before a release.
 * **One distribution, published late.** The repository is a monorepo, but only
   the core is a package: `open-real-link`, which is `tlcore`. The app ships from
   the same repository and is not published separately, so installing the library

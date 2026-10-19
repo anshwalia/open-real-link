@@ -49,6 +49,12 @@ One narrow exception: a guard whose only job is to **prevent** traffic — the
 `send` refusal for the tone / OTA / debug families — is not an implementation of
 the blocked feature, and is allowed even though the feature is not.
 
+**Tracked exceptions.** A handful of symbols were implemented before this rule
+existed. They are **kept and tracked, not hidden**: the ledger in
+[`docs/command-coverage.md`](docs/command-coverage.md) names each one and its
+obstacle. Do not add a new exception, and do not extend an existing one — the
+ledger may only shrink. Resolve them as described under "Before releasing".
+
 ## Conventions
 
 - `tlcore` is **pure**: no platform imports and no I/O. Transports live in
@@ -79,3 +85,9 @@ the blocked feature, and is allowed even though the feature is not.
 - `TL_REFERENCE=… python3 tests/test_parity_tl_frame.py` prints `PARITY: OK`
   (or skips cleanly when the reference is unavailable).
 - Nothing from the "Do not add here" list is staged.
+
+## Before releasing
+
+- Every entry in the `docs/command-coverage.md` "Implemented but not
+  live-verified" ledger has been **either live-verified (and struck from the
+  ledger) or removed from the code**. Nothing ships with a ledger entry open.
