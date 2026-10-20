@@ -31,10 +31,10 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `PollCommandManager` | `0x0100` | 31 | 22 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
-| `SetCommandManager` | `0x0400` | 22 | 9 | 18 | 22 cap-bit |
+| `SetCommandManager` | `0x0400` | 22 | 10 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **41** | **49** | |
+| **total** | | **79** | **42** | **49** | |
 
 ## Full catalogue
 
@@ -86,7 +86,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0306` | 774 | OTA | ungated | — | — | — |
 | `0x0307` | 775 | OTA | ungated | — | — | — |
 | `0x0308` | 776 | OTA | ungated | — | — | — |
-| `0x0400` | 1024 | set | cap-bit 5 | — | live | setFindMode |
+| `0x0400` | 1024 | set | cap-bit 5 | build + send | live | setFindMode |
 | `0x0401` | 1025 | set | cap-bit 3 | build | live | setKeyFunction |
 | `0x0402` | 1026 | set | cap-bit 6 | — | — | — |
 | `0x0403` | 1027 | set | cap-bit 7 | build + send | live | setSwitchFeature |

@@ -280,6 +280,42 @@ def cmd_high_volume(args) -> int:
         transport.close()
 
 
+def cmd_find(args) -> int:
+    """Ring the buds to locate them (``0x0400``), then stop.
+
+    There is no read pair, so the only confirmation is the ``0x8400`` ack.  The
+    stop is sent from a ``finally``: a lost ack, a keyboard interrupt or any
+    other error still stops the chime rather than leaving the buds ringing.
+    """
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        if not session.supports(t.CMD_SET_FIND_MODE):
+            raise SystemExit("the device does not advertise find mode "
+                             "(capability bit 5); nothing to do")
+        if args.stop:
+            session.set_find_mode(False)
+            print("find mode: off")
+            return 0
+        session.set_find_mode(True)
+        seconds = max(0.0, args.seconds)
+        if not args.json:
+            print(f"find mode: ON -- the buds are ringing; "
+                  f"stopping in {seconds:g}s (Ctrl-C also stops)")
+        try:
+            time.sleep(seconds)
+        finally:
+            session.set_find_mode(False)
+        if args.json:
+            print(json.dumps({"find_mode": True, "rang_seconds": seconds,
+                              "stopped": True}, indent=2))
+        else:
+            print("find mode: off")
+        return 0
+    finally:
+        transport.close()
+
+
 def cmd_ai_status(args) -> int:
     """Read or write the AI / translation status (``0x0131`` / ``0x0428``).
 
@@ -1120,6 +1156,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("hv_args", nargs="*", metavar="ACTION",
                    help="'get' (default), 'on', 'off', or 'set on|off'")
     p.set_defaults(func=cmd_high_volume)
+
+    p = sub.add_parser("find", parents=[common],
+                       help="ring the buds so you can locate them (0x0400), then stop")
+    p.add_argument("--seconds", type=float, default=10.0, metavar="N",
+                   help="how long to ring before stopping (default 10; 0 rings and stops at once)")
+    p.add_argument("--stop", action="store_true",
+                   help="only send the stop (0x0400 00), e.g. after an interrupted run")
+    p.set_defaults(func=cmd_find)
 
     p = sub.add_parser("ai-status", parents=[common],
                        help="read or write the AI / translation status (0x0131 / 0x0428)")

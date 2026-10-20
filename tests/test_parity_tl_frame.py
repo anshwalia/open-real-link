@@ -463,6 +463,9 @@ def parity_payloads(ref, core) -> None:
         check(f"payload_set_high_volume({value})",
               core.payload_set_high_volume(value), ref.payload_set_high_volume(value))
     for value in (0, 1, 2, 255):
+        check(f"payload_set_find_mode({value})",
+              core.payload_set_find_mode(value), ref.payload_set_find_mode(value))
+    for value in (0, 1, 2, 255):
         check(f"payload_compactness_detect({value})",
               core.payload_compactness_detect(value), ref.payload_compactness_detect(value))
     for state in (0, 1, 2, 255):

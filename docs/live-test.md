@@ -344,6 +344,26 @@ high volume: wrote on, read back on
 The device also pushes `0x0204 0f 08 00 <value>` when the setting changes. Like
 every settings write it is accepted only while the buds are worn.
 
+### Find-mode probe (write, audible)
+
+`0x0400` rings the buds so you can locate them. It has **no read pair** -- the
+only reply is the `0x8400 <status>` ack -- and the vendor app never sends it, so
+it is the one command here recovered from decompiled code and then driven
+straight at the hardware. Both values were confirmed on the Air7 Pro
+(2026-10-20): `01` and `00` each answer `0x8400 00`.
+
+Because it is **loud**, the command always stops it again, from a `finally`:
+
+```console
+$ python -m tlcli --address <device> --reset find
+find mode: ON -- the buds are ringing; stopping in 10s (Ctrl-C also stops)
+find mode: off
+```
+
+`--seconds N` sets the ring time (`0` rings and stops at once). If a run was
+killed mid-ring, `--stop` is the recovery path -- it sends `0x0400 00` alone.
+Take the buds out of your ears first.
+
 ### In-ear (compactness) probe (write, event-observed)
 
 `0x0405` starts/stops the in-ear sensor; it has no read-back pair, so the result

@@ -280,6 +280,21 @@ def test_high_volume_session() -> None:
           {"status": 0, "enabled": True})
 
 
+def test_find_mode_session() -> None:
+    # the live-verified round trip (Air7 Pro, 2026-10-20):
+    #   0x0400 01 -> 0x8400 00, then 0x0400 00 -> 0x8400 00.  No read pair.
+    transport, session = replay([
+        ("tx", wire(0x0400, bytes([1]))), ("rx", wire(0x8400, bytes([0]))),
+        ("tx", wire(0x0400, bytes([0]))), ("rx", wire(0x8400, bytes([0]))),
+    ])
+    check("set_find_mode(True) status", session.set_find_mode(True), 0)
+    check("set_find_mode(False) status", session.set_find_mode(False), 0)
+    check("payload_set_find_mode(True)", t.payload_set_find_mode(True), b"\x01")
+    check("payload_set_find_mode(False)", t.payload_set_find_mode(False), b"\x00")
+    # find mode has no read half: the ack is the only confirmation
+    check("no read_find_mode", hasattr(t.Session, "read_find_mode"), False)
+
+
 def test_ai_status_session() -> None:
     # the live-verified round trip (Air7 Pro, 2026-10-20):
     #   0x0131 -> 00 00 00, 0x0428 01 01 -> 00 01 01, 0x0428 00 01 -> 00 00 00
@@ -454,6 +469,26 @@ def test_cli_high_volume() -> None:
         check("cli high-volume off rc", rc, 0)
         check("cli high-volume off line",
               "wrote off, read back off" in buf.getvalue(), True)
+
+
+def test_cli_find() -> None:
+    from tlcli.cli import main
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/find-mode.jsonl", "find", "--seconds", "0"])
+    check("cli find rc", rc, 0)
+    text = buf.getvalue()
+    check("cli find says it rings", "the buds are ringing" in text, True)
+    check("cli find stops", "find mode: off" in text, True)
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/find-mode.jsonl", "find", "--seconds", "0", "--json"])
+    check("cli find --json rc", rc, 0)
+    doc = json.loads(buf.getvalue())
+    check("cli find --json payload",
+          (doc["find_mode"], doc["stopped"]), (True, True))
 
 
 def test_cli_ai_status() -> None:

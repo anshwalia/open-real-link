@@ -56,6 +56,7 @@ CMD_GET_PERSONALIZED_ANC = 0x011A  # PollCommandManager.A -> personalized-noise 
 CMD_GET_BASS_ENGINE = 0x0124     # PollCommandManager.Q -> single bass-engine {min,max,current(,type)}
 CMD_SET_BASS_ENGINE = 0x041B     # SetCommandManager.l/.m -> set the bass-engine value
 CMD_SET_HIGH_VOLUME = 0x0407     # SetCommandManager.r -> setHighVolume (bool)
+CMD_SET_FIND_MODE = 0x0400       # SetCommandManager.q -> setFindMode (bool; rings the buds)
 CMD_GET_HIGH_VOLUME = 0x0110     # PollCommandManager.s -> high-volume status
 CMD_SET_AI_STATUS = 0x0428       # SetCommandManager.j -> setAIStatus / setTranslationAppStatus
 CMD_GET_AI_STATUS = 0x0131       # PollCommandManager -> AI / translation status

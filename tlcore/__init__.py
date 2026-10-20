@@ -82,6 +82,7 @@ from .commands import (
     CMD_SET_AI_STATUS,
     CMD_SET_BASS_ENGINE,
     CMD_SET_EQ_MODE,
+    CMD_SET_FIND_MODE,
     CMD_SET_HIGH_VOLUME,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
@@ -165,6 +166,7 @@ from .payloads import (
     payload_set_bass_engine,
     payload_set_eq,
     payload_set_eq_mode,
+    payload_set_find_mode,
     payload_set_high_volume,
     payload_set_key_function,
     payload_set_noise_mode,
@@ -221,7 +223,7 @@ __all__ = [
     "CMD_GET_UPGRADE_CAPABILITY",
     "CMD_NAMES", "CMD_NOTIFICATION_CAPS", "CMD_NOTIFICATION_EVENT", "CMD_ONESHOT_AUDIO_DATA",
     "CMD_REGISTER_NOTIFICATION", "CMD_REQUEST_HOST_TIME", "CMD_REQUEST_OPERATION",
-    "CMD_SET_AI_STATUS", "CMD_SET_BASS_ENGINE", "CMD_SET_EQ_MODE", "CMD_SET_HIGH_VOLUME", "CMD_SET_KEY_FUNCTION",
+    "CMD_SET_AI_STATUS", "CMD_SET_BASS_ENGINE", "CMD_SET_EQ_MODE", "CMD_SET_FIND_MODE", "CMD_SET_HIGH_VOLUME", "CMD_SET_KEY_FUNCTION",
     "CMD_SET_NOISE_REDUCTION",
     "CMD_SET_SWITCH_FEATURE", "CMD_USE_TIME",
     "COMMAND_IDS", "CommandSpec",
@@ -233,6 +235,7 @@ __all__ = [
     "NOISE_MODE_NAMES", "NOISE_MODE_NORMAL", "NOISE_MODE_TRANSPARENCY",
     # payloads
     "crc16_ccitt", "payload_compactness_detect", "payload_set_ai_status", "payload_set_bass_engine", "payload_set_eq", "payload_set_eq_mode",
+    "payload_set_eq_mode", "payload_set_find_mode",
     "payload_set_high_volume", "payload_set_key_function",
     "payload_set_noise_mode", "payload_set_noise_reduction", "payload_set_switch_feature",
     # decoders

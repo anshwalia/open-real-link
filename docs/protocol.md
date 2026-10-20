@@ -191,6 +191,7 @@ are “known only” and are listed for identification only.
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
 | `0x0110` | getHighVolume (read the loudness boost) | — | `parse_high_volume` | verified |
+| `0x0400` | setFindMode (ring the buds so you can find them) | `payload_set_find_mode` | — | verified |
 | `0x0407` | setHighVolume (write the loudness boost) | `payload_set_high_volume` | — | verified |
 | `0x0405` | setCompactnessDetect (in-ear detect trigger; result on the `0x0204` event `0x04`) | `payload_compactness_detect` | `parse_compactness_event` | verified |
 | `0x0131` | getAIStatus (read the AI / translation status) | — | `parse_ai_status` | verified |
@@ -341,6 +342,21 @@ The Air7 Pro reports one point-less entry — `00 01 01 01 02 04 00 00` → eqId
 encoder refuses a zero-band record, and the read byte is `isSelected` while the
 write's first byte is `action`, so the bytes cannot be replayed verbatim. Backup
 captures the list and leaves it `not_restored`.
+
+### Find mode (ring the buds)
+
+`0x0400` is a one-byte boolean write with **no read half** -- the device reports
+no find-mode state, so `0x8400 <status>` is the only confirmation available.
+The app never sends it (it has no caller in the vendor application at all), so
+this ID sits in an unusual place: recovered statically, driven directly, and
+verified on hardware. **Verified live** on the Air7 Pro (2026-10-20):
+`0x0400 01` and `0x0400 00` both answer `0x8400 00`.
+
+It **rings the buds loudly**. `tlcli find` therefore sends the stop itself, and
+sends it from a `finally`, so an interrupt or an error still stops the chime
+rather than leaving the buds ringing. `--seconds N` sets how long it rings
+(default 10; `0` rings and stops immediately) and `--stop` sends the stop alone,
+which is the recovery path if a previous run was killed mid-ring.
 
 ### High volume (loudness boost)
 

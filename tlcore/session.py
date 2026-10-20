@@ -32,6 +32,7 @@ from .commands import (
     CMD_SET_AI_STATUS,
     CMD_SET_EQ_MODE,
     CMD_SET_HIGH_VOLUME,
+    CMD_SET_FIND_MODE,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     RESPONSE_BIT,
@@ -44,6 +45,7 @@ from .payloads import (
     payload_set_ai_status,
     payload_set_eq_mode,
     payload_set_high_volume,
+    payload_set_find_mode,
     payload_set_noise_mode,
 )
 from .wire import StreamDecoder, build_frames, build_packet
@@ -239,6 +241,22 @@ class Session:
         buds are worn (else :class:`~tlcore.errors.NotWorn`).
         """
         reply = self.request(CMD_SET_HIGH_VOLUME, payload_set_high_volume(enabled),
+                             timeout=timeout)
+        return self.check_status(reply)
+
+    def set_find_mode(self, on: bool, *, timeout: Optional[float] = None) -> int:
+        """Write the find-mode flag (``0x0400``).
+
+        **Verified live** on the Air7 Pro (2026-10-20): both ``0x0400 01`` and
+        ``0x0400 00`` answer ``0x8400 00``.  There is **no read pair**, so this
+        is the one write with no read-back to confirm -- the ack is all the
+        device gives.
+
+        The app never sends ``0x0400`` (it has no caller), so this exists only
+        because the command was driven directly and verified.  ``on=True``
+        **rings the buds loudly**; pair it with an ``off``.
+        """
+        reply = self.request(CMD_SET_FIND_MODE, payload_set_find_mode(on),
                              timeout=timeout)
         return self.check_status(reply)
 
