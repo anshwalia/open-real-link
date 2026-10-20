@@ -127,6 +127,25 @@ is the manager-class mask (`cmd & 0x7F00`, `Protocol.b`) and `0x079A` is the
 OPPO interaction service's 16-bit UUID (`0000079A-D102-…`), not a request the
 app sends. That is why the catalogue has 81 rows but only **79 command IDs**.
 
+## Observed negative / unusable results
+
+These IDs were driven on the Air7 Pro (FW `1.1.0.85`, 2026-10-20) and do not
+produce a usable reply, so they stay unimplemented. They are recorded here so
+the same probes are not repeated:
+
+| ID | observed |
+| --- | --- |
+| `0x0115` | answers `[01 03 00]` — **status `01` = not available** (no stored hearing-enhancement data) |
+| `0x0116` | answers a 250 B `float32` band blob (`[status][hdr:4][a][bandCount:2 LE][b][c] + bands`) |
+| `0x011E` | answers `[01 03]` — **status `01` = not available** (no stored ear-scan data) |
+| `0x011F` | answers a 155 B `float32` band blob (`sampleRate` `44100`, `bandCount` `36`) |
+| `0x0129` | `getStatusFeature` — answers nothing for feature ids `01`..`10` |
+| `0x0205` | `registerMultiNotification` — answers nothing, even with the app's `[count][types…]` payload |
+| `0x0409` | echoes its payload in a fixed 4-byte buffer: `[status][data:4]` |
+
+`0x0115`/`0x0116`/`0x011E`/`0x011F` are the ear-scan / hearing family — **reads
+only**; the matching writes drive loud test tones and are never sent.
+
 ## Implemented but not live-verified
 
 The project rule is **implement only what is verified on hardware and live-tested**
