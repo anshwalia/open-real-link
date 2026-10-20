@@ -489,10 +489,11 @@ zero `0xF1` events across three rounds (one of them with the AI status active);
 with the same gesture bound to `1` there were 19, 21 and (unarmed) 11, in one
 sitting, each armed round proving its restore with a `0x0108` read-back. Arming
 only that one row reproduces it, so the suppressor is the function **value**,
-not the act of writing the table. Whether the device *drops* the press or *holds*
-it is **unresolved**: one late `0xF1` arrived after the `31` binding had been
-removed, which could equally be a late tap. Either way the earlier route to
-`0x0502` is closed, and the ledger in
+not the act of writing the table. The press is **dropped, not queued**: one late
+`0xF1` did arrive after the `31` binding was removed, but the wearer confirms it
+was a deliberate tap *after* the window, and the count agrees — roughly twenty
+in-window presses produced none, while one post-window press produced exactly
+one. Either way the earlier route to `0x0502` is closed, and the ledger in
 [`command-coverage.md`](command-coverage.md) says so.
 
 Replay fixture: `fixtures/user-interaction.jsonl` (sanitized).
