@@ -413,6 +413,20 @@ def parity_decoders(ref, core) -> None:
               {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone-B", "state": 0, "flag": 0}]})
     check("parse_multi_connect short", core.parse_multi_connect(b"\x00"),
           {"status": 0, "count": 0, "entries": []})
+    multi_event_body = bytes.fromhex(
+        "026655443322110c0201094c6170746f702d4100"
+        "ffeeddccbbaa0b00000850686f6e652d4200")
+    check("parse_multi_connect_event",
+          core.parse_multi_connect_event(multi_event_body),
+          {"count": 2, "entries": [
+              {"mac": "11:22:33:44:55:66", "name": "Laptop-A", "state": 2, "flag": 1},
+              {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone-B", "state": 0, "flag": 0}]})
+    check("parse_multi_connect_event matches the reference",
+          core.parse_multi_connect_event(multi_event_body),
+          ref.parse_multi_connect_event(multi_event_body))
+    check("event 0x06 is wired into parse_notification_event",
+          core.parse_notification_event(bytes([0x06]) + multi_event_body)["multi_connect"]["count"],
+          2)
     check("parse_personalized_anc none",
           core.parse_personalized_anc(bytes.fromhex("0000")),
           {"status": 0, "exists": 0})

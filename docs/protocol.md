@@ -200,7 +200,7 @@ are “known only” and are listed for identification only.
 | `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | inferred |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | `parse_feature_detect` | verified |
-| `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_public_event`, `parse_user_interaction` | verified |
+| `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_public_event`, `parse_user_interaction`, `parse_multi_connect_event` | verified |
 | `0x8106` | battery | — | `parse_battery` | verified |
 | `0x8109` | earbud / wear status | — | `parse_earbud_status` | verified |
 | `0x8128` | use time | — | `parse_use_time` | verified |
@@ -373,6 +373,45 @@ flag word (`0x0008`, bit 3 = volume level) followed by the value. The same push
 reports AI state as `0f 02 00 <state> <type>` (bit 1).
 Like every other settings write it is accepted only while the buds are worn
 (in-ear); otherwise the device replies `0x8407 0e`.
+
+### Multi-connect (the paired-device list)
+
+The paired-device / multipoint list is the most frequently observed push in this
+codebase: the device sends it **unprompted on every link open**, before anything
+is requested. It arrives as `0x0204` **event `0x06`** (`multiConnect`) and can
+also be read on demand with the ungated `0x0112` request.
+
+Both carry the identical record list; the push simply omits the leading status
+byte that the reply has:
+
+```text
+0x8112 reply:  [status:1][count:1] + count x record
+0x0204 0x06:   [count:1]           + count x record
+
+record:  [mac:6][length:1][state:1][flag:1][nameLen:1][name:nameLen]
+```
+
+`length == nameLen + 3`, `name` is NUL-terminated, and the MAC is stored
+least-significant byte first. `parse_multi_connect` decodes the reply,
+`parse_multi_connect_event` the push, and both share the same record loop -- so
+`parse_notification_event` wires event `0x06` straight into it. `tlcli events`
+renders the entries.
+
+**Verified live** on the Air7 Pro (2026-10-20): a 167-byte push carrying 7
+entries, all bytes consumed, and the same 7 entries via `0x0112`.
+
+Two cautions that come from the same live work:
+
+* **The list embeds real Bluetooth host names.** It is the user's own data, but
+treat any captured transcript as sensitive and redact the names before sharing
+it.
+* **`0x06` is a link-open snapshot, not a state-change notification.** Holding a
+live link and connecting/disconnecting a second host (an Android phone) produced
+**no** fresh push over 75 s, and the `state`/`flag` bytes were byte-identical
+before and after. The layout of `state`/`flag` is therefore still unconfirmed --
+on the observed unit only the host that was connected and reading had
+`state=2, flag=1` and every other entry `0, 0`. Do not read those bytes as "this
+device is currently connected".
 
 ### In-ear (compactness) detection
 

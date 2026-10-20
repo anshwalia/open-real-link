@@ -537,6 +537,29 @@ def test_cli_multipoint() -> None:
         check("cli multipoint entry", "11:22:33:44:55:66" in buf.getvalue(), True)
 
 
+def test_cli_events_multi_connect() -> None:
+    """The paired-list push (0x0204 event 0x06) decodes to its entries."""
+    from tlcli.cli import main
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/multi-connect-event.jsonl", "events",
+                   "--seconds", "0"])
+    check("cli events multiConnect rc", rc, 0)
+    text = buf.getvalue()
+    check("cli events multiConnect count", "multiConnect: 2 device(s)" in text, True)
+    check("cli events multiConnect entry", "11:22:33:44:55:66" in text, True)
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/multi-connect-event.jsonl", "events",
+                   "--seconds", "0", "--json"])
+    check("cli events multiConnect --json rc", rc, 0)
+    rows = [r for r in json.loads(buf.getvalue()) if "multi_connect" in r]
+    check("cli events multiConnect --json entry",
+          rows and rows[0]["multi_connect"]["entries"][1]["name"], "Phone-B")
+
+
 def test_cli_personalized_anc_and_notification_caps() -> None:
     from tlcli.cli import main
 

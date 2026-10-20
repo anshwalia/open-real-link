@@ -117,6 +117,7 @@ from .decoders import (
     parse_key_function,
     parse_model_id,
     parse_multi_connect,
+    parse_multi_connect_event,
     parse_notification_capabilities,
     parse_notification_event,
     parse_pairs,
@@ -244,6 +245,7 @@ __all__ = [
     "parse_earbud_status",
     "parse_eq_info", "parse_eq_mode", "parse_feature_detect", "parse_high_volume",
     "parse_key_function", "parse_model_id", "parse_multi_connect",
+    "parse_multi_connect_event",
     "parse_notification_capabilities", "parse_notification_event", "parse_pairs", "parse_personalized_anc", "parse_protocol_version", "parse_public_event", "parse_remote_vendor_id", "parse_switch_features", "parse_upgrade_capability", "parse_use_time",
     # buttons / key functions
     "ACTION_NAMES", "DEVICE_TYPE_NAMES", "EVENT_USER_INTERACTION", "FUNCTION_NAMES",

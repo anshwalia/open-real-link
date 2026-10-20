@@ -631,6 +631,8 @@ def decode_event(packet: dict) -> dict:
                 out["press"] = press
         if "compactness" in event:
             out["compactness"] = event["compactness"]
+        if "multi_connect" in event:
+            out["multi_connect"] = event["multi_connect"]
     elif cmd in t.REQUEST_DECODERS:
         out["request"] = t.decode_request(cmd, payload)
     else:
@@ -650,6 +652,12 @@ def _print_event(row: dict) -> None:
     elif "compactness" in row:
         parts = ", ".join(f"{r['side_name']}={r['value']}" for r in row["compactness"])
         print(f"{head}  compactness: {parts}")
+    elif "multi_connect" in row:
+        mc = row["multi_connect"]
+        print(f"{head}  multiConnect: {mc['count']} device(s)")
+        for entry in mc["entries"]:
+            print(f"        {entry['mac']}  state={entry['state']} "
+                  f"flag={entry['flag']}  {entry['name']!r}")
     elif "event" in row:
         print(f"{head}  event={row['event']}  body={row.get('body', '')}")
     elif "request" in row:

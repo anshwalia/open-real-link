@@ -98,6 +98,8 @@ def parse_notification_event(payload: bytes) -> dict:
         out["tlv"] = {body[1 + 2 * i]: body[2 + 2 * i] for i in range(body[0])}
     if event == 0x04:
         out["compactness"] = parse_compactness_event(body)
+    elif event == 0x06:
+        out["multi_connect"] = parse_multi_connect_event(body)
     elif event == 0x0F:
         out["public_event"] = parse_public_event(body)
     return out
@@ -446,6 +448,30 @@ def parse_multi_connect(payload: bytes) -> dict:
         })
         off += 7 + length
     return {"status": status, "count": count, "entries": entries}
+
+
+def parse_multi_connect_event(body: bytes) -> dict:
+    """``0x0204`` event ``0x06`` (multiConnect): the paired-device list.
+
+    The device pushes this **unprompted on every link open** -- across this
+    project it is the most frequently observed push by a wide margin.  The body
+    is the same record list ``0x8112`` returns, without the leading status
+    byte::
+
+        [count] + count x [mac:6][length:1][state:1][flag:1][nameLen:1][name]
+
+    so the records are decoded by the very same loop as
+    :func:`parse_multi_connect`.  **Verified live** on the Air7 Pro
+    (2026-10-20): a 167-byte push carrying 7 entries.
+
+    It is observed as a **link-open snapshot**, not a state-change
+    notification: connecting and disconnecting a second host (an Android
+    phone) while a live link was held produced no fresh push, and the
+    ``state``/``flag`` bytes were identical before and after.  Treat this event
+    as "here is the list now that you connected", not "the list changed".
+    """
+    parsed = parse_multi_connect(b"\x00" + body)
+    return {"count": parsed["count"], "entries": parsed["entries"]}
 
 
 def parse_bass_engine(payload: bytes) -> dict:
