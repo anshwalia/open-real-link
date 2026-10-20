@@ -31,7 +31,7 @@ A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits o
 top of the read-side decoders. Because the protocol has no "read all settings"
 command, it polls the supported status commands and stores each raw reply;
 restore re-applies only the settings whose read and write forms are both
-recovered (noise mode, key function, EQ mode, switch features), and reports the
+recovered (noise mode, key function, EQ mode, high volume, switch features), and reports the
 rest as unrestorable rather than guessing. It is
 exercised offline against fixtures.
 
@@ -46,9 +46,10 @@ Verified on hardware (realme Buds Air7 Pro):
 | Read active noise mode | Verified |
 | Set active noise mode | Verified end to end |
 | Read/write sound-effect (EQ) mode | Verified end to end |
+| Read/write high volume (loudness boost) | Verified end to end |
 | Read battery, wear state, firmware, model, and use time | Verified |
 | Read capability bitmap → supported-command set | Verified |
-| Encode/decode parity with the reference codec | Verified (23,162 checks) |
+| Encode/decode parity with the reference codec | Verified (23,185 checks) |
 
 Noise-mode values, confirmed by listening on the target device:
 
@@ -152,6 +153,8 @@ $ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF smoke      # read-only live check
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF eq          # read the EQ mode + list
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF high-volume  # read the loudness boost
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF high-volume off   # write it (buds worn)
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF keys        # read the gesture table
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF events --seconds 15   # decode pushes
 $ python -m tlcli say "Noise control is on."            # host-side TTS via the headset

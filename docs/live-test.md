@@ -326,6 +326,42 @@ So `0x010F`/`0x0406` need no mapping table, and `restore` re-applies the preset
 from `0x010F` directly. `eq set-mode <n>` writes it by hand; always re-read to
 confirm.
 
+### High-volume probe (write, reversible)
+
+`0x0110` reads a one-byte loudness boost and `0x0407` writes it; the reply is
+`0x8110 [status][0|1]`. The write is **read back identity** (a boolean), so it is
+trivially reversible:
+
+```console
+$ python -m tlcli --address <device> --reset high-volume
+high volume: on
+$ python -m tlcli --address <device> --reset high-volume off
+high volume: wrote off, read back off
+$ python -m tlcli --address <device> --reset high-volume on
+high volume: wrote on, read back on
+```
+
+The device also pushes `0x0204 0f 08 00 <value>` when the setting changes. Like
+every settings write it is accepted only while the buds are worn.
+
+### In-ear (compactness) probe (write, event-observed)
+
+`0x0405` starts/stops the in-ear sensor; it has no read-back pair, so the result
+is read from the `0x0204` **event `0x04`** push. `tlcli compactness` drives the
+trigger and listens:
+
+```console
+$ python -m tlcli --address <device> --reset compactness start --seconds 6
+compactness start: listened 6s, 1 packet(s)
+  0x0204  notificationEvent  event=compactness  body=01040204
+$ python -m tlcli --address <device> --reset compactness stop
+compactness stop: listened 4s, 0 packet(s)
+```
+
+The body is two `[earSide][value]` records; `value` is a live status code, not a
+constant (see `docs/protocol.md` §7). The trigger is a sensor read and drives no
+audio.
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:
@@ -335,7 +371,7 @@ $ python -m tlcli --address <device> --reset backup settings.json
 backup written to settings.json
   device    : {'model': '0x064C12', 'firmware': ['1.1.0.85']}
   captured  : 17 responses
-  restorable: eq_mode, key_function, noise_mode
+  restorable: eq_mode, high_volume, key_function, noise_mode
 ```
 
 `restore --dry-run` prints the plan without sending a write; `restore` then
@@ -346,15 +382,16 @@ $ python -m tlcli --address <device> --reset restore --dry-run settings.json
   [DRY-RUN] noise_mode
   [DRY-RUN] key_function
   [DRY-RUN] eq_mode
+  [DRY-RUN] high_volume
   [SKIP]    eq_info (captured, no restorer)
 ```
 
-Of the five restorable settings, the **noise-mode, EQ-mode and key-function
-writes have been verified live end to end** (above, and the long-press disable
-in `docs/protocol.md` §8); the switch-feature write is covered offline by
-`tests/test_transport_and_session.py` (the Air7 Pro exposes no switch features),
-and the bass-engine write is inferred. As always, a noise write requires the
-buds to be **worn** (§2).
+Of the six restorable settings, the **noise-mode, EQ-mode, key-function and
+high-volume writes have been verified live end to end** (above, and the
+long-press disable in `docs/protocol.md` §8); the switch-feature write is
+covered offline by `tests/test_transport_and_session.py` (the Air7 Pro exposes
+no switch features), and the bass-engine write is inferred. As always, a
+settings write requires the buds to be **worn** (§2).
 
 ## 6. What to record
 

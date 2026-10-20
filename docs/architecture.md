@@ -240,7 +240,7 @@ discoverability by project name for discoverability by protocol name.
 ## 9. Build order
 
 1. **`tlcore`** — **done.** Ported from the validated reference by range
-   extraction, verified byte-for-byte against it (23,162 checks, `PARITY: OK`),
+   extraction, verified byte-for-byte against it (23,185 checks, `PARITY: OK`),
    no dependencies, no platform imports. `session.py` adds the request/response
    state machine, and `backup.py` adds settings backup/restore on top of the
    read-side decoders.

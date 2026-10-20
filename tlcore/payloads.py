@@ -65,6 +65,30 @@ def payload_set_switch_feature(feature: int, enabled: bool | int) -> bytes:
     return bytes([feature & 0xFF, 1 if enabled else 0])
 
 
+def payload_set_high_volume(enabled: bool | int) -> bytes:
+    """SetCommandManager.r() / cmd 0x0407: ``[enabled ? 1 : 0]``.
+
+    **Verified live** on the Air7 Pro (2026-10-20): ``0x0407 00`` moves the
+    ``0x0110`` read-back from ``00 01`` to ``00 00``, and ``0x0407 01`` restores
+    it.  The write is accepted only while the buds are worn (else ``0x8407 0e``);
+    the device also pushes ``0x0204 0f 08 00 <v>``.  The read half is ``0x0110``
+    (:func:`tlcore.decoders.parse_high_volume`).
+    """
+    return bytes([1 if enabled else 0])
+
+
+def payload_compactness_detect(action: bool | int) -> bytes:
+    """SetCommandManager.z() / cmd 0x0405: ``[action ? 1 : 0]``.
+
+    ``TLHeadsetConnectionImp.c2`` maps the ``DetectAction`` to ``0``/``1``.
+    **Verified live** on the Air7 Pro (2026-10-20): ``0x0405 01`` is accepted
+    (``0x8405 00``) and the firmware pushes ``0x0204 04 <2 records>``; ``00``
+    stops it.  Sensor only -- it drives no audio.  The result event is decoded
+    by :func:`tlcore.decoders.parse_compactness_event`.
+    """
+    return bytes([1 if action else 0])
+
+
 def payload_set_eq(mode: int, min_value: int, max_value: int, eq_id: int,
                    name: str = "", points: list[tuple[int, int]] | None = None) -> bytes:
     """SetCommandManager.p() / cmd 0x0418.

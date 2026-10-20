@@ -39,18 +39,28 @@ def parse_feature_detect(payload: bytes) -> dict:
     }
 # NotificationCommandManager.k(): device -> app event pushed in a 0x0204
 # packet.  payload[0] is the event type; the rest is event-specific TLVs.
+# Names corrected 2026-10-20 from the decompiled dispatch (the earlier labels
+# 0x04-0x08/0x0B/0x0F were wrong):
+#   0x04 compactness        CommandUtil.e -> CompactnessDetectionInfoSdk
+#   0x05 gameMode           -> SettingsInfo(settingType 3)  -> I5
+#   0x06 multiConnect       CommandUtil.h -> MultiConnectInformations (paired list)
+#   0x07 partyMode          -> SettingsInfo(settingType 12) -> Q5
+#   0x08 hearingProtecting  "HEARING_PROTECTING_STATUS_CHANGED"
+#   0x0B personalizedNoiseReduction  CommandUtil.m -> PersonalizedNoiseReductionResult
+#   0x0F publicEvent        NotificationCommandManager.e ("handlePublicEvent";
+#                           flag word: &8 = volume level, &2 = AI state)
 EVENT_TYPE_NAMES = {
     0x01: "battery",
     0x02: "earbudStatus",
     0x03: "noiseReduction",
-    0x04: "earRestore/eq",
-    0x05: "earScan/compactness",
-    0x06: "firmware/version",
-    0x07: "wearStatus",
-    0x08: "multiDevice",
-    0x0B: "hearId/ai",
+    0x04: "compactness",
+    0x05: "gameMode",
+    0x06: "multiConnect",
+    0x07: "partyMode",
+    0x08: "hearingProtecting",
+    0x0B: "personalizedNoiseReduction",
     0x0E: "earScanResult",
-    0x0F: "spatial/headTracking",
+    0x0F: "publicEvent",
     0xF1: "userInteraction",
 }
 
@@ -64,7 +74,9 @@ def parse_notification_event(payload: bytes) -> dict:
         0x01 battery            CommandUtil.d
         0x02 earbud status      CommandUtil.f
         0x03 noise-reduction    NoiseReductionInfo
-        0x04 .. 0x08, 0x0B, 0x0E, 0x0F, 0xF1  (other event parsers)
+        0x04 compactness / 0x05 game mode / 0x06 multi-connect / 0x07 party mode
+        0x08 hearing-protect / 0x0B personalized noise / 0x0E ear-scan
+        0x0F public event / 0xF1 UI  (see `EVENT_TYPE_NAMES`)
 
     Only the type byte and raw body are exposed here; the per-type TLV
     decoders live in CommandUtil and are out of scope for the capture tool.
@@ -84,7 +96,30 @@ def parse_notification_event(payload: bytes) -> dict:
     # {1:100, 2:100, 3:0} (left=100, right=100, case=0).
     if body and (len(body) - 1) == 2 * body[0]:
         out["tlv"] = {body[1 + 2 * i]: body[2 + 2 * i] for i in range(body[0])}
+    if event == 0x04:
+        out["compactness"] = parse_compactness_event(body)
     return out
+
+
+COMPACTNESS_SIDES = {0x01: "left", 0x02: "right"}
+
+
+def parse_compactness_event(body: bytes) -> list[dict]:
+    """``CommandUtil.e()``: the ``0x0204`` event-``0x04`` body is two records.
+
+    Each record is ``[earSide][value]``; ``CompactnessDetectionInfoSdk`` reads
+    ``body[i]`` and ``body[i + 1]``.  **Verified live** on the Air7 Pro
+    (2026-10-20): ``0x0405 01`` pushed ``04 01 04 02 04`` and, on a second run,
+    ``04 01 00 02 00`` -- so ``value`` is a live status code, not a constant.
+    """
+    if len(body) < 4:
+        return []
+    return [
+        {"side": body[i],
+         "side_name": COMPACTNESS_SIDES.get(body[i], f"0x{body[i]:02X}"),
+         "value": body[i + 1]}
+        for i in (0, 2)
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -234,6 +269,19 @@ def parse_eq_mode(payload: bytes) -> dict:
     return {"status": payload[0], "mode": payload[1]}
 
 
+def parse_high_volume(payload: bytes) -> dict:
+    """``0x8110`` (``getHighVolume``): ``[status][0|1]``.
+
+    **Verified live** on the Air7 Pro (2026-10-20): pairs with the ``0x0407``
+    write (:func:`tlcore.payloads.payload_set_high_volume`); the read-back
+    follows the write and the restore returns it.  ``enabled`` is ``None`` when
+    the reply is too short.
+    """
+    if len(payload) < 2:
+        return {"status": payload[0] if payload else 0, "enabled": None}
+    return {"status": payload[0], "enabled": bool(payload[1])}
+
+
 def parse_bass_engine(payload: bytes) -> dict:
     """``0x8124``: ``[status][min][max][current]([type])`` -- the bass engine.
 
@@ -296,6 +344,7 @@ STATE_DECODERS = {
     0x8122: parse_eq_info,
     0x8124: parse_bass_engine,
     0x810F: parse_eq_mode,
+    0x8110: parse_high_volume,
     0x812A: parse_feature_detect,
     0x8108: parse_key_function,
     0x810D: parse_switch_features,

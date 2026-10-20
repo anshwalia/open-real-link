@@ -337,6 +337,10 @@ def parity_decoders(ref, core) -> None:
         ("parse_feature_detect", "001201000000"),
         ("parse_notification_event", "03010101"),
         ("parse_notification_event", "01036402640300"),
+        ("parse_notification_event", "0401040204"),
+        ("parse_compactness_event", "01040204"),
+        ("parse_compactness_event", "040104"),
+        ("parse_compactness_event", ""),
         ("parse_notification_event", "02"),
         ("parse_notification_event", ""),
     ]
@@ -380,6 +384,12 @@ def parity_decoders(ref, core) -> None:
           core.parse_model_id(bytes.fromhex("00124c06"))["model_id"], 0x064C12)
     check("parse_device_version Air7 Pro",
           core.parse_device_version(b"\x00" + b"1.1.0.85")["versions"], ["1.1.0.85"])
+    check("parse_high_volume on",
+          core.parse_high_volume(bytes.fromhex("0001")), {"status": 0, "enabled": True})
+    check("parse_high_volume off",
+          core.parse_high_volume(bytes.fromhex("0000")), {"status": 0, "enabled": False})
+    check("parse_high_volume short",
+          core.parse_high_volume(b"\x00"), {"status": 0, "enabled": None})
 
 
 # --------------------------------------------------------------------------
@@ -396,6 +406,12 @@ def parity_payloads(ref, core) -> None:
     for value in (0x01, 0x02, 0x04, 0x08, 0x10, 0x20):
         check(f"payload_set_noise_mode(0x{value:02X})",
               core.payload_set_noise_mode(value), ref.payload_set_noise_mode(value))
+    for value in (0, 1, 2, 255):
+        check(f"payload_set_high_volume({value})",
+              core.payload_set_high_volume(value), ref.payload_set_high_volume(value))
+    for value in (0, 1, 2, 255):
+        check(f"payload_compactness_detect({value})",
+              core.payload_compactness_detect(value), ref.payload_compactness_detect(value))
     for entries in ([], [b"\x01\x02\x03\x04"], [b"\x01", b"\x02"]):
         check(f"payload_set_key_function({entries!r})",
               core.payload_set_key_function(entries), ref.payload_set_key_function(entries))

@@ -241,6 +241,78 @@ def cmd_eq(args) -> int:
         transport.close()
 
 
+def cmd_high_volume(args) -> int:
+    """Read or write the high-volume (loudness boost) setting."""
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        hv_args = list(args.hv_args)
+        action = (hv_args[0] if hv_args else "get").lower()
+        if action in ("get", "read"):
+            enabled = session.read_high_volume()
+            if args.json:
+                print(json.dumps({"high_volume": enabled}, indent=2))
+            else:
+                print(f"high volume: {'on' if enabled else 'off'}")
+            return 0
+        if action in ("on", "off", "set"):
+            if action == "set":
+                if len(hv_args) < 2:
+                    raise SystemExit("usage: high-volume set <on|off>")
+                word = hv_args[1].lower()
+            else:
+                word = action
+            if word not in ("on", "off"):
+                raise SystemExit(f"expected 'on' or 'off', got {word!r}")
+            wanted = word == "on"
+            session.set_high_volume(wanted)
+            enabled = session.read_high_volume()
+            if args.json:
+                print(json.dumps({"requested": wanted, "high_volume": enabled}, indent=2))
+            else:
+                print(f"high volume: wrote {'on' if wanted else 'off'}, "
+                      f"read back {'on' if enabled else 'off'}"
+                      + ("" if enabled == wanted else "  (MISMATCH)"))
+            return 0
+        raise SystemExit(f"unknown high-volume action: {action!r} "
+                         "(use 'get', 'on', 'off', or 'set on|off')")
+    finally:
+        transport.close()
+
+
+def cmd_compactness(args) -> int:
+    """Drive in-ear detection (``0x0405``) and decode the ``0x0204`` event-``0x04`` push.
+
+    The trigger has no read-back pair: the firmware answers with two
+    ``[earSide][value]`` records on the ``0x0204`` event-``0x04`` notification, so
+    the result is observed by listening after the write.
+    """
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        cp_args = list(args.cp_args)
+        action = (cp_args[0] if cp_args else "get").lower()
+        if action in ("start", "on"):
+            session.start_compactness_detect()
+        elif action in ("stop", "off"):
+            session.stop_compactness_detect()
+        elif action not in ("get", "read", "listen"):
+            raise SystemExit(f"unknown compactness action: {action!r} "
+                             "(use 'get', 'start', or 'stop')")
+        seconds = args.seconds
+        packets = session.listen(seconds)
+    finally:
+        transport.close()
+    rows = [decode_event(p) for p in packets]
+    if args.json:
+        print(json.dumps({"action": action, "events": rows}, indent=2, default=str))
+        return 0
+    print(f"compactness {action}: listened {seconds:g}s, {len(rows)} packet(s)")
+    for row in rows:
+        _print_event(row)
+    return 0
+
+
 # --------------------------------------------------------------------------
 # keys / gestures
 # --------------------------------------------------------------------------
@@ -399,6 +471,8 @@ def decode_event(packet: dict) -> dict:
             press = t.parse_user_interaction(event["body"])
             if press:
                 out["press"] = press
+        if "compactness" in event:
+            out["compactness"] = event["compactness"]
     elif cmd in t.REQUEST_DECODERS:
         out["request"] = t.decode_request(cmd, payload)
     else:
@@ -415,6 +489,9 @@ def _print_event(row: dict) -> None:
         print(f"{head}  button press: {press['function_name']}"
               f"  (dev={press['device_type']} btn={press['button']}"
               f" action={press['button_action']} scene={press['scene']})")
+    elif "compactness" in row:
+        parts = ", ".join(f"{r['side_name']}={r['value']}" for r in row["compactness"])
+        print(f"{head}  compactness: {parts}")
     elif "event" in row:
         print(f"{head}  event={row['event']}  body={row.get('body', '')}")
     elif "request" in row:
@@ -915,6 +992,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("eq_args", nargs="*", metavar="VALUE",
                    help="'get' (default) to read, or 'set-mode <0..6>' to write")
     p.set_defaults(func=cmd_eq)
+
+    p = sub.add_parser("high-volume", parents=[common],
+                       help="read or write the high-volume (loudness boost) setting")
+    p.add_argument("hv_args", nargs="*", metavar="ACTION",
+                   help="'get' (default), 'on', 'off', or 'set on|off'")
+    p.set_defaults(func=cmd_high_volume)
+
+    p = sub.add_parser("compactness", parents=[common],
+                       help="drive in-ear detection (0x0405) and read the event-0x04 push")
+    p.add_argument("cp_args", nargs="*", metavar="ACTION",
+                   help="'get' (default, just listen), 'start', or 'stop'")
+    p.add_argument("--seconds", type=float, default=4.0, metavar="N",
+                   help="seconds to listen for the event push (default 4)")
+    p.set_defaults(func=cmd_compactness)
 
     p = sub.add_parser("keys", parents=[common],
                        help="read or write the key-function/gesture table")

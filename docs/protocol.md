@@ -184,6 +184,9 @@ are “known only” and are listed for identification only.
 | `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
+| `0x0110` | getHighVolume (read the loudness boost) | — | `parse_high_volume` | verified |
+| `0x0407` | setHighVolume (write the loudness boost) | `payload_set_high_volume` | — | verified |
+| `0x0405` | setCompactnessDetect (in-ear detect trigger; result on the `0x0204` event `0x04`) | `payload_compactness_detect` | `parse_compactness_event` | verified |
 | `0x0124` | bass engine (read) | — | `parse_bass_engine` | inferred |
 | `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | inferred |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
@@ -329,6 +332,34 @@ The Air7 Pro reports one point-less entry — `00 01 01 01 02 04 00 00` → eqId
 encoder refuses a zero-band record, and the read byte is `isSelected` while the
 write's first byte is `action`, so the bytes cannot be replayed verbatim. Backup
 captures the list and leaves it `not_restored`.
+
+### High volume (loudness boost)
+
+`0x0407` is a one-byte boolean write and `0x0110` is its read half. The reply is
+`0x8110 [status][0|1]` (`parse_high_volume`); write it with
+`payload_set_high_volume`, or use the `Session.read_high_volume` /
+`Session.set_high_volume` pair. **Verified live** on the Air7 Pro (2026-10-20):
+`0x0407 00` moved the read-back from `00 01` to `00 00`, and `0x0407 01`
+restored it. The device answers `0x8407 <status>` and additionally pushes
+`0x0204 0f 08 00 <value>` — event `0x0F` ("publicEvent"), a 2-byte little-endian
+flag word (`0x0008`, bit 3 = volume level) followed by the value. The same push
+reports AI state as `0f 02 00 <state> <type>` (bit 1).
+Like every other settings write it is accepted only while the buds are worn
+(in-ear); otherwise the device replies `0x8407 0e`.
+
+### In-ear (compactness) detection
+
+`0x0405` starts (`01`) or stops (`00`) the in-ear / compactness sensor with a
+single action byte (`payload_compactness_detect`). It has **no read-back pair**:
+the firmware answers with `0x8405 <status>` and reports the result on the
+`0x0204` **event `0x04`** push. That body is two `[earSide][value]` records --
+`parse_compactness_event` names the sides (`0x01` left, `0x02` right) and leaves
+`value` as the raw status code. **Verified live** on the Air7 Pro (2026-10-20):
+`0x0405 01` pushed `04 01 04 02 04` and, on a second run, `04 01 00 02 00`, so
+`value` is a live status code, not a constant; `0x0405 00` stops it. Use
+`Session.start_compactness_detect` / `stop_compactness_detect`, or
+`tlcli compactness start|stop`, which listens for the push. The trigger is a
+sensor read -- it drives no audio.
 
 ### Buttons and gestures
 

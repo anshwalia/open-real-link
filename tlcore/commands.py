@@ -49,6 +49,9 @@ CMD_GET_NOISE_REDUCTION = 0x010C  # PollCommandManager.h/.y/z -> read a NoiseRed
 CMD_GET_KEY_FUNCTION = 0x0108    # PollCommandManager.h0 -> the gesture/key-function table
 CMD_GET_BASS_ENGINE = 0x0124     # PollCommandManager.Q -> single bass-engine {min,max,current(,type)}
 CMD_SET_BASS_ENGINE = 0x041B     # SetCommandManager.l/.m -> set the bass-engine value
+CMD_SET_HIGH_VOLUME = 0x0407     # SetCommandManager.r -> setHighVolume (bool)
+CMD_GET_HIGH_VOLUME = 0x0110     # PollCommandManager.s -> high-volume status
+CMD_COMPACTNESS_DETECT = 0x0405  # SetCommandManager.z -> in-ear detect trigger (action byte)
 CMD_NOTIFICATION_EVENT = 0x0204  # NotificationCommandManager.k -> device -> app event push
 CMD_REQUEST_HOST_TIME = 0x0500   # RequestCommandManager.i -> device asks the host for the time
 CMD_REQUEST_OPERATION = 0x0502   # RequestCommandManager.h -> device asks the app to run an action
@@ -110,6 +113,8 @@ CMD_NAMES = {
     0x0401: "setKeyFunction",
     0x0403: "setSwitchFeature",
     0x0404: "setNoiseReduction",
+    0x0400: "setFindMode",
+    0x0405: "setCompactnessDetect",
     0x0406: "setEQStatus",
     0x0407: "setHighVolume",
     0x040A: "setAutoPowerOffTime",
@@ -210,12 +215,12 @@ ALL_COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(0x0306, "OTA", "ungated", ""),
     CommandSpec(0x0307, "OTA", "ungated", ""),
     CommandSpec(0x0308, "OTA", "ungated", ""),
-    CommandSpec(0x0400, "set", "cap-bit 5", ""),
+    CommandSpec(0x0400, "set", "cap-bit 5", "setFindMode"),
     CommandSpec(0x0401, "set", "cap-bit 3", "setKeyFunction"),
     CommandSpec(0x0402, "set", "cap-bit 6", ""),
     CommandSpec(0x0403, "set", "cap-bit 7", "setSwitchFeature"),
     CommandSpec(0x0404, "set", "cap-bit 8", "setNoiseReduction"),
-    CommandSpec(0x0405, "set", "cap-bit 9", ""),
+    CommandSpec(0x0405, "set", "cap-bit 9", "setCompactnessDetect"),
     CommandSpec(0x0406, "set", "cap-bit 10", "setEQStatus"),
     CommandSpec(0x0407, "set", "cap-bit 11", "setHighVolume"),
     CommandSpec(0x0408, "set", "cap-bit 13", ""),

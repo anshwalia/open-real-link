@@ -110,6 +110,8 @@ def check_capture() -> None:
     check("key function still derived",
           snap["settings"]["key_function"], "02" + "02010100" + "02010201")
     check("eq mode still derived", snap["settings"]["eq_mode"], 4)
+    check("high volume derived", snap["settings"]["high_volume"], True)
+    check("high volume is restorable", "high_volume" in t.backup.RESTORABLE, True)
     # the live unit's empty reply derives nothing
     empty = {**CANNED, (0x0124, b""): "0000"}
     _, session = replay(backup_records(empty))
@@ -126,11 +128,14 @@ def check_restore_bass() -> None:
                ("tx", wire(0x0401, bytes.fromhex(snap["settings"]["key_function"]))),
                ("rx", wire(0x8401, bytes([0]))),
                ("tx", wire(0x0406, bytes([4]))), ("rx", wire(0x8406, bytes([0]))),
+               ("tx", wire(0x0407, bytes([1]))), ("rx", wire(0x8407, bytes([0]))),
                ("tx", wire(0x041B, bytes([1, 5, 3]))), ("rx", wire(0x841B, bytes([0])))]
     transport, session = replay(records)
     report = t.restore(session, snap)
     check("bass reported applied",
           any(a["setting"] == "bass_engine" for a in report["applied"]), True)
+    check("high volume reported applied",
+          any(a["setting"] == "high_volume" for a in report["applied"]), True)
     check("bass frame written", transport.writes[-1], wire(0x041B, bytes([1, 5, 3])))
     check("bass not listed as not_restored",
           any(s["setting"] == "bass_engine" for s in report["not_restored"]), False)

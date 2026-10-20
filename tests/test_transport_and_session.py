@@ -180,7 +180,8 @@ def test_backup_restore() -> None:
     records = [("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
                ("tx", wire(0x0404, bytes([1, 1, 1]))), ("rx", wire(0x8404, bytes([0]))),
                ("tx", wire(0x0401, kf_payload)), ("rx", wire(0x8401, bytes([0]))),
-               ("tx", wire(0x0406, bytes([4]))), ("rx", wire(0x8406, bytes([0])))]
+               ("tx", wire(0x0406, bytes([4]))), ("rx", wire(0x8406, bytes([0]))),
+               ("tx", wire(0x0407, bytes([1]))), ("rx", wire(0x8407, bytes([0])))]
     transport, session = replay(records)
     report = t.restore(session, snapshot)
     check("restore noise first", report["applied"][0]["setting"], "noise_mode")
@@ -188,6 +189,8 @@ def test_backup_restore() -> None:
           any(a["setting"] == "key_function" for a in report["applied"]), True)
     check("restore applied eq_mode",
           any(a["setting"] == "eq_mode" for a in report["applied"]), True)
+    check("restore applied high_volume",
+          any(a["setting"] == "high_volume" for a in report["applied"]), True)
     check("restore wrote the noise frame", transport.writes[1], wire(0x0404, bytes([1, 1, 1])))
     check("restore reports eq as unrestorable",
           any(s["setting"] == "eq_info" for s in report["not_restored"]), True)
@@ -256,6 +259,50 @@ def test_eq_session() -> None:
     check("set_eq_mode then read", session.read_eq_mode(), 2)
 
 
+def test_high_volume_session() -> None:
+    # the live-verified round trip (Air7 Pro, 2026-10-20):
+    #   0x0110 -> 00 01, 0x0407 00 -> 00 00, 0x0407 01 -> 00 01
+    transport, session = replay([
+        ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0001"))),
+        ("tx", wire(0x0407, bytes([0]))), ("rx", wire(0x8407, bytes([0]))),
+        ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0000"))),
+        ("tx", wire(0x0407, bytes([1]))), ("rx", wire(0x8407, bytes([0]))),
+        ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0001"))),
+    ])
+    check("read_high_volume initial", session.read_high_volume(), True)
+    session.set_high_volume(False)
+    check("high volume off after 0x0407 00", session.read_high_volume(), False)
+    session.set_high_volume(True)
+    check("high volume restored by 0x0407 01", session.read_high_volume(), True)
+    check("payload_set_high_volume(True)", t.payload_set_high_volume(True), b"\x01")
+    check("payload_set_high_volume(False)", t.payload_set_high_volume(False), b"\x00")
+    check("parse_high_volume on", t.parse_high_volume(bytes.fromhex("0001")),
+          {"status": 0, "enabled": True})
+
+
+def test_compactness_session() -> None:
+    # the live-verified trigger (Air7 Pro, 2026-10-20): 0x0405 01 -> ack, then a
+    # 0x0204 event-0x04 push carries two [earSide][value] records.
+    transport, session = replay([
+        ("tx", wire(0x0405, bytes([1]))), ("rx", wire(0x8405, bytes([0]))),
+        ("rx", wire(0x0204, bytes.fromhex("0401040204"))),
+    ])
+    session.start_compactness_detect()
+    check("payload_compactness_detect(True)", t.payload_compactness_detect(True), b"\x01")
+    check("payload_compactness_detect(False)", t.payload_compactness_detect(False), b"\x00")
+    check("parse_compactness_event", t.parse_compactness_event(bytes.fromhex("01040204")),
+          [{"side": 1, "side_name": "left", "value": 4},
+           {"side": 2, "side_name": "right", "value": 4}])
+    event = t.parse_notification_event(bytes.fromhex("0401040204"))
+    check("parse_notification_event compactness event", event["event_name"], "compactness")
+    check("parse_notification_event compactness records",
+          event["compactness"][1]["side_name"], "right")
+    check("parse_compactness_event short", t.parse_compactness_event(b"\x01\x04"), [])
+    pushed = session.listen(0.1)
+    check("compactness push observed",
+          any(p["cmd"] == 0x0204 for p in pushed), True)
+
+
 def test_cli_eq() -> None:
     from tlcli.cli import main
 
@@ -271,6 +318,49 @@ def test_cli_eq() -> None:
         check("cli eq get rc", rc, 0)
         check("cli eq mode line", "eq mode   : 4" in buf.getvalue(), True)
         check("cli eq entry", "eqId=4" in buf.getvalue(), True)
+
+
+def test_cli_high_volume() -> None:
+    from tlcli.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        get_rec = pathlib.Path(tmpdir) / "hv-get.jsonl"
+        get_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0001")))]))
+        off_rec = pathlib.Path(tmpdir) / "hv-off.jsonl"
+        off_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0407, bytes([0]))), ("rx", wire(0x8407, bytes([0]))),
+            ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0000")))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(get_rec), "high-volume", "get"])
+        check("cli high-volume get rc", rc, 0)
+        check("cli high-volume get line", "high volume: on" in buf.getvalue(), True)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(off_rec), "high-volume", "off"])
+        check("cli high-volume off rc", rc, 0)
+        check("cli high-volume off line",
+              "wrote off, read back off" in buf.getvalue(), True)
+
+
+def test_cli_compactness() -> None:
+    from tlcli.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rec = pathlib.Path(tmpdir) / "cp.jsonl"
+        rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0405, bytes([1]))), ("rx", wire(0x8405, bytes([0]))),
+            ("rx", wire(0x0204, bytes.fromhex("0401040204")))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(rec), "compactness", "start"])
+        check("cli compactness start rc", rc, 0)
+        check("cli compactness event line", "compactness: left=4, right=4" in buf.getvalue(), True)
 
 
 def test_keys_session_and_cli() -> None:

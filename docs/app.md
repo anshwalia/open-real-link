@@ -119,6 +119,6 @@ The controller opens the device exactly the way the CLI does, by reusing
 ## What is next
 
 The remaining verified features, each added the same way: EQ mode and preset
-list, the gesture table and a long-press disable, an event/button-press monitor,
-settings backup and restore, host-side voice, a guarded raw console, and the SDP
-service list.
+list, high volume, the gesture table and a long-press disable, an
+event/button-press monitor, settings backup and restore, host-side voice, a
+guarded raw console, and the SDP service list.

@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **29 implemented** in `open-real-link`,
-**50 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **32 implemented** in `open-real-link`,
+**47 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 14 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 15 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 1 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
-| `SetCommandManager` | `0x0400` | 22 | 6 | 18 | 22 cap-bit |
+| `SetCommandManager` | `0x0400` | 22 | 8 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **29** | **49** | |
+| **total** | | **79** | **32** | **49** | |
 
 ## Full catalogue
 
@@ -54,7 +54,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
 | `0x010d` | 269 | poll | cap-bit 7 | send + decode | live | — |
 | `0x010f` | 271 | poll | cap-bit 10 | send + decode | live | getEQStatus |
-| `0x0110` | 272 | poll | cap-bit 11 | — | live | — |
+| `0x0110` | 272 | poll | cap-bit 11 | send + decode | live | — |
 | `0x0111` | 273 | poll | cap-bit 15 | — | — | — |
 | `0x0112` | 274 | poll | cap-bit 29 | — | live | — |
 | `0x0115` | 277 | poll | cap-bit 19 | — | live | — |
@@ -86,14 +86,14 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0306` | 774 | OTA | ungated | — | — | — |
 | `0x0307` | 775 | OTA | ungated | — | — | — |
 | `0x0308` | 776 | OTA | ungated | — | — | — |
-| `0x0400` | 1024 | set | cap-bit 5 | — | live | — |
+| `0x0400` | 1024 | set | cap-bit 5 | — | live | setFindMode |
 | `0x0401` | 1025 | set | cap-bit 3 | build | live | setKeyFunction |
 | `0x0402` | 1026 | set | cap-bit 6 | — | — | — |
 | `0x0403` | 1027 | set | cap-bit 7 | build + send | live | setSwitchFeature |
 | `0x0404` | 1028 | set | cap-bit 8 | build + send | live | SetNoiseReduction |
-| `0x0405` | 1029 | set | cap-bit 9 | — | live | — |
+| `0x0405` | 1029 | set | cap-bit 9 | build + send + decode | live | setCompactnessDetect |
 | `0x0406` | 1030 | set | cap-bit 10 | build + send | live | setEQStatus |
-| `0x0407` | 1031 | set | cap-bit 11 | — | live | setHighVolume |
+| `0x0407` | 1031 | set | cap-bit 11 | build + send | live | setHighVolume |
 | `0x0408` | 1032 | set | cap-bit 13 | — | — | — |
 | `0x0409` | 1033 | set | cap-bit 14 | — | live | — |
 | `0x040a` | 1034 | set | cap-bit 15 | — | — | setAutoPowerOffTime |
@@ -146,7 +146,8 @@ removed **before a release**. Their obstacle is named.
 | `0x0502`, `0x0503`, `0x0504`, `0x0506`, `0x0508`, `0x050E`, `0x0516` | `tlcore.requests` decoders | recovered statically; only `0x0500` has been observed live |
 
 Everything else implemented — the `0x01xx` reads, the noise / EQ-mode /
-key-function writes, `0x0204`, `0x0500` — has been exercised on hardware.
+key-function / high-volume / compactness writes, `0x0204`, `0x0500` — has been
+exercised on hardware.
 
 ## Safety
 
@@ -177,6 +178,7 @@ recovered and symmetric end to end:
 | noise mode | `0x010C` sel `1` | `0x0404` action `1` |
 | key function | `0x0108` | `0x0401` |
 | EQ mode | `0x010F` | `0x0406` |
+| high volume | `0x0110` | `0x0407` |
 | switch features | `0x010D` | `0x0403` |
 | bass engine | `0x0124` | `0x041B` |
 

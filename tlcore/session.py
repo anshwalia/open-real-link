@@ -14,12 +14,15 @@ from typing import Optional
 
 from .commands import (
     ALWAYS_ON,
+    CMD_COMPACTNESS_DETECT,
     CMD_GET_ALL_EQ_INFO,
     CMD_GET_EQ_MODE,
+    CMD_GET_HIGH_VOLUME,
     CMD_GET_KEY_FUNCTION,
     CMD_GET_NOISE_REDUCTION,
     CMD_GET_REMOTE_CAPABILITY,
     CMD_SET_EQ_MODE,
+    CMD_SET_HIGH_VOLUME,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     RESPONSE_BIT,
@@ -27,7 +30,12 @@ from .commands import (
 )
 from .errors import DeviceRejected, NotConnected, NotWorn, PacketError, Timeout
 from .noise import NOISE_FIELD_MODE, NOISE_MODE_NAMES
-from .payloads import payload_set_eq_mode, payload_set_noise_mode
+from .payloads import (
+    payload_compactness_detect,
+    payload_set_eq_mode,
+    payload_set_high_volume,
+    payload_set_noise_mode,
+)
 from .wire import StreamDecoder, build_frames, build_packet
 
 class Session:
@@ -199,6 +207,55 @@ class Session:
         reply = self.request(CMD_GET_ALL_EQ_INFO, b"", timeout=timeout)
         self.check_status(reply)
         return parse_eq_info(reply["payload"])
+
+    # -- high volume -------------------------------------------------------
+    def read_high_volume(self, *, timeout: Optional[float] = None) -> bool:
+        """Read the high-volume (loudness boost) status (``0x0110``).
+
+        **Verified live** on the Air7 Pro: the reply is ``[status][0|1]``.
+        """
+        reply = self.request(CMD_GET_HIGH_VOLUME, b"", timeout=timeout)
+        self.check_status(reply)
+        payload = reply["payload"]
+        if len(payload) < 2:
+            raise PacketError(f"0x8110 body too short for a high-volume flag: {payload.hex()}")
+        return bool(payload[1])
+
+    def set_high_volume(self, enabled: bool, *, timeout: Optional[float] = None) -> int:
+        """Write the high-volume status (``0x0407``).
+
+        **Verified live** on the Air7 Pro (2026-10-20): the ``0x0110`` read-back
+        follows the write, and the restore returns it.  Accepted only while the
+        buds are worn (else :class:`~tlcore.errors.NotWorn`).
+        """
+        reply = self.request(CMD_SET_HIGH_VOLUME, payload_set_high_volume(enabled),
+                             timeout=timeout)
+        return self.check_status(reply)
+
+    # -- compactness / in-ear detect ---------------------------------------
+    def set_compactness_detect(self, action: bool, *,
+                               timeout: Optional[float] = None) -> int:
+        """Start (``True``) or stop (``False``) in-ear detection (``0x0405``).
+
+        **Verified live** on the Air7 Pro (2026-10-20): the trigger is accepted
+        and the firmware answers on the ``0x0204`` event-``0x04`` push (two
+        ``[earSide][value]`` records), not on a read.  Sensor only -- it drives
+        no audio.  Use the push decoder
+        (:func:`tlcore.decoders.parse_compactness_event`) to read the result.
+        """
+        reply = self.request(CMD_COMPACTNESS_DETECT,
+                             payload_compactness_detect(action), timeout=timeout)
+        return self.check_status(reply)
+
+    def start_compactness_detect(self, *, timeout: Optional[float] = None) -> int:
+        """Start in-ear detection (``0x0405 01``).  See
+        :meth:`set_compactness_detect`."""
+        return self.set_compactness_detect(True, timeout=timeout)
+
+    def stop_compactness_detect(self, *, timeout: Optional[float] = None) -> int:
+        """Stop in-ear detection (``0x0405 00``).  See
+        :meth:`set_compactness_detect`."""
+        return self.set_compactness_detect(False, timeout=timeout)
 
     # -- key functions / gestures ------------------------------------------
     def read_key_function(self, *, timeout: float | None = None) -> dict:
