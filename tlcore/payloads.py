@@ -81,8 +81,9 @@ def payload_set_find_mode(on: bool | int) -> bytes:
     """SetCommandManager.q() / cmd 0x0400: ``[on ? 1 : 0]``.
 
     **Verified live** on the Air7 Pro (2026-10-20): ``0x0400 01`` and
-    ``0x0400 00`` both answer ``0x8400 00``.  There is no read pair -- the
-    device reports no find-mode state, only the ack.
+    ``0x0400 00`` both answer ``0x8400 00``, and the buds audibly rang on ``01``
+    and stopped on ``00``.  There is no read pair -- the device reports no
+    find-mode state, only the ack.
 
     The app never sends this command (no caller anywhere in its code), so it is
     the one write this project drives purely from static recovery plus a live

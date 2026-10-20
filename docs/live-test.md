@@ -350,7 +350,8 @@ every settings write it is accepted only while the buds are worn.
 only reply is the `0x8400 <status>` ack -- and the vendor app never sends it, so
 it is the one command here recovered from decompiled code and then driven
 straight at the hardware. Both values were confirmed on the Air7 Pro
-(2026-10-20): `01` and `00` each answer `0x8400 00`.
+(2026-10-20): `01` and `00` each answer `0x8400 00`, and the buds **audibly
+rang** on `01` and stopped on `00`.
 
 Because it is **loud**, the command always stops it again, from a `finally`:
 

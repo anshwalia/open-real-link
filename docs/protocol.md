@@ -350,7 +350,9 @@ no find-mode state, so `0x8400 <status>` is the only confirmation available.
 The app never sends it (it has no caller in the vendor application at all), so
 this ID sits in an unusual place: recovered statically, driven directly, and
 verified on hardware. **Verified live** on the Air7 Pro (2026-10-20):
-`0x0400 01` and `0x0400 00` both answer `0x8400 00`.
+`0x0400 01` and `0x0400 00` both answer `0x8400 00`, and the operator confirms
+the buds **audibly rang** while `01` was in force and stopped on `00` -- so the
+command is verified end to end, not ack-only.
 
 It **rings the buds loudly**. `tlcli find` therefore sends the stop itself, and
 sends it from a `finally`, so an interrupt or an error still stops the chime

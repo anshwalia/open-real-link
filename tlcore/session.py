@@ -248,7 +248,8 @@ class Session:
         """Write the find-mode flag (``0x0400``).
 
         **Verified live** on the Air7 Pro (2026-10-20): both ``0x0400 01`` and
-        ``0x0400 00`` answer ``0x8400 00``.  There is **no read pair**, so this
+        ``0x0400 00`` answer ``0x8400 00`` and the buds audibly rang on ``01``.
+        There is **no read pair**, so this
         is the one write with no read-back to confirm -- the ack is all the
         device gives.
 
