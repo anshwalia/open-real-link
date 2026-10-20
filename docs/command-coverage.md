@@ -161,7 +161,8 @@ removed **before a release**. Their obstacle is named.
 | EQ write `0x0418` | `payload_set_eq` | the read (`0x0122`) and write are asymmetric (`isSelected` vs `action`) and the encoder refuses a zero-band record; only the `[05]` query form has been driven |
 | switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
 | feature detect `0x012A` | `parse_feature_detect` | not in the capability bitmap; the unit does not answer |
-| `0x0502`, `0x0503`, `0x050E`, `0x0516` | `tlcore.requests` decoders | recovered statically; not observed live yet |
+| `0x0502` | `parse_operation_request` | **not emitted** for device-side gestures: play/pause, track skip and the ANC cycle are handled by the firmware itself, so the app is never asked. Needs a gesture bound to an **app-side** function (`26`/`27`/`31`), which takes a vendor-app write first |
+| `0x0503`, `0x050E`, `0x0516` | `parse_feature_switch_status`, `parse_use_time_list`, `parse_oneshot_audio` | recovered statically; not observed live yet |
 
 Live-verified device→app requests (Air7 Pro, 2026-10-20): `0x0500` (time),
 `0x0504` (pushed on every `0x0406`), `0x0506` (pushed on the `0x0418 [05]`

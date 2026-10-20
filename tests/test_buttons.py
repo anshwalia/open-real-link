@@ -133,6 +133,38 @@ def check_user_interaction_event() -> None:
           t.parse_user_interaction(note["body"])["function_name"], "play-pause")
 
 
+def check_user_interaction_fixture() -> None:
+    """The live 0x0204 gesture/noise trace (sanitized) decodes as expected.
+
+    Recorded on a Buds Air7 Pro (FW 1.1.0.85, 2026-10-20) during a guided
+    gesture run: no identifiers, only the gesture tuples and battery levels.
+    """
+    path = ROOT / "fixtures" / "user-interaction.jsonl"
+    stream = b"".join(bytes.fromhex(json.loads(line)["hex"])
+                      for line in path.read_text().splitlines() if line.strip())
+    dec = t.StreamDecoder()
+    packets = [ev["packet"] for ev in dec.feed(stream) if ev["kind"] == "packet"]
+    check("fixture packet count", len(packets), 9)
+    check("fixture cmds", {p["cmd"] for p in packets}, {0x0204})
+    notes = [t.parse_notification_event(p["payload"]) for p in packets]
+    check("fixture 0xF1 count", sum(n["event"] == 0xF1 for n in notes), 5)
+    check("fixture 0x03 count", sum(n["event"] == 0x03 for n in notes), 3)
+    check("fixture battery",
+          next(n for n in notes if n["event"] == 0x01)["tlv"],
+          {1: 100, 2: 100, 3: 0})
+    gestures = [t.parse_user_interaction(n["body"]) for n in notes
+                if n["event"] == 0xF1]
+    check("fixture gestures",
+          [(g["device_type"], g["button_action"], g["scene"]) for g in gestures],
+          [(1, 2, 3), (1, 3, 3), (2, 2, 3), (1, 4, 3), (2, 4, 3)])
+    # every press reported function 0 even though 0x0108 mapped long press to 8
+    check("fixture function is not the table value",
+          {g["function"] for g in gestures}, {0})
+    # options is one uint16 per inter-click gap: long 0, double 1, triple 2
+    check("fixture options scale with clicks",
+          [len(g["options"]) for g in gestures], [1, 2, 1, 0, 0])
+
+
 def check_key_function_fixture() -> None:
     """The sanitized golden trace decodes to the same table it was built from."""
     path = ROOT / "fixtures" / "key-functions.jsonl"
@@ -245,7 +277,8 @@ def main() -> int:
     for fn in (check_key_function_info, check_parse_key_function_table,
                check_key_function_round_trip, check_key_function_patch,
                check_user_interaction_event,
-               check_key_function_fixture, check_host_time_request,
+               check_key_function_fixture, check_user_interaction_fixture,
+               check_host_time_request,
                check_operation_request, check_feature_switch_status,
                check_eq_mode_and_bass, check_use_time_list, check_oneshot_audio,
                check_request_dispatch, check_custom_eq, check_switch_feature_builder):

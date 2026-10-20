@@ -438,6 +438,25 @@ The `0x0508` range is **signed** (`0x041B ...` against `-5..+5` yields
 range and only echoes `current` from the write. `tlcli events` decodes these
 via `decode_request`.
 
+### Human-triggered pushes (gesture + noise events)
+
+Some pushes only appear when a person acts on the headset. A guided gesture run
+(Air7 Pro, FW `1.1.0.85`, 2026-10-20) verified two of them:
+
+| push | body | notes |
+| --- | --- | --- |
+| `0x0204` event `0xF1` | `[deviceType][button][buttonAction][function][scene] + N x [option:2 LE]` | `parse_user_interaction`; left double-click `f1 01 01 02 00 03 00 00`, left long press `f1 01 01 04 00 03`, right long press `f1 02 01 04 00 03` |
+| `0x0204` event `0x03` | `[a][b][c]`, 3 bytes (`NoiseReductionInfo`) | the noise-mode mirror `03 01 01 <mode>` plus a companion push `03 04 01 04`; **not** a TLV |
+
+Two things to watch:
+
+* the `0xF1` `function` byte is **not** the `0x0108` table value -- long press
+  reported `0` while the table said `8/ANC`, and the ANC cycle still happened;
+* `0x0502 requestOperation` was **not** pushed for any gesture -- play/pause,
+  track skip and ANC are firmware-side, so the app is never asked.
+
+Replay fixture: `fixtures/user-interaction.jsonl` (sanitized).
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:

@@ -430,6 +430,19 @@ the body (after the type byte) to `parse_user_interaction`::
 
     [deviceType][button][buttonAction][function][scene] + options(uint16 LE)
 
+Live-verified on a Buds Air7 Pro (FW `1.1.0.85`, 2026-10-20): a left
+double-click pushed `f1 01 01 02 00 03 00 00`, a left long press
+`f1 01 01 04 00 03` and a right long press `f1 02 01 04 00 03`. Two caveats:
+
+* `scene` was `3` in every event, and `options` is one `uint16` little-endian
+  entry per *inter-click gap* -- `long press` 0, `double-click` 1,
+  `triple-click` 2. Every observed value was `0`, so the meaning is not settled.
+* the `function` byte is **not** a copy of the stored `0x0108` table: the table
+  mapped long press to `8` (noise-control/ANC), the event reported
+  `function=0`, and the ANC cycle still happened. Read it as a *requested
+  app-side function* (the app acts on the AI values `26`/`27`/`31`), not as the
+  configured one.
+
 The write is whole-table, so a client reads `0x0108`, patches one
 `KeyFunctionInfo`, and writes the full table back with `payload_set_key_function`.
 Two pure helpers make that safe: `patch_key_functions(entries, updates)` changes
@@ -454,7 +467,7 @@ Only `0x0500` expects a reply. All multi-byte fields are little-endian.
 | Command | Body | Decoder | Live trigger (Air7 Pro 2026-10-20) |
 | --- | --- | --- | --- |
 | `0x0500` | asks the host for the time; answer `0x8500` with `payload_host_time_reply(unix)` | `parse_host_time_request` | periodic / on connect |
-| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` | a button press (not driven) |
+| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` | **not emitted** for device-side gestures; needs one bound to an app-side function |
 | `0x0503` | `[count] + count x [featureType][status]` | `parse_feature_switch_status` | not observed |
 | `0x0504` | `[eqMode]` | `parse_eq_mode_request` | **verified** -- pushed on every `0x0406` |
 | `0x0506` | custom-EQ list | `parse_custom_eq` | **verified** -- pushed on `0x0418 [05]` |
