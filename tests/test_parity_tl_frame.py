@@ -413,6 +413,20 @@ def parity_decoders(ref, core) -> None:
               {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone-B", "state": 0, "flag": 0}]})
     check("parse_multi_connect short", core.parse_multi_connect(b"\x00"),
           {"status": 0, "count": 0, "entries": []})
+    check("parse_personalized_anc none",
+          core.parse_personalized_anc(bytes.fromhex("0000")),
+          {"status": 0, "exists": 0})
+    check("parse_personalized_anc stored",
+          core.parse_personalized_anc(bytes.fromhex("0001")),
+          {"status": 0, "exists": 1})
+    check("parse_personalized_anc short", core.parse_personalized_anc(b"\x00"),
+          {"status": 0, "exists": None})
+    check("parse_notification_capabilities Air7 Pro",
+          core.parse_notification_capabilities(bytes.fromhex("00020201")),
+          {"status": 0, "count": 2, "types": [2, 1]})
+    check("parse_notification_capabilities short",
+          core.parse_notification_capabilities(b"\x00"),
+          {"status": 0, "count": 0, "types": []})
 
 
 # --------------------------------------------------------------------------

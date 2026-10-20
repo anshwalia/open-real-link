@@ -325,6 +325,29 @@ def test_multi_connect_session() -> None:
           {"status": 0, "count": 0, "entries": []})
 
 
+def test_personalized_anc_and_notification_caps() -> None:
+    # the live-verified reads (Air7 Pro, 2026-10-20):
+    #   0x011A -> 00 00 (no stored personalized-noise result)
+    #   0x0200 -> 00 02 02 01 (push-event types 0x02 and 0x01)
+    transport, session = replay([
+        ("tx", wire(0x011A)), ("rx", wire(0x811A, bytes.fromhex("0000"))),
+        ("tx", wire(0x0200)), ("rx", wire(0x8200, bytes.fromhex("00020201"))),
+    ])
+    check("read_personalized_anc", session.read_personalized_anc(),
+          {"status": 0, "exists": 0})
+    check("read_notification_capabilities", session.read_notification_capabilities(),
+          {"status": 0, "count": 2, "types": [2, 1]})
+    check("parse_personalized_anc short", t.parse_personalized_anc(b"\x00"),
+          {"status": 0, "exists": None})
+    check("parse_notification_capabilities short",
+          t.parse_notification_capabilities(b"\x00"),
+          {"status": 0, "count": 0, "types": []})
+    check("decode_state 0x811A", t.decode_state(0x811A, bytes.fromhex("0000")),
+          {"status": 0, "exists": 0})
+    check("decode_state 0x8200", t.decode_state(0x8200, bytes.fromhex("00020201")),
+          {"status": 0, "count": 2, "types": [2, 1]})
+
+
 def test_compactness_session() -> None:
     # the live-verified trigger (Air7 Pro, 2026-10-20): 0x0405 01 -> ack, then a
     # 0x0204 event-0x04 push carries two [earSide][value] records.
@@ -436,6 +459,24 @@ def test_cli_multipoint() -> None:
         check("cli multipoint rc", rc, 0)
         check("cli multipoint count", "multipoint: 2 device(s)" in buf.getvalue(), True)
         check("cli multipoint entry", "11:22:33:44:55:66" in buf.getvalue(), True)
+
+
+def test_cli_personalized_anc_and_notification_caps() -> None:
+    from tlcli.cli import main
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/personalized-anc.jsonl", "personalized-noise"])
+    check("cli personalized-noise rc", rc, 0)
+    check("cli personalized-noise line",
+          "personalized noise : result stored=False" in buf.getvalue(), True)
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/notification-caps.jsonl", "notification-caps"])
+    check("cli notification-caps rc", rc, 0)
+    check("cli notification-caps line",
+          "notification capabilities: 2 type(s): 0x02, 0x01" in buf.getvalue(), True)
 
 
 def test_cli_compactness() -> None:

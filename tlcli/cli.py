@@ -337,6 +337,38 @@ def cmd_multipoint(args) -> int:
         transport.close()
 
 
+def cmd_personalized_anc(args) -> int:
+    """Read the personalized-noise calibration result *exists* flag (``0x011A``)."""
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        result = session.read_personalized_anc()
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"personalized noise : result stored={bool(result['exists'])} "
+                  f"(exists={result['exists']})")
+        return 0
+    finally:
+        transport.close()
+
+
+def cmd_notification_caps(args) -> int:
+    """Read the push-event types the device supports (``0x0200``)."""
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        result = session.read_notification_capabilities()
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            names = ", ".join(f"0x{t:02X}" for t in result["types"])
+            print(f"notification capabilities: {result['count']} type(s): {names or '-'}")
+        return 0
+    finally:
+        transport.close()
+
+
 def cmd_compactness(args) -> int:
     """Drive in-ear detection (``0x0405``) and decode the ``0x0204`` event-``0x04`` push.
 
@@ -1065,6 +1097,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("multipoint", parents=[common],
                        help="read the paired-device / multipoint list (0x0112)")
     p.set_defaults(func=cmd_multipoint)
+
+    p = sub.add_parser("personalized-noise", parents=[common],
+                       help="read the personalized-noise result exists flag (0x011A)")
+    p.set_defaults(func=cmd_personalized_anc)
+
+    p = sub.add_parser("notification-caps", parents=[common],
+                       help="read the push-event types the device supports (0x0200)")
+    p.set_defaults(func=cmd_notification_caps)
 
     p = sub.add_parser("compactness", parents=[common],
                        help="drive in-ear detection (0x0405) and read the event-0x04 push")

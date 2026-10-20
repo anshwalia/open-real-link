@@ -183,6 +183,7 @@ are “known only” and are listed for identification only.
 | `0x0418` | setEqInfo / getEqInfo | `payload_set_eq` | — | integrated |
 | `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
 | `0x0112` | getMultiConnect (paired-device / multipoint list) | — | `parse_multi_connect` | verified |
+| `0x011A` | getPersonalizedNoiseReductionResultExist (personalized-noise result exists flag) | — | `parse_personalized_anc` | verified |
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
 | `0x0110` | getHighVolume (read the loudness boost) | — | `parse_high_volume` | verified |
@@ -202,6 +203,7 @@ are “known only” and are listed for identification only.
 | `0x8105` | firmware / component versions | — | `parse_device_version` | verified |
 | `0x8122` | EQ info | — | `parse_eq_info` | verified |
 | `0x810D` | switch / feature status | — | `parse_switch_features` | integrated |
+| `0x8200` | getNotificationCapabilities (push-event types) | — | `parse_notification_capabilities` | verified |
 | `0x0500` | device asks for the host time | `payload_host_time_reply` | `parse_host_time_request` | integrated |
 | `0x0502` | device operation request | — | `parse_operation_request` | integrated |
 | `0x0503` | feature-switch status sync | — | `parse_feature_switch_status` | integrated |

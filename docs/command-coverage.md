@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **35 implemented** in `open-real-link`,
-**44 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **37 implemented** in `open-real-link`,
+**42 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 17 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
-| `NotificationCommandManager` | `0x0200` | 6 | 1 | 1 | 1 cap-bit, 5 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 18 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
 | `SetCommandManager` | `0x0400` | 22 | 9 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **35** | **49** | |
+| **total** | | **79** | **37** | **49** | |
 
 ## Full catalogue
 
@@ -60,7 +60,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0115` | 277 | poll | cap-bit 19 | — | live | — |
 | `0x0116` | 278 | poll | cap-bit 19 | — | live | — |
 | `0x0118` | 280 | poll | cap-bit 25 | — | live | getEarRestoreData |
-| `0x011a` | 282 | poll | cap-bit 26 | — | live | — |
+| `0x011a` | 282 | poll | cap-bit 26 | send + decode | live | getPersonalizedNoiseReductionResultExist |
 | `0x011e` | 286 | poll | cap-bit 30 | — | live | getEarScanData |
 | `0x011f` | 287 | poll | cap-bit 30 | — | live | getEarScanFilterData |
 | `0x0120` | 288 | poll | cap-bit 32 | — | live | getEarLanguageData |
@@ -71,7 +71,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x012a` | 298 | poll | ungated | decode | — | detectFeature |
 | `0x012c` | 300 | poll | cap-bit 54 | — | live | startSocketConnect |
 | `0x0131` | 305 | poll | cap-bit 58 | send + decode | live | — |
-| `0x0200` | 512 | notify | ungated | — | — | getNotificationCapabilities |
+| `0x0200` | 512 | notify | ungated | send + decode | — | getNotificationCapabilities |
 | `0x0201` | 513 | notify | ungated | — | — | — |
 | `0x0202` | 514 | notify | ungated | — | — | registerNotification |
 | `0x0203` | 515 | notify | ungated | — | — | cancelRegisterNotification |

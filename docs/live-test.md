@@ -383,6 +383,24 @@ ai status : wrote state=0 type=1, read back state=0 type=0
 `1.1.0.85` (the read stays `00 00`). The device also pushes
 `0x0204 0f 02 00 <state> <type>` on every change.
 
+### Personalized-noise result and notification capabilities (read-only)
+
+Two more verified reads round out the poll/notify surface:
+
+* `0x011A` returns `[status][exists]` — whether the device has a stored
+  personalized-noise calibration result. This unit reports `00 00` (no stored
+  result). It is **not** a read-back of a write: the companion `0x0412` is a
+  calibration *trigger* whose result arrives on the `0x0204` event `0x0B`.
+* `0x0200` returns `[status][count][type...]` — the `0x0204` event types the
+  device can push. This unit reports `00 02 02 01` (types `0x02` and `0x01`).
+
+```console
+$ python -m tlcli --address <device> --reset personalized-noise
+personalized noise : result stored=False (exists=0)
+$ python -m tlcli --address <device> --reset notification-caps
+notification capabilities: 2 type(s): 0x02, 0x01
+```
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:

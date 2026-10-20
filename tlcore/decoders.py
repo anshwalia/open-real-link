@@ -317,6 +317,36 @@ def parse_ai_status(payload: bytes) -> dict:
     return {"status": payload[0], "state": payload[1], "type": payload[2]}
 
 
+def parse_personalized_anc(payload: bytes) -> dict:
+    """``0x811A`` (``getPersonalizedNoiseReductionResult``): ``[status][exists]``.
+
+    ``PollCommandManager.A`` sends the empty ``0x011A`` request; ``j0`` builds
+    ``PersonalizedNoiseReductionResultExist(1, payload)``, whose constructor
+    reads ``payload[1]``.  **Verified live** on the Air7 Pro (2026-10-20): the
+    reply is ``00 00`` -- status 0, no stored result.  ``exists`` is the flag
+    for a stored personalized-noise calibration result; the trigger is the
+    ``0x0412`` calibration (not a toggle), so this read is not a boolean
+    read-back of any ``0x0412`` write.
+    """
+    if len(payload) < 2:
+        return {"status": payload[0] if payload else 0, "exists": None}
+    return {"status": payload[0], "exists": payload[1]}
+
+
+def parse_notification_capabilities(payload: bytes) -> dict:
+    """``0x8200`` (``getNotificationCapabilities``): ``[status][count][type...]``.
+
+    ``NotificationCommandManager.i`` reads the status, then a count, then that
+    many event-type bytes.  **Verified live** on the Air7 Pro (2026-10-20): the
+    reply is ``00 02 02 01`` -> status 0, count 2, types ``[2, 1]``.  These are
+    the ``0x0204`` event types the device can push.
+    """
+    if len(payload) < 2:
+        return {"status": payload[0] if payload else 0, "count": 0, "types": []}
+    status, count = payload[0], payload[1]
+    return {"status": status, "count": count, "types": list(payload[2:2 + count])}
+
+
 def parse_multi_connect(payload: bytes) -> dict:
     """``0x8112`` (``getMultiConnect``): the paired-device / multipoint list.
 
@@ -421,6 +451,8 @@ STATE_DECODERS = {
     0x810F: parse_eq_mode,
     0x8110: parse_high_volume,
     0x8112: parse_multi_connect,
+    0x811A: parse_personalized_anc,
+    0x8200: parse_notification_capabilities,
     0x8131: parse_ai_status,
     0x812A: parse_feature_detect,
     0x8108: parse_key_function,

@@ -22,7 +22,9 @@ from .commands import (
     CMD_GET_KEY_FUNCTION,
     CMD_GET_MULTI_CONNECT,
     CMD_GET_NOISE_REDUCTION,
+    CMD_GET_PERSONALIZED_ANC,
     CMD_GET_REMOTE_CAPABILITY,
+    CMD_NOTIFICATION_CAPS,
     CMD_SET_AI_STATUS,
     CMD_SET_EQ_MODE,
     CMD_SET_HIGH_VOLUME,
@@ -249,6 +251,36 @@ class Session:
         if len(payload) < 3:
             raise PacketError(f"0x8131 body too short for an AI status: {payload.hex()}")
         return {"state": payload[1], "type": payload[2]}
+
+    # -- personalized-noise result / notification capabilities -------------
+    def read_personalized_anc(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the personalized-noise calibration result *exists* flag (``0x011A``).
+
+        **Verified live** on the Air7 Pro (2026-10-20): the reply is
+        ``[status][exists]`` and this unit reports ``00 00`` (no stored result).
+        This is not a read-back of any write: the ``0x0412`` companion is a
+        calibration *trigger*, and the flag only becomes 1 after a successful
+        calibration.
+        """
+        from .decoders import parse_personalized_anc
+
+        reply = self.request(CMD_GET_PERSONALIZED_ANC, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_personalized_anc(reply["payload"])
+
+    def read_notification_capabilities(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the push-event types the device supports (``0x0200``).
+
+        **Verified live** on the Air7 Pro (2026-10-20): the reply is
+        ``[status][count][type...]`` and this unit reports ``00 02 02 01`` ->
+        types ``[2, 1]``.  The command is ungated, so no capability bit is
+        needed to issue it.
+        """
+        from .decoders import parse_notification_capabilities
+
+        reply = self.request(CMD_NOTIFICATION_CAPS, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_notification_capabilities(reply["payload"])
 
     # -- multipoint / paired-device list -----------------------------------
     def read_multi_connect(self, *, timeout: Optional[float] = None) -> dict:
