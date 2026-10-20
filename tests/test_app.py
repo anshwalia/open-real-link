@@ -29,6 +29,9 @@ from tlapp import (  # noqa: E402
 CHECKS = 0
 FAILURES: list[str] = []
 
+#: name of the pytest aggregator -- main() must skip it or it recurses
+AGGREGATOR = "test_app"
+
 
 def check(label: str, got, want) -> None:
     global CHECKS
@@ -180,7 +183,7 @@ def test_double_connect_is_safe() -> None:
 
 def main() -> int:
     for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
+        if name.startswith("test_") and callable(fn) and name != AGGREGATOR:
             fn()
     print(f"checks run: {CHECKS}")
     if FAILURES:
@@ -194,3 +197,14 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def test_app() -> None:
+    """pytest entry point.
+
+    The per-test functions above only *record* failures in ``FAILURES``, so
+    pytest would pass this file no matter how many checks failed.  This is
+    the only test that turns them into a result.
+    """
+    assert main() == 0
+

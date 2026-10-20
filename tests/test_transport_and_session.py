@@ -23,6 +23,9 @@ import tlcore as t
 from tlcore.errors import DeviceRejected, NotWorn, Timeout
 from tltransport.replay import ReplayMismatch, ReplayTransport
 
+#: name of the pytest aggregator -- main() must skip it or it recurses
+AGGREGATOR = "test_transport_and_session"
+
 FAILURES: list[str] = []
 CHECKS = 0
 
@@ -231,7 +234,12 @@ def test_cli_backup_restore() -> None:
             ("tx", wire(0x0401, bytes.fromhex(snapshot["settings"]["key_function"]))),
             ("rx", wire(0x8401, bytes([0]))),
             ("tx", wire(0x0406, bytes([snapshot["settings"]["eq_mode"]]))),
-            ("rx", wire(0x8406, bytes([0])))]))
+            ("rx", wire(0x8406, bytes([0]))),
+            # restore also writes the loudness boost; this entry was missing while
+            # the per-test checks were unenforced under pytest (see
+            # test_transport_and_session at the end of this file)
+            ("tx", wire(0x0407, bytes([snapshot["settings"]["high_volume"]]))),
+            ("rx", wire(0x8407, bytes([0])))]))
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -544,7 +552,7 @@ def test_cli_events_multi_connect() -> None:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         rc = main(["--replay", "fixtures/multi-connect-event.jsonl", "events",
-                   "--seconds", "0"])
+                   "--seconds", "0.3"])
     check("cli events multiConnect rc", rc, 0)
     text = buf.getvalue()
     check("cli events multiConnect count", "multiConnect: 2 device(s)" in text, True)
@@ -553,7 +561,7 @@ def test_cli_events_multi_connect() -> None:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         rc = main(["--replay", "fixtures/multi-connect-event.jsonl", "events",
-                   "--seconds", "0", "--json"])
+                   "--seconds", "0.3", "--json"])
     check("cli events multiConnect --json rc", rc, 0)
     rows = [r for r in json.loads(buf.getvalue()) if "multi_connect" in r]
     check("cli events multiConnect --json entry",
@@ -1163,7 +1171,7 @@ def test_cli_say() -> None:
 
 def main() -> int:
     for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
+        if name.startswith("test_") and callable(fn) and name != AGGREGATOR:
             fn()
     print(f"checks run: {CHECKS}")
     if FAILURES:
@@ -1173,6 +1181,17 @@ def main() -> int:
         return 1
     print("TRANSPORT/SESSION: OK")
     return 0
+
+
+def test_transport_and_session() -> None:
+    """pytest entry point.
+
+    The per-test functions above only *record* failures in ``FAILURES``; pytest
+    would happily pass a file full of them.  This is the only test that turns
+    them into a result, so it must stay last and must never be renamed to
+    something ``main()`` would call back into.
+    """
+    assert main() == 0
 
 
 if __name__ == "__main__":
