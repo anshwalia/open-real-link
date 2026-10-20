@@ -162,7 +162,8 @@ removed **before a release**. Their obstacle is named.
 | switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
 | feature detect `0x012A` | `parse_feature_detect` | not in the capability bitmap; the unit does not answer |
 | `0x0502` | `parse_operation_request` | **not emitted** for device-side gestures: play/pause, track skip and the ANC cycle are handled by the firmware itself, so the app is never asked. Needs a gesture bound to an **app-side** function (`26`/`27`/`31`), which takes a vendor-app write first |
-| `0x0503`, `0x050E`, `0x0516` | `parse_feature_switch_status`, `parse_use_time_list`, `parse_oneshot_audio` | recovered statically; not observed live yet |
+| `0x0503`, `0x0516` | `parse_feature_switch_status`, `parse_oneshot_audio` | `0x0503` needs the vendor app to toggle a feature; `0x0516` is the AI-conversation mic stream and is only emitted while the app runs an AI feature, so it is not host-triggerable (layout confirmed against `AudioDataInfo.initData`) |
+| `0x050E` | `parse_use_time_list` | **not emitted** in a connect + 120 s playback + idle session; the app reads use time with `0x0128` (verified) instead, so the push looks unused on this firmware |
 
 Live-verified device→app requests (Air7 Pro, 2026-10-20): `0x0500` (time),
 `0x0504` (pushed on every `0x0406`), `0x0506` (pushed on the `0x0418 [05]`

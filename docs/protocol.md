@@ -472,8 +472,8 @@ Only `0x0500` expects a reply. All multi-byte fields are little-endian.
 | `0x0504` | `[eqMode]` | `parse_eq_mode_request` | **verified** -- pushed on every `0x0406` |
 | `0x0506` | custom-EQ list | `parse_custom_eq` | **verified** -- pushed on `0x0418 [05]` |
 | `0x0508` | `[min:int8][max:int8][current:int8]` + optional `[type:int8]` | `parse_bass_engine_status` | **verified** -- pushed on `0x041B`; the range is **signed** (`fb 05` = `-5..+5`) |
-| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` | same body as the `0x0128` reply; not pushed on demand |
-| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | `parse_oneshot_audio` | audio streaming (not driven) |
+| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` | same body as the `0x0128` reply; **not emitted** in a connect + 120 s playback session (the app reads `0x0128` instead) |
+| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | `parse_oneshot_audio` | the **AI-conversation mic stream** (`AudioDataInfo.toAIMicVoiceData`); only emitted while the app runs an AI feature |
 
 `0x0504`/`0x0506`/`0x0508` are the read-back side of the EQ/bass writes: the
 device pushes the new value right after the write, so a client can confirm a
