@@ -482,6 +482,19 @@ the `0x0502` question is still open. `action = 0` has **no entry in the gesture
 map** (`1` single, `2` double, `3` triple, `4`/`5` long, `6` extra) and its
 meaning is unknown -- treat it as an opaque value, do not map it.
 
+A later session found why the `action=2` press was never seen, and it is worth
+knowing before re-running this: **a gesture bound to function `31` reports no
+press at all.** With the LEFT double-tap written to the table as `31` there were
+zero `0xF1` events across three rounds (one of them with the AI status active);
+with the same gesture bound to `1` there were 19, 21 and (unarmed) 11, in one
+sitting, each armed round proving its restore with a `0x0108` read-back. Arming
+only that one row reproduces it, so the suppressor is the function **value**,
+not the act of writing the table. Whether the device *drops* the press or *holds*
+it is **unresolved**: one late `0xF1` arrived after the `31` binding had been
+removed, which could equally be a late tap. Either way the earlier route to
+`0x0502` is closed, and the ledger in
+[`command-coverage.md`](command-coverage.md) says so.
+
 Replay fixture: `fixtures/user-interaction.jsonl` (sanitized).
 
 ### Backup and restore
