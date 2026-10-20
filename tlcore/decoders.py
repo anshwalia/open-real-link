@@ -317,6 +317,46 @@ def parse_ai_status(payload: bytes) -> dict:
     return {"status": payload[0], "state": payload[1], "type": payload[2]}
 
 
+def parse_multi_connect(payload: bytes) -> dict:
+    """``0x8112`` (``getMultiConnect``): the paired-device / multipoint list.
+
+    Layout (``CommandUtil.h``): ``[status][count]`` then ``count`` records of::
+
+        [mac:6][length:1][state:1][flag:1][nameLen:1][name:nameLen]
+
+    ``length == nameLen + 3`` is the record stride minus 7; ``name`` is
+    NUL-terminated (``nameLen`` includes the NUL).  The MAC is stored
+    **least-significant byte first**; ``ProtocolUtil.b(..., true)`` reverses it,
+    so ``mac`` here is in the app's display order.  **Verified live** on the
+    Air7 Pro (2026-10-20): 167 bytes, 7 entries, all bytes consumed.
+
+    ``state`` and ``flag`` are byte fields whose meaning is **inferred**: on the
+    observed unit the connected/primary entry was ``state=2, flag=1`` and the
+    rest ``0, 0``.
+    """
+    status = payload[0] if payload else 0
+    count = payload[1] if len(payload) > 1 else 0
+    entries = []
+    off = 2
+    for _ in range(count):
+        if off + 10 > len(payload):
+            break
+        mac = payload[off:off + 6]
+        length = payload[off + 6]
+        state = payload[off + 7]
+        flag = payload[off + 8]
+        name_len = payload[off + 9]
+        name = payload[off + 10:off + 10 + name_len]
+        entries.append({
+            "mac": ":".join(f"{b:02x}" for b in reversed(mac)),
+            "name": name.rstrip(b"\x00").decode("utf-8", "replace"),
+            "state": state,
+            "flag": flag,
+        })
+        off += 7 + length
+    return {"status": status, "count": count, "entries": entries}
+
+
 def parse_bass_engine(payload: bytes) -> dict:
     """``0x8124``: ``[status][min][max][current]([type])`` -- the bass engine.
 
@@ -380,6 +420,7 @@ STATE_DECODERS = {
     0x8124: parse_bass_engine,
     0x810F: parse_eq_mode,
     0x8110: parse_high_volume,
+    0x8112: parse_multi_connect,
     0x8131: parse_ai_status,
     0x812A: parse_feature_detect,
     0x8108: parse_key_function,

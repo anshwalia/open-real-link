@@ -20,6 +20,7 @@ from .commands import (
     CMD_GET_EQ_MODE,
     CMD_GET_HIGH_VOLUME,
     CMD_GET_KEY_FUNCTION,
+    CMD_GET_MULTI_CONNECT,
     CMD_GET_NOISE_REDUCTION,
     CMD_GET_REMOTE_CAPABILITY,
     CMD_SET_AI_STATUS,
@@ -248,6 +249,21 @@ class Session:
         if len(payload) < 3:
             raise PacketError(f"0x8131 body too short for an AI status: {payload.hex()}")
         return {"state": payload[1], "type": payload[2]}
+
+    # -- multipoint / paired-device list -----------------------------------
+    def read_multi_connect(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the paired-device / multipoint list (``0x0112``).
+
+        Returns ``{"status", "count", "entries": [{"mac", "name", "state",
+        "flag"}, ...]}``.  The MAC is in display order (the wire stores it
+        least-significant byte first).  **Verified live** on the Air7 Pro
+        (2026-10-20).
+        """
+        from .decoders import parse_multi_connect
+
+        reply = self.request(CMD_GET_MULTI_CONNECT, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_multi_connect(reply["payload"])
 
     def set_ai_status(self, state: int, ai_type: int, *,
                       timeout: Optional[float] = None) -> int:

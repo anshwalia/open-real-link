@@ -404,6 +404,15 @@ def parity_decoders(ref, core) -> None:
     check("parse_public_event volume",
           core.parse_public_event(bytes.fromhex("080000")),
           {"flags": 8, "volume": 0, "ai": None})
+    check("parse_multi_connect",
+          core.parse_multi_connect(bytes.fromhex(
+              "00026655443322110c0201094c6170746f702d4100"
+              "ffeeddccbbaa0b00000850686f6e652d4200")),
+          {"status": 0, "count": 2, "entries": [
+              {"mac": "11:22:33:44:55:66", "name": "Laptop-A", "state": 2, "flag": 1},
+              {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone-B", "state": 0, "flag": 0}]})
+    check("parse_multi_connect short", core.parse_multi_connect(b"\x00"),
+          {"status": 0, "count": 0, "entries": []})
 
 
 # --------------------------------------------------------------------------

@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **34 implemented** in `open-real-link`,
-**45 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **35 implemented** in `open-real-link`,
+**44 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 16 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 17 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 1 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
 | `SetCommandManager` | `0x0400` | 22 | 9 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **34** | **49** | |
+| **total** | | **79** | **35** | **49** | |
 
 ## Full catalogue
 
@@ -56,7 +56,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x010f` | 271 | poll | cap-bit 10 | send + decode | live | getEQStatus |
 | `0x0110` | 272 | poll | cap-bit 11 | send + decode | live | — |
 | `0x0111` | 273 | poll | cap-bit 15 | — | — | — |
-| `0x0112` | 274 | poll | cap-bit 29 | — | live | — |
+| `0x0112` | 274 | poll | cap-bit 29 | send + decode | live | — |
 | `0x0115` | 277 | poll | cap-bit 19 | — | live | — |
 | `0x0116` | 278 | poll | cap-bit 19 | — | live | — |
 | `0x0118` | 280 | poll | cap-bit 25 | — | live | getEarRestoreData |

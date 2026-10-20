@@ -319,6 +319,24 @@ def cmd_ai_status(args) -> int:
         transport.close()
 
 
+def cmd_multipoint(args) -> int:
+    """Read the paired-device / multipoint list (``0x0112``)."""
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        result = session.read_multi_connect()
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"multipoint: {result['count']} device(s)")
+            for entry in result["entries"]:
+                print(f"  {entry['mac']}  state={entry['state']} "
+                      f"flag={entry['flag']}  {entry['name']}")
+        return 0
+    finally:
+        transport.close()
+
+
 def cmd_compactness(args) -> int:
     """Drive in-ear detection (``0x0405``) and decode the ``0x0204`` event-``0x04`` push.
 
@@ -1043,6 +1061,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("ai_args", nargs="*", metavar="ACTION",
                    help="'get' (default), or 'set <state 0|1> <type 0|1|2|4>'")
     p.set_defaults(func=cmd_ai_status)
+
+    p = sub.add_parser("multipoint", parents=[common],
+                       help="read the paired-device / multipoint list (0x0112)")
+    p.set_defaults(func=cmd_multipoint)
 
     p = sub.add_parser("compactness", parents=[common],
                        help="drive in-ear detection (0x0405) and read the event-0x04 push")

@@ -47,6 +47,7 @@ CMD_DETECT_FEATURE = 0x012A      # PollCommandManager.b  -> device reports one f
 CMD_GET_STATUS_FEATURE = 0x0129  # PollCommandManager.I
 CMD_GET_NOISE_REDUCTION = 0x010C  # PollCommandManager.h/.y/z -> read a NoiseReductionInfo field
 CMD_GET_KEY_FUNCTION = 0x0108    # PollCommandManager.h0 -> the gesture/key-function table
+CMD_GET_MULTI_CONNECT = 0x0112   # PollCommandManager -> the paired-device / multipoint list
 CMD_GET_BASS_ENGINE = 0x0124     # PollCommandManager.Q -> single bass-engine {min,max,current(,type)}
 CMD_SET_BASS_ENGINE = 0x041B     # SetCommandManager.l/.m -> set the bass-engine value
 CMD_SET_HIGH_VOLUME = 0x0407     # SetCommandManager.r -> setHighVolume (bool)

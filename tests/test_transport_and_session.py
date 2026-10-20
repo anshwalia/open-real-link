@@ -305,6 +305,26 @@ def test_ai_status_session() -> None:
           {"state": 1, "type": 1})
 
 
+def test_multi_connect_session() -> None:
+    # the live-verified layout (Air7 Pro, 2026-10-20): 0x0112 -> [status][count]
+    # + count x [mac:6][length][state][flag][nameLen][name]; the MAC is reversed.
+    payload = bytes.fromhex(
+        "00026655443322110c0201094c6170746f702d4100"
+        "ffeeddccbbaa0b00000850686f6e652d4200")
+    transport, session = replay([
+        ("tx", wire(0x0112)), ("rx", wire(0x8112, payload)),
+    ])
+    result = session.read_multi_connect()
+    check("multi_connect count", result["count"], 2)
+    check("multi_connect entry 0 mac", result["entries"][0]["mac"], "11:22:33:44:55:66")
+    check("multi_connect entry 0 name", result["entries"][0]["name"], "Laptop-A")
+    check("multi_connect entry 0 state/flag",
+          (result["entries"][0]["state"], result["entries"][0]["flag"]), (2, 1))
+    check("multi_connect entry 1 mac", result["entries"][1]["mac"], "aa:bb:cc:dd:ee:ff")
+    check("parse_multi_connect short", t.parse_multi_connect(b"\x00"),
+          {"status": 0, "count": 0, "entries": []})
+
+
 def test_compactness_session() -> None:
     # the live-verified trigger (Air7 Pro, 2026-10-20): 0x0405 01 -> ack, then a
     # 0x0204 event-0x04 push carries two [earSide][value] records.
@@ -398,6 +418,24 @@ def test_cli_ai_status() -> None:
         check("cli ai-status set rc", rc, 0)
         check("cli ai-status set line",
               "wrote state=1 type=1, read back state=1 type=1" in buf.getvalue(), True)
+
+
+def test_cli_multipoint() -> None:
+    from tlcli.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rec = pathlib.Path(tmpdir) / "mp.jsonl"
+        rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0112)), ("rx", wire(0x8112, bytes.fromhex(
+                "00026655443322110c0201094c6170746f702d4100"
+                "ffeeddccbbaa0b00000850686f6e652d4200")))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(rec), "multipoint"])
+        check("cli multipoint rc", rc, 0)
+        check("cli multipoint count", "multipoint: 2 device(s)" in buf.getvalue(), True)
+        check("cli multipoint entry", "11:22:33:44:55:66" in buf.getvalue(), True)
 
 
 def test_cli_compactness() -> None:

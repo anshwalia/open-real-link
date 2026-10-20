@@ -182,6 +182,7 @@ are “known only” and are listed for identification only.
 | `0x0403` | setSwitchFeature | `payload_set_switch_feature` | — | integrated |
 | `0x0418` | setEqInfo / getEqInfo | `payload_set_eq` | — | integrated |
 | `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
+| `0x0112` | getMultiConnect (paired-device / multipoint list) | — | `parse_multi_connect` | verified |
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
 | `0x0110` | getHighVolume (read the loudness boost) | — | `parse_high_volume` | verified |
@@ -362,6 +363,22 @@ the firmware answers with `0x8405 <status>` and reports the result on the
 `Session.start_compactness_detect` / `stop_compactness_detect`, or
 `tlcli compactness start|stop`, which listens for the push. The trigger is a
 sensor read -- it drives no audio.
+
+### Multipoint (paired-device list)
+
+`0x0112` returns the devices paired to the buds. The reply is
+`[status][count]` followed by `count` records (`CommandUtil.h`)::
+
+    [mac:6][length:1][state:1][flag:1][nameLen:1][name:nameLen]
+
+`length == nameLen + 3` is the record stride minus 7, and the name is
+NUL-terminated. The MAC is stored **least-significant byte first** and
+`ProtocolUtil.b(..., true)` reverses it, so `parse_multi_connect` returns `mac`
+in display order. **Verified live** on the Air7 Pro (2026-10-20): 167 bytes, 7
+entries, all bytes consumed. `state`/`flag` are byte fields whose meaning is
+**inferred** (the connected/primary entry was `state=2, flag=1`; the rest `0,0`).
+Use `Session.read_multi_connect`, or `tlcli multipoint`. The list contains the
+host's real device names, so treat a capture as private.
 
 ### AI / translation status
 
