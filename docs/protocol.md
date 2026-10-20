@@ -420,6 +420,12 @@ over a recording:
   ``read_status`` polls model, firmware, battery, wear, mode, and use time.
 * **`tlcli`** — a command-line front end (`python -m tlcli`) over both. It is the
   first consumer of the core and the hardware test harness.
+* **`tlapp`** — a PySide6 desktop app (`python -m tlapp`) over the same two
+  layers, built one verified feature at a time. Its controller is Qt-free, so
+  the device half is testable without a display; see [`app.md`](app.md).
+
+Commands below assume the repository virtualenv is active (see
+[`../AGENTS.md`](../AGENTS.md)).
 
 ```console
 $ python -m tlcli --replay fixtures/spp-smoketest.jsonl info

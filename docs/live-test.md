@@ -23,10 +23,19 @@ cleared it. Re-run this to check any change to the transport.
 | Dependency | `pyobjc-framework-IOBluetooth` (`pip install ".[macos]"`) |
 | Device | a realme/OPPO TL headset **already paired** to this Mac |
 
+Set up the repository virtualenv first — every `python` below means the one in
+`.venv` (see [`../AGENTS.md`](../AGENTS.md)):
+
+```console
+$ python3 -m venv .venv
+$ . .venv/bin/activate
+$ pip install -e ".[dev,macos,gui]"
+```
+
 Check the dependency and that the headset is paired (read-only):
 
 ```console
-$ python3 -c "import IOBluetooth; print([d.getName() for d in IOBluetooth.IOBluetoothDevice.pairedDevices() or []])"
+$ python -c "import IOBluetooth; print([d.getName() for d in IOBluetooth.IOBluetoothDevice.pairedDevices() or []])"
 ['<your headset name>', ...]
 ```
 
@@ -62,7 +71,7 @@ $ export BUDS=AA-BB-CC-DD-EE-FF
 ### Step 1 — can the host see the device's services? (no bytes sent)
 
 ```console
-$ python3 -m tlcli --address "$BUDS" services
+$ python -m tlcli --address "$BUDS" services
 SDP services on AA-BB-CC-DD-EE-FF:
   ...
   record[ 7]  channel=15  0000079A-D102-11E1-9B23-00025B00A5A5  (OPPO interaction)
@@ -77,7 +86,7 @@ Channel **12** is the SPP channel the vendor app uses; discovery finds it for yo
 ### Step 2 — the end-to-end read-only check
 
 ```console
-$ python3 -m tlcli --address "$BUDS" smoke
+$ python -m tlcli --address "$BUDS" smoke
 live smoke test: AA-BB-CC-DD-EE-FF
   [PASS] capability bitmap (0x8100)       49 commands, status=0
   [PASS] status poll (0x0101..0x0128)     model=0x064C12 fw=1.1.0.85 mode=0x01(Normal (noise off)) battery[L=100% R=100% CASE=0%] wear=in-ear
@@ -91,14 +100,14 @@ is refused (`0xE00002BC`), add `--reset`.
 ### Step 3 — read the noise mode
 
 ```console
-$ python3 -m tlcli --address "$BUDS" mode get
+$ python -m tlcli --address "$BUDS" mode get
 noise mode: 0x01  Normal (noise off)
 ```
 
 ### Step 4 — the write, with the buds **worn**
 
 ```console
-$ python3 -m tlcli --address "$BUDS" mode set anc
+$ python -m tlcli --address "$BUDS" mode set anc
 set 0x20 (ANC smart); device now 0x20 (ANC smart)
 ```
 
@@ -106,7 +115,7 @@ Then confirm by ear. `smoke --write` does the same and **restores the original
 mode afterwards**:
 
 ```console
-$ python3 -m tlcli --address "$BUDS" smoke --write anc
+$ python -m tlcli --address "$BUDS" smoke --write anc
   ...
   [PASS] set mode 0x20 (ANC smart)
   [PASS] read mode (after write)          0x20
@@ -118,7 +127,7 @@ RESULT: OK
 each one back, verifies the round trip, and restores the original mode:
 
 ```console
-$ python3 -m tlcli --address "$BUDS" --reset mode cycle
+$ python -m tlcli --address "$BUDS" --reset mode cycle
 noise mode cycle (starting 0x01 Normal (noise off))
   [PASS] 0x01 Normal (noise off)   -> 0x01 (Normal (noise off))
   [PASS] 0x02 Transparency         -> 0x02 (Transparency)
@@ -139,7 +148,7 @@ the original mode at the end.
 ### Step 5 — a raw command, if you want to see the bytes
 
 ```console
-$ python3 -m tlcli --address "$BUDS" send 0x010C 01 --read 1
+$ python -m tlcli --address "$BUDS" send 0x010C 01 --read 1
 tx 0x010C PollCommandManager       [01]  (1 frame(s))
   0x810C  PollCommandManager       len=4    [00 01 01 01]
 ```
@@ -149,7 +158,7 @@ Add `--json` to any subcommand for machine-readable output.
 ### Step 6 — the gesture map (read, and an optional reversible write)
 
 ```console
-$ python3 -m tlcli --address "$BUDS" keys get
+$ python -m tlcli --address "$BUDS" keys get
 key functions: status=0 count=10
   2:1:1:0   right single-click -> off
   2:1:2:1   right double-click -> play-pause
@@ -165,8 +174,8 @@ number (`0x` allowed) or a label such as `right`, `long-press` or
 `noise-control`.
 
 ```console
-$ python3 -m tlcli --address "$BUDS" keys set left:1:4:noise-control --save before.json --confirm
-$ python3 -m tlcli --address "$BUDS" keys disable-long-press --save before.json --confirm
+$ python -m tlcli --address "$BUDS" keys set left:1:4:noise-control --save before.json --confirm
+$ python -m tlcli --address "$BUDS" keys disable-long-press --save before.json --confirm
 ```
 
 A `restore` of a `backup` snapshot re-applies the table too.
@@ -174,7 +183,7 @@ A `restore` of a `backup` snapshot re-applies the table too.
 ### Step 7 — decode what the device pushes
 
 ```console
-$ python3 -m tlcli --address "$BUDS" events --seconds 15
+$ python -m tlcli --address "$BUDS" events --seconds 15
 listened 15s: 3 packet(s)
   0x0500  requestHostTime  request: {'raw': '670a0800', 'value_le': 526951}
   0x0204  notificationEvent  event=battery  body=03016402640300
@@ -195,12 +204,12 @@ the host and plays it to the **current audio output**, so set the headset as the
 macOS output device.
 
 ```console
-$ python3 -m tlcli say "Noise control is on."
-$ echo "piped text works too" | python3 -m tlcli say
-$ python3 -m tlcli --address AA-BB-CC-DD-EE-FF say --status   # speak a live summary
-$ python3 -m tlcli say --voice Samantha --rate 180 --repeat 2 "pairing mode"
-$ python3 -m tlcli say --out cue.aiff "write a file instead of playing"
-$ python3 -m tlcli say --list-voices | grep en_
+$ python -m tlcli say "Noise control is on."
+$ echo "piped text works too" | python -m tlcli say
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF say --status   # speak a live summary
+$ python -m tlcli say --voice Samantha --rate 180 --repeat 2 "pairing mode"
+$ python -m tlcli say --out cue.aiff "write a file instead of playing"
+$ python -m tlcli say --list-voices | grep en_
 ```
 
 `--status` connects, negotiates capabilities, reads the device, and speaks one
@@ -215,6 +224,22 @@ nothing, which also lets the feature be tested without making noise. macOS only
 (it uses `say`); on other platforms play the text with your own TTS engine to the
 headset's audio output.
 
+### Step 9 — the same thing in the app
+
+The desktop app (`tlapp`) opens the same device and exposes the features built so
+far: connect, the capability view, device status, and the noise selector. Its
+first slice covers Steps 1–3; see [`app.md`](app.md) for exactly what is in it.
+
+```console
+$ python -m tlapp --replay fixtures/spp-smoketest.jsonl   # no device, no radio
+$ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
+```
+
+Run it against `--replay` first: that exercises the whole app with no hardware,
+which is the quickest way to tell a UI problem from a transport problem. Only
+**one** instance can run at a time (the headset has one RFCOMM channel); a second
+launch reports which process holds it and exits.
+
 ## 4. Troubleshooting
 
 | Symptom | Meaning | Fix |
@@ -225,6 +250,7 @@ headset's audio output.
 | `timeout … no 0x81xx reply` | No reply within the timeout. | Retry with `--reset`; raise `--timeout` for a sleepy device. |
 | `CASE=0%` while the buds are out of the case | Reported case level 0 means "not docked", not "empty". | Expected; put the buds in the case to read the real level. |
 | SPP cannot be opened at all | Channel 12 is intermittently refused while audio is playing. | Stop audio playback, or `--reset`, or re-pair. |
+| `tlapp: OpenRealLink is already running` | The single-instance lock is held, normally by a window you already have open. | Use that window, or quit it first. A lock left by a killed process is reclaimed automatically. |
 
 ## 5. Recorded result
 
@@ -232,7 +258,7 @@ Run on **2026-10-18** against a realme Buds Air7 Pro (address redacted),
 read-only:
 
 ```console
-$ python3 -m tlcli --address <device> --reset smoke
+$ python -m tlcli --address <device> --reset smoke
 live smoke test: <device>
   [PASS] capability bitmap (0x8100)       49 commands, status=0
   [PASS] status poll (0x0101..0x0128)     model=0x064C12 fw=1.1.0.85 mode=0x01(Normal (noise off)) battery[L=100% R=100% CASE=0%] wear=in-ear
@@ -246,7 +272,7 @@ The **noise-mode write** was then verified live, all six values read back over
 SPP with the buds worn:
 
 ```console
-$ python3 -m tlcli --address <device> --reset mode cycle
+$ python -m tlcli --address <device> --reset mode cycle
 noise mode cycle (starting 0x01 Normal (noise off))
   [PASS] 0x01 Normal (noise off)   -> 0x01
   [PASS] 0x02 Transparency         -> 0x02
@@ -264,7 +290,7 @@ RESULT: OK
 the Air7 Pro it comes back empty:
 
 ```console
-$ python3 -m tlcli --address <device> --reset send 0x010D --read 1.5
+$ python -m tlcli --address <device> --reset send 0x010D --read 1.5
 tx 0x010D PollCommandManager       []  (1 frame(s))
   0x810D  PollCommandManager       len=2    [00 00]
 ```
@@ -282,7 +308,7 @@ writes it, and the write is **read back identity**, so it is trivially
 reversible. Take a backup first, then:
 
 ```console
-$ python3 -m tlcli --address <device> --reset eq
+$ python -m tlcli --address <device> --reset eq
 eq mode   : 4
   * eqId=4  min=1 max=2  bands=0
 ```
@@ -305,7 +331,7 @@ confirm.
 `backup` is read-only and can be run at any time:
 
 ```console
-$ python3 -m tlcli --address <device> --reset backup settings.json
+$ python -m tlcli --address <device> --reset backup settings.json
 backup written to settings.json
   device    : {'model': '0x064C12', 'firmware': ['1.1.0.85']}
   captured  : 17 responses
@@ -316,7 +342,7 @@ backup written to settings.json
 re-applies the symmetric settings and reports everything else as `not_restored`:
 
 ```console
-$ python3 -m tlcli --address <device> --reset restore --dry-run settings.json
+$ python -m tlcli --address <device> --reset restore --dry-run settings.json
   [DRY-RUN] noise_mode
   [DRY-RUN] key_function
   [DRY-RUN] eq_mode

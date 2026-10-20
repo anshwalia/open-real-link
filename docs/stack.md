@@ -55,11 +55,12 @@ browser are not reachable for this device, and no stack choice changes that.
 | **capability gate** | decode `0x8100` bitmap → which commands this unit accepts | ✅ `tlcore.commands` |
 | **device model** | noise vocabulary, decoders for battery / wear / mode / EQ / use-time | ✅ `tlcore.noise`, `tlcore.decoders` |
 | **settings** | backup / restore (noise mode, key function, EQ mode, switch features) | ✅ `tlcore.backup`, `tlcli backup` / `restore` |
-| **UI** | scan/pair, connect, capability view, noise selector, firmware, paired list, EQ, battery/wear, raw console | ❌ the remaining work |
+| **UI** | scan/pair, connect, capability view, noise selector, firmware, paired list, EQ, battery/wear, raw console | ⚠️ **in progress** — `tlapp/`, first slice: connect, capability view, status, noise mode ([`app.md`](app.md)) |
 
 `tlcore` is the entire reverse-engineering result, and it is done: ported by
 range extraction from the validated reference, verified byte-for-byte against it.
 So the work that is left is a UI plus two small transport shims — not a rewrite.
+The UI is now started and is built one verified feature at a time.
 
 Two assets make both the remaining work and any future port cheap:
 
@@ -69,13 +70,14 @@ Two assets make both the remaining work and any future port cheap:
 
 ### Constraints the app must honour
 
-1. **Never expose the hearing / ear-scan commands** (`0x040E`, `0x0415`,
-   capability bits 19/30) in the UI without a hard warning — they drive **loud
-   test tones**. Only `0x0404 action=1` (noise mode) is safe.
+1. **Never expose the hearing / ear-scan commands** (`0x011E`, `0x011F`, `0x040E`,
+   `0x0415`, capability bits 19/30) in the UI without a hard warning — they drive
+   **loud test tones**. Only `0x0404 action=1` (noise mode) is safe.
 2. **Never expose OTA (`0x0300`–`0x0308`) or debug (`0x0F00`–`0x0F02`).** OTA is
    a firmware push with no read-back; debug toggles firmware verbosity. Neither
-   has a builder, decoder or CLI command — they are documented in
-   [`protocol.md`](protocol.md) §7 only.
+   has a builder, decoder or UI control — they are documented in
+   [`protocol.md`](protocol.md) §7 only. The one thing that touches their IDs is
+   the `tlcli send` **refusal**, which prevents traffic rather than enabling it.
 3. **Noise writes are gated on in-ear detection** — the UI must explain
    `0x8404 0e` ("put the buds in") rather than look broken.
 4. **No account, no telemetry, no vendor server.**

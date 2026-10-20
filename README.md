@@ -112,15 +112,18 @@ $ pip install ".[macos]"   # macOS (implemented)
 $ pip install ".[linux]"   # Linux (transport still to be written)
 ```
 
-For development, use the virtualenv at the repository root:
+For development, use the virtualenv at the repository root. Every `python`
+command in this README and in `docs/` means that interpreter:
 
 ```console
 $ python3 -m venv .venv
-$ .venv/bin/pip install -e ".[dev,macos,gui]"
+$ . .venv/bin/activate
+$ pip install -e ".[dev,macos,gui]"
 ```
 
 `[macos]` is the IOBluetooth transport, `[gui]` adds PySide6 for the desktop
-app, and `[dev]` adds the test and lint tools.
+app, and `[dev]` adds the test and lint tools. (`.venv/bin/python` is the exact
+equivalent if you would rather not activate.)
 
 ## Quick start
 
@@ -161,7 +164,7 @@ $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
 See [`docs/live-test.md`](docs/live-test.md) for a hardware runbook and
 troubleshooting.
 
-Or open the desktop app (run from a checkout, with the app extra installed):
+Or open the desktop app (see [`docs/app.md`](docs/app.md)):
 
 ```console
 $ python -m tlapp --replay fixtures/spp-smoketest.jsonl   # no device needed

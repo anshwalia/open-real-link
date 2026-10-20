@@ -7,7 +7,8 @@ headset protocol. It contains exactly three kinds of thing, and nothing else:
    `inferred`.
 2. **Protocol mappings** — wire layouts, command IDs, capability groups and
    value tables (`docs/protocol.md`, `docs/command-coverage.md`, `tlcore/`).
-3. **Implementation** — `tlcore`, `tltransport`, `tlcli`, tests and fixtures.
+3. **Implementation** — `tlcore`, `tltransport`, `tlcli`, `tlapp`, tests and
+   fixtures.
 
 ## Do not add here
 
@@ -23,6 +24,21 @@ commit, and do not paste into a doc or test:
 
 If a protocol fact needs a raw capture or a decompiled excerpt to explain it,
 state the **finding** here and keep the artifact elsewhere.
+
+## Where things stand
+
+The protocol work is done; what remains is a UI and two transport shims.
+
+| layer | state | read |
+| --- | --- | --- |
+| `tlcore` | done, parity-verified | [`protocol.md`](docs/protocol.md), [`command-coverage.md`](docs/command-coverage.md) |
+| `tltransport` | macOS + replay done; Linux/Windows to write | [`architecture.md`](docs/architecture.md) §3 |
+| `tlcli` | done (the hardware test harness) | [`live-test.md`](docs/live-test.md) |
+| `tlapp` | **in progress** — first slice: connect, status, noise mode | [`app.md`](docs/app.md) |
+
+The app is built **one verified feature at a time**; `docs/app.md` lists what is
+in it and what is deliberately not yet. The build order is in
+[`architecture.md`](docs/architecture.md) §9.
 
 ## Implement only what is verified and live-tested
 
@@ -62,19 +78,22 @@ dependencies into the system or user site.
 
 ```console
 $ python3 -m venv .venv
-$ .venv/bin/pip install -e ".[dev,macos,gui]"
-$ .venv/bin/python -m pytest -q
+$ . .venv/bin/activate
+$ pip install -e ".[dev,macos,gui]"
+$ pytest -q
 ```
 
 `.[macos]` is the IOBluetooth transport, `.[gui]` is PySide6 for the app, and
-`.[dev]` is the test/lint tools. Every command in this repository is run through
-`.venv/bin/python` (or `.venv/bin/pip`); the bare `python3` used in older notes
-means that interpreter.
+`.[dev]` is the test/lint tools. Every command in this repository assumes that
+virtualenv is **active** — `.venv/bin/python` and `.venv/bin/pip` are the exact
+equivalents if you would rather not activate. Nothing here is installed
+globally.
 
 ## Conventions
 
 - `tlcore` is **pure**: no platform imports and no I/O. Transports live in
-  `tltransport`; the UI/CLI in `tlcli`.
+  `tltransport`; the CLI in `tlcli`; the GUI in `tlapp` (whose controller is
+  itself Qt-free, so `import tlapp` never pulls in PySide6).
 - The codec is verified byte-for-byte against an external reference through
   `tests/test_parity_tl_frame.py`, which reads `TL_REFERENCE` from the
   environment and **skips cleanly** when unset. Never hard-code a reference path.
@@ -96,10 +115,11 @@ means that interpreter.
 
 ## Before committing
 
-- `.venv/bin/python -m pytest -q` passes.
-- `.venv/bin/python tests/test_protocol_docs.py` prints `DOCS: OK`.
-- `TL_REFERENCE=… .venv/bin/python tests/test_parity_tl_frame.py` prints
-  `PARITY: OK` (or skips cleanly when the reference is unavailable).
+- `pytest -q` passes.
+- `python tests/test_app.py` prints `APP: OK` (the Qt-free app controller).
+- `python tests/test_protocol_docs.py` prints `DOCS: OK`.
+- `TL_REFERENCE=… python tests/test_parity_tl_frame.py` prints `PARITY: OK`
+  (or skips cleanly when the reference is unavailable).
 - Nothing from the "Do not add here" list is staged.
 
 ## Before releasing

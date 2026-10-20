@@ -17,12 +17,21 @@ that is not implemented.
 
 ## Running it
 
-Use the repository virtualenv (see the [README](../README.md)):
+Set up and activate the repository virtualenv first (see the
+[README](../README.md)); every `python` below means that interpreter:
 
 ```console
-$ .venv/bin/python -m tlapp                                   # connect by hand
-$ .venv/bin/python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
-$ .venv/bin/python -m tlapp --replay fixtures/spp-smoketest.jsonl
+$ python3 -m venv .venv
+$ . .venv/bin/activate
+$ pip install -e ".[dev,macos,gui]"
+```
+
+Then:
+
+```console
+$ python -m tlapp                                   # connect by hand
+$ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
+$ python -m tlapp --replay fixtures/spp-smoketest.jsonl
 ```
 
 `--replay` runs the whole app against a recorded capture — no device and no
@@ -41,9 +50,8 @@ exits `1`:
 ```console
 $ python -m tlapp
 $ python -m tlapp
-python -m tlapp: OpenRealLink is already running (pid 12345 on host). Use the
-window that is already open; only one instance can hold the headset's RFCOMM
-channel.
+tlapp: OpenRealLink is already running (pid 12345 on host). Use the window that
+is already open; only one instance can hold the headset's RFCOMM channel.
 ```
 
 The refusal goes to **stderr**, never a modal dialog, so a scripted or headless

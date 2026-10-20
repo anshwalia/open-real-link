@@ -114,13 +114,14 @@ s.supports(tlcore.CMD_SET_NOISE_REDUCTION)   # always-on OR advertised
 
 ## Verifying a model
 
-To promote a row from "candidate" to "verified", run a live check. It is one
+To promote a row from "candidate" to "verified", run a live check (with the
+repository virtualenv active — see [`../AGENTS.md`](../AGENTS.md)). It is one
 command, and it needs a worn headset only for noise writes:
 
 ```console
-$ python3 -m tlcli --address <MAC> info     # identity + version
-$ python3 -m tlcli --address <MAC> caps     # does it answer 0x8100?
-$ python3 -m tlcli --address <MAC> backup   # optional: capture its real bitmap
+$ python -m tlcli --address <MAC> info     # identity + version
+$ python -m tlcli --address <MAC> caps     # does it answer 0x8100?
+$ python -m tlcli --address <MAC> backup   # optional: capture its real bitmap
 ```
 
 A model is verified when the transport opens, `0x8100` is answered, identity

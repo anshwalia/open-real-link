@@ -27,9 +27,13 @@ the app, every UI rewrite drags it along, and nobody else can use it.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  app          scan/pair · connect · noise selector ·     │
-│               battery/wear · capability view · EQ ·      │
-│               paired list · raw console                  │
+│  tlapp        connect · capability view · status ·       │
+│  (PySide6)    noise selector · … (built one at a time)   │
+└──────────────────────────┬──────────────────────────────┘
+                           │ depends on
+┌──────────────────────────▼──────────────────────────────┐
+│  tlcli        the same operations as a command line,     │
+│               and the hardware test harness              │
 └──────────────────────────┬──────────────────────────────┘
                            │ depends on
 ┌──────────────────────────▼──────────────────────────────┐
@@ -49,6 +53,8 @@ no `serial`, no Qt. It takes a `Transport` object and produces/consumes bytes.
 
 > Only `macos.py` and `replay.py` exist today; `linux.py`, `windows.py` and
 > `android/` in the diagram are the planned per-platform shims (see §9).
+> `tlapp` is started but partial — its controller is Qt-free, so the widgets are
+> the only part that needs a display ([`app.md`](app.md)).
 
 That rule is the whole point of the split, so it is *enforced* rather than
 intended: the test suite imports `tlcore` in a clean subprocess and fails if any
@@ -122,7 +128,7 @@ safe to publish.
 | connection state machine, write gating, retry/backoff | `tlcore` |
 | **which bytes go on the wire** | `tlcore` |
 | **how bytes physically move** | `tltransport` |
-| layout, widgets, wording, accessibility | `app` |
+| layout, widgets, wording, accessibility | `tlapp` |
 
 ---
 
@@ -245,8 +251,11 @@ discoverability by project name for discoverability by protocol name.
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`
    (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
-4. **PySide6 app** — **next.** scan/pair, connect, noise selector, battery/wear,
-   capability view, EQ, paired list, raw console.
+4. **PySide6 app** — **started, in progress.** `tlapp/` exists with the first
+   slice: connect, capability view, device status and the noise selector. The
+   controller is Qt-free and fixture-tested; the rest (EQ, gestures, events,
+   backup/restore, voice, raw console) is added one verified feature at a time.
+   See [`app.md`](app.md).
 
 Steps 1–3 are the protocol being made usable. Step 4 is a shell over them, and it
 is the only step that gets thrown away if the stack ever changes.
