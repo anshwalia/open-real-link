@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **32 implemented** in `open-real-link`,
-**47 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **34 implemented** in `open-real-link`,
+**45 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 15 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 16 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 1 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
-| `SetCommandManager` | `0x0400` | 22 | 8 | 18 | 22 cap-bit |
+| `SetCommandManager` | `0x0400` | 22 | 9 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **32** | **49** | |
+| **total** | | **79** | **34** | **49** | |
 
 ## Full catalogue
 
@@ -70,7 +70,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
 | `0x012a` | 298 | poll | ungated | decode | — | detectFeature |
 | `0x012c` | 300 | poll | cap-bit 54 | — | live | startSocketConnect |
-| `0x0131` | 305 | poll | cap-bit 58 | — | live | — |
+| `0x0131` | 305 | poll | cap-bit 58 | send + decode | live | — |
 | `0x0200` | 512 | notify | ungated | — | — | getNotificationCapabilities |
 | `0x0201` | 513 | notify | ungated | — | — | — |
 | `0x0202` | 514 | notify | ungated | — | — | registerNotification |
@@ -106,7 +106,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0418` | 1048 | set | cap-bit 34 | build | live | getDbValue, getFrequency, setEqInfo |
 | `0x041b` | 1051 | set | cap-bit 38 | build + send | live | setBassEngineValue |
 | `0x041e` | 1054 | set | cap-bit 43 | — | live | setSpatialAudioType |
-| `0x0428` | 1064 | set | cap-bit 58 | — | live | setTranslationAppStatus |
+| `0x0428` | 1064 | set | cap-bit 58 | build + send | live | setAIStatus / setTranslationAppStatus |
 | `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
 | `0x0500` | 1280 | device->app | ungated | build + decode | — | requestHostTime |
 | `0x0502` | 1282 | device->app | ungated | decode | — | requestOperation |
@@ -146,7 +146,7 @@ removed **before a release**. Their obstacle is named.
 | `0x0502`, `0x0503`, `0x0504`, `0x0506`, `0x0508`, `0x050E`, `0x0516` | `tlcore.requests` decoders | recovered statically; only `0x0500` has been observed live |
 
 Everything else implemented — the `0x01xx` reads, the noise / EQ-mode /
-key-function / high-volume / compactness writes, `0x0204`, `0x0500` — has been
+key-function / high-volume / compactness / AI-status writes, `0x0204`, `0x0500` — has been
 exercised on hardware.
 
 ## Safety

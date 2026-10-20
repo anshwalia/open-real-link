@@ -362,6 +362,27 @@ The body is two `[earSide][value]` records; `value` is a live status code, not a
 constant (see `docs/protocol.md` §7). The trigger is a sensor read and drives no
 audio.
 
+### AI / translation status (write, read-back verified)
+
+`0x0428 [state][type]` activates (`state=1`) or deactivates (`state=0`) the
+AI/translation session; `0x0131` reads it back as `[status][state][type]`.
+`state=0` applies only with the matching active `type`, and the state is
+session-scoped (it resets when the link closes). `tlcli ai-status` reads and
+writes it:
+
+```console
+$ python -m tlcli --address <device> --reset ai-status get
+ai status : state=0 type=0
+$ python -m tlcli --address <device> --reset ai-status set 1 1
+ai status : wrote state=1 type=1, read back state=1 type=1
+$ python -m tlcli --address <device> --reset ai-status set 0 1
+ai status : wrote state=0 type=1, read back state=0 type=0
+```
+
+`type=4` (AI chat) is accepted at the protocol level but not applied by FW
+`1.1.0.85` (the read stays `00 00`). The device also pushes
+`0x0204 0f 02 00 <state> <type>` on every change.
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:

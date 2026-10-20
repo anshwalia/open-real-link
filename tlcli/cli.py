@@ -280,6 +280,45 @@ def cmd_high_volume(args) -> int:
         transport.close()
 
 
+def cmd_ai_status(args) -> int:
+    """Read or write the AI / translation status (``0x0131`` / ``0x0428``).
+
+    **Verified live** on the Air7 Pro (2026-10-20): ``state=1`` activates the
+    session for ``type`` and the ``0x0131`` read-back follows; ``state=0``
+    deactivates only with the matching active ``type``.
+    """
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        ai_args = list(args.ai_args)
+        action = (ai_args[0] if ai_args else "get").lower()
+        if action in ("get", "read"):
+            status = session.read_ai_status()
+            if args.json:
+                print(json.dumps(status, indent=2))
+            else:
+                print(f"ai status : state={status['state']} type={status['type']}")
+            return 0
+        if action == "set":
+            if len(ai_args) < 3:
+                raise SystemExit("usage: ai-status set <state 0|1> <type 0|1|2|4>")
+            state, ai_type = int(ai_args[1], 0), int(ai_args[2], 0)
+            session.set_ai_status(state, ai_type)
+            after = session.read_ai_status()
+            if args.json:
+                print(json.dumps({"requested": {"state": state, "type": ai_type},
+                                  "ai_status": after}, indent=2))
+            else:
+                print(f"ai status : wrote state={state} type={ai_type}, "
+                      f"read back state={after['state']} type={after['type']}"
+                      + ("" if after["state"] == state else "  (MISMATCH)"))
+            return 0
+        raise SystemExit(f"unknown ai-status action: {action!r} "
+                         "(use 'get' or 'set <state> <type>')")
+    finally:
+        transport.close()
+
+
 def cmd_compactness(args) -> int:
     """Drive in-ear detection (``0x0405``) and decode the ``0x0204`` event-``0x04`` push.
 
@@ -998,6 +1037,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("hv_args", nargs="*", metavar="ACTION",
                    help="'get' (default), 'on', 'off', or 'set on|off'")
     p.set_defaults(func=cmd_high_volume)
+
+    p = sub.add_parser("ai-status", parents=[common],
+                       help="read or write the AI / translation status (0x0131 / 0x0428)")
+    p.add_argument("ai_args", nargs="*", metavar="ACTION",
+                   help="'get' (default), or 'set <state 0|1> <type 0|1|2|4>'")
+    p.set_defaults(func=cmd_ai_status)
 
     p = sub.add_parser("compactness", parents=[common],
                        help="drive in-ear detection (0x0405) and read the event-0x04 push")

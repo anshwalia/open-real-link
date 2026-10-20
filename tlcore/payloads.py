@@ -89,6 +89,21 @@ def payload_compactness_detect(action: bool | int) -> bytes:
     return bytes([1 if action else 0])
 
 
+def payload_set_ai_status(state: int, ai_type: int) -> bytes:
+    """SetCommandManager.j() / cmd 0x0428: ``[state][type]``.
+
+    ``state`` is ``AIStatus`` (0 = off, 1 = on); ``ai_type`` is ``AIType``
+    (``CommandProtocol`` values 0, 1, 2, 4).  **Verified live** on the Air7 Pro
+    (2026-10-20): ``state=1`` activates the AI/translation session for ``type``
+    and the device echoes it on both the ``0x0204 0f 02 00 <state> <type>`` push
+    and the ``0x0131`` read (:func:`tlcore.decoders.parse_ai_status`).
+    ``state=0`` deactivates **only with the matching active type**; ``type=4``
+    is accepted but not applied by FW ``1.1.0.85``.  The state is session-scoped
+    (it resets when the link closes).
+    """
+    return bytes([state & 0xFF, ai_type & 0xFF])
+
+
 def payload_set_eq(mode: int, min_value: int, max_value: int, eq_id: int,
                    name: str = "", points: list[tuple[int, int]] | None = None) -> bytes:
     """SetCommandManager.p() / cmd 0x0418.

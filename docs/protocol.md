@@ -187,11 +187,13 @@ are “known only” and are listed for identification only.
 | `0x0110` | getHighVolume (read the loudness boost) | — | `parse_high_volume` | verified |
 | `0x0407` | setHighVolume (write the loudness boost) | `payload_set_high_volume` | — | verified |
 | `0x0405` | setCompactnessDetect (in-ear detect trigger; result on the `0x0204` event `0x04`) | `payload_compactness_detect` | `parse_compactness_event` | verified |
+| `0x0131` | getAIStatus (read the AI / translation status) | — | `parse_ai_status` | verified |
+| `0x0428` | setAIStatus / setTranslationAppStatus | `payload_set_ai_status` | — | verified |
 | `0x0124` | bass engine (read) | — | `parse_bass_engine` | inferred |
 | `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | inferred |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | `parse_feature_detect` | verified |
-| `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_user_interaction` | verified |
+| `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_public_event`, `parse_user_interaction` | verified |
 | `0x8106` | battery | — | `parse_battery` | verified |
 | `0x8109` | earbud / wear status | — | `parse_earbud_status` | verified |
 | `0x8128` | use time | — | `parse_use_time` | verified |
@@ -360,6 +362,23 @@ the firmware answers with `0x8405 <status>` and reports the result on the
 `Session.start_compactness_detect` / `stop_compactness_detect`, or
 `tlcli compactness start|stop`, which listens for the push. The trigger is a
 sensor read -- it drives no audio.
+
+### AI / translation status
+
+`0x0428` is a two-byte `[state][type]` write (`payload_set_ai_status`) and
+`0x0131` is its read half -- `0x8131 [status][state][type]` (`parse_ai_status`).
+`state` is `AIStatus` (0 = off, 1 = on) and `type` is `AIType`
+(`CommandProtocol` values 0, 1, 2, 4). **Verified live** on the Air7 Pro
+(2026-10-20): `0x0428 01 01` is accepted (`0x8428 00`), the device pushes
+`0x0204 0f 02 00 01 01` and the `0x0131` read-back becomes `00 01 01`;
+`01 02` gives `00 01 02`. `state=0` deactivates, but **only with the matching
+active `type`** -- `00 01` is ignored while type 2 is active, and vice versa.
+`type=4` ("AI chat") is accepted at the protocol level but **not applied** by
+firmware `1.1.0.85`: the push and the read both stay `00 00`. The AI state is
+**session-scoped** (it resets when the link closes), so an app-free client
+cannot leave the buds in a stale AI state. Use `Session.read_ai_status` /
+`Session.set_ai_status`, or `tlcli ai-status get|set <state> <type>`. The same
+`0x0204 0f` push is decoded by `parse_public_event`.
 
 ### Buttons and gestures
 

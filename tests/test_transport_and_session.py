@@ -280,6 +280,31 @@ def test_high_volume_session() -> None:
           {"status": 0, "enabled": True})
 
 
+def test_ai_status_session() -> None:
+    # the live-verified round trip (Air7 Pro, 2026-10-20):
+    #   0x0131 -> 00 00 00, 0x0428 01 01 -> 00 01 01, 0x0428 00 01 -> 00 00 00
+    transport, session = replay([
+        ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000000"))),
+        ("tx", wire(0x0428, bytes([1, 1]))), ("rx", wire(0x8428, bytes([0]))),
+        ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101"))),
+        ("tx", wire(0x0428, bytes([0, 1]))), ("rx", wire(0x8428, bytes([0]))),
+        ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000000"))),
+    ])
+    check("read_ai_status idle", session.read_ai_status(), {"state": 0, "type": 0})
+    session.set_ai_status(1, 1)
+    check("read_ai_status active", session.read_ai_status(), {"state": 1, "type": 1})
+    session.set_ai_status(0, 1)
+    check("read_ai_status cleared", session.read_ai_status(), {"state": 0, "type": 0})
+    check("payload_set_ai_status(1,1)", t.payload_set_ai_status(1, 1), b"\x01\x01")
+    check("payload_set_ai_status(0,4)", t.payload_set_ai_status(0, 4), b"\x00\x04")
+    check("parse_ai_status", t.parse_ai_status(bytes.fromhex("000101")),
+          {"status": 0, "state": 1, "type": 1})
+    event = t.parse_notification_event(bytes.fromhex("0f02000101"))
+    check("parse_notification_event publicEvent", event["event_name"], "publicEvent")
+    check("parse_notification_event ai", event["public_event"]["ai"],
+          {"state": 1, "type": 1})
+
+
 def test_compactness_session() -> None:
     # the live-verified trigger (Air7 Pro, 2026-10-20): 0x0405 01 -> ack, then a
     # 0x0204 event-0x04 push carries two [earSide][value] records.
@@ -345,6 +370,34 @@ def test_cli_high_volume() -> None:
         check("cli high-volume off rc", rc, 0)
         check("cli high-volume off line",
               "wrote off, read back off" in buf.getvalue(), True)
+
+
+def test_cli_ai_status() -> None:
+    from tlcli.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        get_rec = pathlib.Path(tmpdir) / "ai-get.jsonl"
+        get_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101")))]))
+        set_rec = pathlib.Path(tmpdir) / "ai-set.jsonl"
+        set_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
+            ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+            ("tx", wire(0x0428, bytes([1, 1]))), ("rx", wire(0x8428, bytes([0]))),
+            ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101")))]))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(get_rec), "ai-status", "get"])
+        check("cli ai-status get rc", rc, 0)
+        check("cli ai-status get line",
+              "ai status : state=1 type=1" in buf.getvalue(), True)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(set_rec), "ai-status", "set", "1", "1"])
+        check("cli ai-status set rc", rc, 0)
+        check("cli ai-status set line",
+              "wrote state=1 type=1, read back state=1 type=1" in buf.getvalue(), True)
 
 
 def test_cli_compactness() -> None:

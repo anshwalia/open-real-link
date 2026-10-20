@@ -98,6 +98,8 @@ def parse_notification_event(payload: bytes) -> dict:
         out["tlv"] = {body[1 + 2 * i]: body[2 + 2 * i] for i in range(body[0])}
     if event == 0x04:
         out["compactness"] = parse_compactness_event(body)
+    elif event == 0x0F:
+        out["public_event"] = parse_public_event(body)
     return out
 
 
@@ -120,6 +122,26 @@ def parse_compactness_event(body: bytes) -> list[dict]:
          "value": body[i + 1]}
         for i in (0, 2)
     ]
+
+
+def parse_public_event(body: bytes) -> dict:
+    """``NotificationCommandManager.e()``: the ``0x0204`` event-``0x0F`` body.
+
+    A 2-byte little-endian **flag word**, then the value for the set flag:
+    bit 3 (``& 8``) = volume level (one byte), bit 1 (``& 2``) = AI state
+    (``[state][type]``).  **Verified live** on the Air7 Pro (2026-10-20): the
+    high-volume write pushes ``0f 08 00 <v>`` and the AI write pushes
+    ``0f 02 00 <state> <type>``.
+    """
+    if len(body) < 2:
+        return {"flags": None, "volume": None, "ai": None}
+    flags = body[0] | (body[1] << 8)
+    out: dict = {"flags": flags, "volume": None, "ai": None}
+    if flags & 0x8 and len(body) >= 3:
+        out["volume"] = body[2]
+    if flags & 0x2 and len(body) >= 4:
+        out["ai"] = {"state": body[2], "type": body[3]}
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -282,6 +304,19 @@ def parse_high_volume(payload: bytes) -> dict:
     return {"status": payload[0], "enabled": bool(payload[1])}
 
 
+def parse_ai_status(payload: bytes) -> dict:
+    """``0x8131`` (``getAIStatus``): ``[status][state][type]``.
+
+    Pairs with the ``0x0428`` write (:func:`tlcore.payloads.payload_set_ai_status`).
+    **Verified live** on the Air7 Pro (2026-10-20): after ``0x0428 01 01`` the
+    reply is ``00 01 01``; after ``01 02`` it is ``00 01 02``.  ``state`` and
+    ``type`` are ``None`` when the reply is too short.
+    """
+    if len(payload) < 3:
+        return {"status": payload[0] if payload else 0, "state": None, "type": None}
+    return {"status": payload[0], "state": payload[1], "type": payload[2]}
+
+
 def parse_bass_engine(payload: bytes) -> dict:
     """``0x8124``: ``[status][min][max][current]([type])`` -- the bass engine.
 
@@ -345,6 +380,7 @@ STATE_DECODERS = {
     0x8124: parse_bass_engine,
     0x810F: parse_eq_mode,
     0x8110: parse_high_volume,
+    0x8131: parse_ai_status,
     0x812A: parse_feature_detect,
     0x8108: parse_key_function,
     0x810D: parse_switch_features,

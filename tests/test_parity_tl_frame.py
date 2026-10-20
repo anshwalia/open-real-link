@@ -390,6 +390,20 @@ def parity_decoders(ref, core) -> None:
           core.parse_high_volume(bytes.fromhex("0000")), {"status": 0, "enabled": False})
     check("parse_high_volume short",
           core.parse_high_volume(b"\x00"), {"status": 0, "enabled": None})
+    check("parse_ai_status active",
+          core.parse_ai_status(bytes.fromhex("000101")),
+          {"status": 0, "state": 1, "type": 1})
+    check("parse_ai_status idle",
+          core.parse_ai_status(bytes.fromhex("000000")),
+          {"status": 0, "state": 0, "type": 0})
+    check("parse_ai_status short",
+          core.parse_ai_status(b"\x00"), {"status": 0, "state": None, "type": None})
+    check("parse_public_event ai",
+          core.parse_public_event(bytes.fromhex("02000101")),
+          {"flags": 2, "volume": None, "ai": {"state": 1, "type": 1}})
+    check("parse_public_event volume",
+          core.parse_public_event(bytes.fromhex("080000")),
+          {"flags": 8, "volume": 0, "ai": None})
 
 
 # --------------------------------------------------------------------------
@@ -412,6 +426,11 @@ def parity_payloads(ref, core) -> None:
     for value in (0, 1, 2, 255):
         check(f"payload_compactness_detect({value})",
               core.payload_compactness_detect(value), ref.payload_compactness_detect(value))
+    for state in (0, 1, 2, 255):
+        for ai_type in (0, 1, 2, 4, 255):
+            check(f"payload_set_ai_status({state},{ai_type})",
+                  core.payload_set_ai_status(state, ai_type),
+                  ref.payload_set_ai_status(state, ai_type))
     for entries in ([], [b"\x01\x02\x03\x04"], [b"\x01", b"\x02"]):
         check(f"payload_set_key_function({entries!r})",
               core.payload_set_key_function(entries), ref.payload_set_key_function(entries))

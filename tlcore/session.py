@@ -15,12 +15,14 @@ from typing import Optional
 from .commands import (
     ALWAYS_ON,
     CMD_COMPACTNESS_DETECT,
+    CMD_GET_AI_STATUS,
     CMD_GET_ALL_EQ_INFO,
     CMD_GET_EQ_MODE,
     CMD_GET_HIGH_VOLUME,
     CMD_GET_KEY_FUNCTION,
     CMD_GET_NOISE_REDUCTION,
     CMD_GET_REMOTE_CAPABILITY,
+    CMD_SET_AI_STATUS,
     CMD_SET_EQ_MODE,
     CMD_SET_HIGH_VOLUME,
     CMD_SET_KEY_FUNCTION,
@@ -32,6 +34,7 @@ from .errors import DeviceRejected, NotConnected, NotWorn, PacketError, Timeout
 from .noise import NOISE_FIELD_MODE, NOISE_MODE_NAMES
 from .payloads import (
     payload_compactness_detect,
+    payload_set_ai_status,
     payload_set_eq_mode,
     payload_set_high_volume,
     payload_set_noise_mode,
@@ -229,6 +232,32 @@ class Session:
         buds are worn (else :class:`~tlcore.errors.NotWorn`).
         """
         reply = self.request(CMD_SET_HIGH_VOLUME, payload_set_high_volume(enabled),
+                             timeout=timeout)
+        return self.check_status(reply)
+
+    # -- AI / translation status -------------------------------------------
+    def read_ai_status(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the AI/translation status (``0x0131``): ``[status][state][type]``.
+
+        **Verified live** on the Air7 Pro (2026-10-20): returns
+        ``{"state": 1, "type": 1}`` after ``0x0428 01 01``.
+        """
+        reply = self.request(CMD_GET_AI_STATUS, b"", timeout=timeout)
+        self.check_status(reply)
+        payload = reply["payload"]
+        if len(payload) < 3:
+            raise PacketError(f"0x8131 body too short for an AI status: {payload.hex()}")
+        return {"state": payload[1], "type": payload[2]}
+
+    def set_ai_status(self, state: int, ai_type: int, *,
+                      timeout: Optional[float] = None) -> int:
+        """Write the AI/translation status (``0x0428``), ``[state][type]``.
+
+        **Verified live** on the Air7 Pro (2026-10-20): ``state=1`` activates
+        the session for ``ai_type`` and the ``0x0131`` read-back follows.
+        ``state=0`` deactivates only with the matching active ``ai_type``.
+        """
+        reply = self.request(CMD_SET_AI_STATUS, payload_set_ai_status(state, ai_type),
                              timeout=timeout)
         return self.check_status(reply)
 
