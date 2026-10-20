@@ -182,6 +182,10 @@ are “known only” and are listed for identification only.
 | `0x0403` | setSwitchFeature | `payload_set_switch_feature` | — | integrated |
 | `0x0418` | setEqInfo / getEqInfo | `payload_set_eq` | — | integrated |
 | `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
+| `0x0102` | getRemoteVendorId (remote vendor id) | — | `parse_remote_vendor_id` | verified |
+| `0x0104` | getRemoteProtocolVersion (protocol-version exchange) | — | `parse_protocol_version` | verified |
+| `0x0107` | getUpgradeCapability (OTA capability list) | — | `parse_upgrade_capability` | verified |
+| `0x010B` | getEarbudsColorId | — | `parse_color_id` | verified |
 | `0x0112` | getMultiConnect (paired-device / multipoint list) | — | `parse_multi_connect` | verified |
 | `0x011A` | getPersonalizedNoiseReductionResultExist (personalized-noise result exists flag) | — | `parse_personalized_anc` | verified |
 | `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |

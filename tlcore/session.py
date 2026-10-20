@@ -17,13 +17,17 @@ from .commands import (
     CMD_COMPACTNESS_DETECT,
     CMD_GET_AI_STATUS,
     CMD_GET_ALL_EQ_INFO,
+    CMD_GET_COLOR_ID,
     CMD_GET_EQ_MODE,
     CMD_GET_HIGH_VOLUME,
     CMD_GET_KEY_FUNCTION,
     CMD_GET_MULTI_CONNECT,
     CMD_GET_NOISE_REDUCTION,
     CMD_GET_PERSONALIZED_ANC,
+    CMD_GET_PROTOCOL_VERSION,
     CMD_GET_REMOTE_CAPABILITY,
+    CMD_GET_REMOTE_VENDOR_ID,
+    CMD_GET_UPGRADE_CAPABILITY,
     CMD_NOTIFICATION_CAPS,
     CMD_SET_AI_STATUS,
     CMD_SET_EQ_MODE,
@@ -237,6 +241,54 @@ class Session:
         reply = self.request(CMD_SET_HIGH_VOLUME, payload_set_high_volume(enabled),
                              timeout=timeout)
         return self.check_status(reply)
+
+    # -- identity / status fields ------------------------------------------
+    def read_remote_vendor_id(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the remote vendor id (``0x0102``): ``[status][vendorId:2 LE]``.
+
+        **Verified live** on the Air7 Pro (2026-10-20): ``00 2f 07`` ->
+        ``0x072F``.
+        """
+        from .decoders import parse_remote_vendor_id
+
+        reply = self.request(CMD_GET_REMOTE_VENDOR_ID, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_remote_vendor_id(reply["payload"])
+
+    def read_protocol_version(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the remote protocol version (``0x0104``): ``[status] + bytes``.
+
+        **Verified live** on the Air7 Pro (2026-10-20): ``00 00 00 01``.  The
+        app parses only the status, so the trailing bytes are raw.
+        """
+        from .decoders import parse_protocol_version
+
+        reply = self.request(CMD_GET_PROTOCOL_VERSION, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_protocol_version(reply["payload"])
+
+    def read_upgrade_capability(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the OTA capability list (``0x0107``): ``[status][count] + records``.
+
+        **Verified live** on the Air7 Pro (2026-10-20): ``00 01 01 03`` -> one
+        record (``device_type=1, support_ota=True, ota_type=1``).
+        """
+        from .decoders import parse_upgrade_capability
+
+        reply = self.request(CMD_GET_UPGRADE_CAPABILITY, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_upgrade_capability(reply["payload"])
+
+    def read_color_id(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the earbuds colour id (``0x010B``): ``[status][colorId]``.
+
+        **Verified live** on the Air7 Pro (2026-10-20): ``00 06``.
+        """
+        from .decoders import parse_color_id
+
+        reply = self.request(CMD_GET_COLOR_ID, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_color_id(reply["payload"])
 
     # -- AI / translation status -------------------------------------------
     def read_ai_status(self, *, timeout: Optional[float] = None) -> dict:

@@ -369,6 +369,39 @@ def cmd_notification_caps(args) -> int:
         transport.close()
 
 
+def cmd_identity(args) -> int:
+    """Read the identity/status fields (``0x0102``/``0x0104``/``0x0107``/``0x010B``).
+
+    All four are ungated or always-on reads.  **Verified live** on the Air7 Pro
+    (2026-10-20): vendor id ``0x072F``, protocol version ``000001``, colour id
+    ``6``, and one OTA-capability record (``device_type=1, support_ota=True,
+    ota_type=1``).
+    """
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        result = {
+            "vendor_id": session.read_remote_vendor_id(),
+            "protocol_version": session.read_protocol_version(),
+            "upgrade_capability": session.read_upgrade_capability(),
+            "color_id": session.read_color_id(),
+        }
+    finally:
+        transport.close()
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+    vendor = result["vendor_id"]["vendor_id"]
+    print(f"vendor id : 0x{vendor:04X}" if vendor is not None else "vendor id : unknown")
+    print(f"protocol  : {result['protocol_version']['data'] or '-'}")
+    print(f"color id  : {result['color_id']['color_id']}")
+    entries = result["upgrade_capability"]["entries"]
+    print("upgrade   : " + (", ".join(
+        f"type={e['device_type']} ota={e['support_ota']}/{e['ota_type']}"
+        for e in entries) or "-"))
+    return 0
+
+
 def cmd_compactness(args) -> int:
     """Drive in-ear detection (``0x0405``) and decode the ``0x0204`` event-``0x04`` push.
 
@@ -1105,6 +1138,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("notification-caps", parents=[common],
                        help="read the push-event types the device supports (0x0200)")
     p.set_defaults(func=cmd_notification_caps)
+
+    p = sub.add_parser("identity", parents=[common],
+                       help="read the identity/status fields (0x0102/0x0104/0x0107/0x010B)")
+    p.set_defaults(func=cmd_identity)
 
     p = sub.add_parser("compactness", parents=[common],
                        help="drive in-ear detection (0x0405) and read the event-0x04 push")

@@ -43,6 +43,10 @@ CMD_GET_EQ_MODE = 0x010F         # PollCommandManager.j -> read the sound-effect
 CMD_GET_ALL_EQ_INFO = 0x0122     # PollCommandManager.d -> read the EQ preset/custom list
 CMD_SET_EQ_MODE = 0x0406         # SetCommandManager.n/.o -> write the sound-effect/EQ mode
 CMD_GET_REMOTE_CAPABILITY = 0x0100  # PollCommandManager.C -> device reports capability bitmap
+CMD_GET_REMOTE_VENDOR_ID = 0x0102  # PollCommandManager.F -> remote vendor id
+CMD_GET_PROTOCOL_VERSION = 0x0104  # PollCommandManager.B -> remote protocol version
+CMD_GET_UPGRADE_CAPABILITY = 0x0107  # PollCommandManager.M -> OTA capability list
+CMD_GET_COLOR_ID = 0x010B         # PollCommandManager.k -> earbuds colour id
 CMD_DETECT_FEATURE = 0x012A      # PollCommandManager.b  -> device reports one feature id + uint32 LE
 CMD_GET_STATUS_FEATURE = 0x0129  # PollCommandManager.I
 CMD_GET_NOISE_REDUCTION = 0x010C  # PollCommandManager.h/.y/z -> read a NoiseReductionInfo field
@@ -100,6 +104,10 @@ ALWAYS_ON = {0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x010B, 0x0F00}
 CMD_NAMES = {
     0x0100: "getRemoteCapability/getStatusFeature",
     0x0101: "getDeviceVersion/getProperty",
+    0x0102: "getRemoteVendorId",
+    0x0104: "getRemoteProtocolVersion",
+    0x0107: "getUpgradeCapability",
+    0x010B: "getEarbudsColorId",
     0x0108: "getKeyFunction",
     0x0118: "getEarRestoreData",
     0x011A: "getPersonalizedNoiseReductionResultExist",
@@ -176,15 +184,15 @@ class CommandSpec(NamedTuple):
 ALL_COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(0x0100, "poll", "always-on", "getRemoteCapability/getStatusFeature"),
     CommandSpec(0x0101, "poll", "always-on", "getDeviceVersion/getProperty"),
-    CommandSpec(0x0102, "poll", "always-on", ""),
+    CommandSpec(0x0102, "poll", "always-on", "getRemoteVendorId"),
     CommandSpec(0x0103, "poll", "always-on", ""),
-    CommandSpec(0x0104, "poll", "always-on", "getDeviceVersion, getProperty"),
+    CommandSpec(0x0104, "poll", "always-on", "getRemoteProtocolVersion"),
     CommandSpec(0x0105, "poll", "cap-bit 0", ""),
     CommandSpec(0x0106, "poll", "cap-bit 1", ""),
-    CommandSpec(0x0107, "poll", "cap-bit 2", ""),
+    CommandSpec(0x0107, "poll", "cap-bit 2", "getUpgradeCapability"),
     CommandSpec(0x0108, "poll", "cap-bit 3", "getKeyFunction"),
     CommandSpec(0x0109, "poll", "cap-bit 4", ""),
-    CommandSpec(0x010B, "poll", "always-on", ""),
+    CommandSpec(0x010B, "poll", "always-on", "getEarbudsColorId"),
     CommandSpec(0x010C, "poll", "cap-bit 8", ""),
     CommandSpec(0x010D, "poll", "cap-bit 7", ""),
     CommandSpec(0x010F, "poll", "cap-bit 10", ""),

@@ -220,6 +220,67 @@ def parse_use_time(payload: bytes) -> dict:
     return {"status": status, "devices": out}
 
 
+def parse_remote_vendor_id(payload: bytes) -> dict:
+    """``0x8102`` (``getRemoteVendorId``): ``[status][vendorId:2 LE]``.
+
+    ``PollCommandManager.o0`` reads ``ProtocolUtil.e(payload, 1, 2, true)`` and
+    logs ``Receive vendor id``.  **Verified live** on the Air7 Pro (2026-10-20):
+    ``00 2f 07`` -> vendor id ``0x072F``.
+    """
+    if len(payload) < 3:
+        return {"status": payload[0] if payload else 0, "vendor_id": None}
+    return {"status": payload[0], "vendor_id": int.from_bytes(payload[1:3], "little")}
+
+
+def parse_protocol_version(payload: bytes) -> dict:
+    """``0x8104`` (``getRemoteProtocolVersion``): ``[status] + version bytes``.
+
+    ``PollCommandManager.k0`` reads only the status; the app never parses the
+    rest, so it is exposed raw.  **Verified live** on the Air7 Pro (2026-10-20):
+    ``00 00 00 01``.  The ``0x0104`` sender (``B``) announces the host protocol
+    version (``ProtocolUtil.j("0.0.1", ".")``), so this is a version exchange,
+    not a device-version read.
+    """
+    return {"status": payload[0] if payload else 0, "data": payload[1:].hex()}
+
+
+def parse_upgrade_capability(payload: bytes) -> dict:
+    """``0x8107`` (``getUpgradeCapability``): ``[status][count] + records``.
+
+    Each record is ``[deviceType:1][flags:1]`` -- ``PollCommandManager.r0``
+    builds ``UpgradeInfo(offset, payload)``, whose constructor reads
+    ``deviceType = payload[off]`` and ``flags = payload[off+1]`` with
+    ``support_ota = flags & 1`` and ``ota_type = (flags >> 1) & 1``.
+    **Verified live** on the Air7 Pro (2026-10-20): ``00 01 01 03`` -> one
+    record ``device_type=1, support_ota=True, ota_type=1``.
+    """
+    status = payload[0] if payload else 0
+    count = payload[1] if len(payload) > 1 else 0
+    entries = []
+    off = 2
+    for _ in range(count):
+        if off + 2 > len(payload):
+            break
+        device_type, flags = payload[off], payload[off + 1]
+        entries.append({"device_type": device_type,
+                        "support_ota": bool(flags & 1),
+                        "ota_type": (flags >> 1) & 1})
+        off += 2
+    return {"status": status, "count": count, "entries": entries}
+
+
+def parse_color_id(payload: bytes) -> dict:
+    """``0x810B`` (``getEarbudsColorId``): ``[status][colorId]``.
+
+    ``PollCommandManager.Y`` reads ``ProtocolUtil.e(payload, 1, 1, false)`` and
+    logs ``Receive color id``.  **Verified live** on the Air7 Pro (2026-10-20):
+    ``00 06`` -> colour id 6.
+    """
+    if len(payload) < 2:
+        return {"status": payload[0] if payload else 0, "color_id": None}
+    return {"status": payload[0], "color_id": payload[1]}
+
+
 def parse_model_id(payload: bytes) -> dict:
     """``0x8103``: ``[status] + 3-byte little-endian model id`` (``0x064C12``)."""
     if len(payload) < 4:
@@ -442,7 +503,11 @@ def parse_switch_features(payload: bytes) -> dict:
 #: Used by the CLI to decode a poll reply or a push without a switch statement.
 STATE_DECODERS = {
     0x8106: parse_battery,
+    0x8102: parse_remote_vendor_id,
+    0x8104: parse_protocol_version,
+    0x8107: parse_upgrade_capability,
     0x8109: parse_earbud_status,
+    0x810B: parse_color_id,
     0x8128: parse_use_time,
     0x8103: parse_model_id,
     0x8105: parse_device_version,

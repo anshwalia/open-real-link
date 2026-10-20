@@ -348,6 +348,28 @@ def test_personalized_anc_and_notification_caps() -> None:
           {"status": 0, "count": 2, "types": [2, 1]})
 
 
+def test_identity_session() -> None:
+    # the live-verified identity reads (Air7 Pro, 2026-10-20)
+    transport, session = replay([
+        ("tx", wire(0x0102)), ("rx", wire(0x8102, bytes.fromhex("002f07"))),
+        ("tx", wire(0x0104)), ("rx", wire(0x8104, bytes.fromhex("00000001"))),
+        ("tx", wire(0x0107)), ("rx", wire(0x8107, bytes.fromhex("00010103"))),
+        ("tx", wire(0x010B)), ("rx", wire(0x810B, bytes.fromhex("0006"))),
+    ])
+    check("read_remote_vendor_id", session.read_remote_vendor_id(),
+          {"status": 0, "vendor_id": 0x072F})
+    check("read_protocol_version", session.read_protocol_version(),
+          {"status": 0, "data": "000001"})
+    check("read_upgrade_capability", session.read_upgrade_capability(),
+          {"status": 0, "count": 1,
+           "entries": [{"device_type": 1, "support_ota": True, "ota_type": 1}]})
+    check("read_color_id", session.read_color_id(), {"status": 0, "color_id": 6})
+    check("decode_state 0x8102", t.decode_state(0x8102, bytes.fromhex("002f07")),
+          {"status": 0, "vendor_id": 0x072F})
+    check("decode_state 0x810B", t.decode_state(0x810B, bytes.fromhex("0006")),
+          {"status": 0, "color_id": 6})
+
+
 def test_compactness_session() -> None:
     # the live-verified trigger (Air7 Pro, 2026-10-20): 0x0405 01 -> ack, then a
     # 0x0204 event-0x04 push carries two [earSide][value] records.
@@ -477,6 +499,14 @@ def test_cli_personalized_anc_and_notification_caps() -> None:
     check("cli notification-caps rc", rc, 0)
     check("cli notification-caps line",
           "notification capabilities: 2 type(s): 0x02, 0x01" in buf.getvalue(), True)
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--replay", "fixtures/identity.jsonl", "identity"])
+    check("cli identity rc", rc, 0)
+    check("cli identity vendor", "vendor id : 0x072F" in buf.getvalue(), True)
+    check("cli identity color", "color id  : 6" in buf.getvalue(), True)
+    check("cli identity upgrade", "upgrade   : type=1 ota=True/1" in buf.getvalue(), True)
 
 
 def test_cli_compactness() -> None:

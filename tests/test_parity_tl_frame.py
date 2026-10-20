@@ -427,6 +427,22 @@ def parity_decoders(ref, core) -> None:
     check("parse_notification_capabilities short",
           core.parse_notification_capabilities(b"\x00"),
           {"status": 0, "count": 0, "types": []})
+    check("parse_remote_vendor_id",
+          core.parse_remote_vendor_id(bytes.fromhex("002f07")),
+          {"status": 0, "vendor_id": 0x072F})
+    check("parse_remote_vendor_id short",
+          core.parse_remote_vendor_id(b"\x00")["vendor_id"], None)
+    check("parse_protocol_version",
+          core.parse_protocol_version(bytes.fromhex("00000001")),
+          {"status": 0, "data": "000001"})
+    check("parse_upgrade_capability",
+          core.parse_upgrade_capability(bytes.fromhex("00010103")),
+          {"status": 0, "count": 1,
+           "entries": [{"device_type": 1, "support_ota": True, "ota_type": 1}]})
+    check("parse_upgrade_capability short", core.parse_upgrade_capability(b"\x00"),
+          {"status": 0, "count": 0, "entries": []})
+    check("parse_color_id", core.parse_color_id(bytes.fromhex("0006")),
+          {"status": 0, "color_id": 6})
 
 
 # --------------------------------------------------------------------------

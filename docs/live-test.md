@@ -401,6 +401,26 @@ $ python -m tlcli --address <device> --reset notification-caps
 notification capabilities: 2 type(s): 0x02, 0x01
 ```
 
+### Identity / status fields (read-only)
+
+Four always-on reads expose the device identity. `tlcli identity` reads them in
+one pass:
+
+* `0x0102` -> `[status][vendorId:2 LE]` (`0x072F`)
+* `0x0104` -> `[status] + version bytes` (the host announces its protocol
+  version and the device answers `00 00 00 01`)
+* `0x0107` -> `[status][count] + count x [deviceType][flags]`
+  (`support_ota = flags & 1`, `ota_type = (flags >> 1) & 1`)
+* `0x010B` -> `[status][colorId]` (`6`)
+
+```console
+$ python -m tlcli --address <device> --reset identity
+vendor id : 0x072F
+protocol  : 000001
+color id  : 6
+upgrade   : type=1 ota=True/1
+```
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:

@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **37 implemented** in `open-real-link`,
-**42 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **41 implemented** in `open-real-link`,
+**38 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 18 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 22 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
 | `SetCommandManager` | `0x0400` | 22 | 9 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **37** | **49** | |
+| **total** | | **79** | **41** | **49** | |
 
 ## Full catalogue
 
@@ -42,15 +42,15 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 |---|---:|---|---|---|---|:--:|---|
 | `0x0100` | 256 | poll | always-on | send + decode | live | getRemoteCapability/getStatusFeature |
 | `0x0101` | 257 | poll | always-on | send | live | getDeviceVersion, getProperty |
-| `0x0102` | 258 | poll | always-on | — | live | — |
+| `0x0102` | 258 | poll | always-on | send + decode | live | getRemoteVendorId |
 | `0x0103` | 259 | poll | always-on | send + decode | live | — |
-| `0x0104` | 260 | poll | always-on | — | live | getDeviceVersion, getProperty |
+| `0x0104` | 260 | poll | always-on | send + decode | live | getRemoteProtocolVersion |
 | `0x0105` | 261 | poll | cap-bit 0 | send + decode | live | — |
 | `0x0106` | 262 | poll | cap-bit 1 | send + decode | live | — |
-| `0x0107` | 263 | poll | cap-bit 2 | — | live | — |
+| `0x0107` | 263 | poll | cap-bit 2 | send + decode | live | getUpgradeCapability |
 | `0x0108` | 264 | poll | cap-bit 3 | send + decode | live | getKeyFunction |
 | `0x0109` | 265 | poll | cap-bit 4 | send + decode | live | — |
-| `0x010b` | 267 | poll | always-on | — | live | — |
+| `0x010b` | 267 | poll | always-on | send + decode | live | getEarbudsColorId |
 | `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
 | `0x010d` | 269 | poll | cap-bit 7 | send + decode | live | — |
 | `0x010f` | 271 | poll | cap-bit 10 | send + decode | live | getEQStatus |
