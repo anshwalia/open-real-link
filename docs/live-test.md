@@ -455,6 +455,12 @@ Two things to watch:
 * `0x0502 requestOperation` was **not** pushed for any gesture -- play/pause,
   track skip and ANC are firmware-side, so the app is never asked.
 
+A follow-up bound every left gesture to the app-side function `31` and tapped;
+it captured only `action=0` and `action=3`, never the expected `action=2`, so
+the `0x0502` question is still open. `action = 0` has **no entry in the gesture
+map** (`1` single, `2` double, `3` triple, `4`/`5` long, `6` extra) and its
+meaning is unknown -- treat it as an opaque value, do not map it.
+
 Replay fixture: `fixtures/user-interaction.jsonl` (sanitized).
 
 ### Backup and restore
