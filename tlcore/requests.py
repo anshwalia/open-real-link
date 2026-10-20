@@ -125,15 +125,22 @@ def parse_custom_eq(payload: bytes) -> dict:
 
 
 def parse_bass_engine_status(payload: bytes) -> dict:
-    """``0x0508``: ``[minValue:1][maxValue:1][currentValue:1]`` + optional ``[type:1]``.
+    """``0x0508``: ``[min:int8][max:int8][current:int8]`` + optional ``[type:int8]``.
 
-    ``CommandUtil.c`` -> ``BassEngineInfo``.
+    ``CommandUtil.c`` -> ``BassEngineInfo``; the bean stores **signed** values
+    (``setMinValue(bArr[i])`` promotes the Java ``byte``), so a ``0xFB`` is
+    ``-5``, not ``251``.  **Verified live** on the Air7 Pro (2026-10-20): the
+    write ``0x041B [min][max][current]`` makes the device push ``0x0508``, and
+    a ``-5..+5`` range comes back as ``fb 05`` (``min=-5, max=5``); the device
+    keeps its own fixed range and only echoes ``current``
+    (``0x041B 00 0a fd`` -> ``0x0508 fb 05 fd 00``, ``current=-3``).
     """
     if len(payload) < 3:
         return {"min": None, "max": None, "current": None, "type": None}
-    out = {"min": payload[0], "max": payload[1], "current": payload[2], "type": None}
+    min_v, max_v, cur = struct.unpack_from("<bbb", payload, 0)
+    out = {"min": min_v, "max": max_v, "current": cur, "type": None}
     if len(payload) >= 4:
-        out["type"] = payload[3]
+        out["type"] = struct.unpack_from("<b", payload, 3)[0]
     return out
 
 

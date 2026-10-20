@@ -451,16 +451,22 @@ These are unsolicited requests the *device* makes of the host;
 `tlcore.decode_request(cmd, payload)` dispatches them via `REQUEST_DECODERS`.
 Only `0x0500` expects a reply. All multi-byte fields are little-endian.
 
-| Command | Body | Decoder |
-| --- | --- | --- |
-| `0x0500` | asks the host for the time; answer `0x8500` with `payload_host_time_reply(unix)` | `parse_host_time_request` |
-| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` |
-| `0x0503` | `[count] + count x [featureType][status]` | `parse_feature_switch_status` |
-| `0x0504` | `[eqMode]` | `parse_eq_mode_request` |
-| `0x0506` | custom-EQ list | `parse_custom_eq` |
-| `0x0508` | `[min][max][current]` + optional `[type]` | `parse_bass_engine_status` |
-| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` |
-| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | `parse_oneshot_audio` |
+| Command | Body | Decoder | Live trigger (Air7 Pro 2026-10-20) |
+| --- | --- | --- | --- |
+| `0x0500` | asks the host for the time; answer `0x8500` with `payload_host_time_reply(unix)` | `parse_host_time_request` | periodic / on connect |
+| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` | a button press (not driven) |
+| `0x0503` | `[count] + count x [featureType][status]` | `parse_feature_switch_status` | not observed |
+| `0x0504` | `[eqMode]` | `parse_eq_mode_request` | **verified** -- pushed on every `0x0406` |
+| `0x0506` | custom-EQ list | `parse_custom_eq` | **verified** -- pushed on `0x0418 [05]` |
+| `0x0508` | `[min:int8][max:int8][current:int8]` + optional `[type:int8]` | `parse_bass_engine_status` | **verified** -- pushed on `0x041B`; the range is **signed** (`fb 05` = `-5..+5`) |
+| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` | same body as the `0x0128` reply; not pushed on demand |
+| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | `parse_oneshot_audio` | audio streaming (not driven) |
+
+`0x0504`/`0x0506`/`0x0508` are the read-back side of the EQ/bass writes: the
+device pushes the new value right after the write, so a client can confirm a
+setting by listening for the push (see `docs/live-test.md`). The `0x0508`
+range is signed -- `CommandUtil.c` promotes the Java `byte`, and the device
+keeps its own fixed `min=-5`/`max=+5`, echoing only `current`.
 
 ## 9. Errors
 

@@ -184,6 +184,11 @@ def check_eq_mode_and_bass() -> None:
     check("bass no type", t.parse_bass_engine_status(bytes([1, 5, 3])),
           {"min": 1, "max": 5, "current": 3, "type": None})
     check("bass short", t.parse_bass_engine_status(bytes([1, 5]))["current"], None)
+    # live-verified: the range is signed (-5..+5), not unsigned
+    # (Air7 Pro, 2026-10-20: 0x041B -> 0x0508 fb 05 fd 00)
+    check("bass signed (live)",
+          t.parse_bass_engine_status(bytes([0xFB, 0x05, 0xFD, 0x00])),
+          {"min": -5, "max": 5, "current": -3, "type": 0})
 
 
 def check_use_time_list() -> None:

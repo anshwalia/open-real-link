@@ -370,6 +370,25 @@ def test_identity_session() -> None:
           {"status": 0, "color_id": 6})
 
 
+def test_request_push_family() -> None:
+    # device->app requests pushed in response to live writes (Air7 Pro,
+    # 2026-10-20), replayed from the recorded fixture.
+    transport = ReplayTransport.from_jsonl(ROOT / "fixtures" / "requests.jsonl", strict=True)
+    transport.open("replay", 12)
+    session = t.Session(transport, cmd_interval=0.0, read_timeout=0.5)
+    session.request(0x0406, bytes([4]))
+    session.request(0x0418, bytes([5]))
+    session.request(0x041B, bytes.fromhex("fb0500"))
+    packets = session.events + session.listen(0.2)  # drain the trailing 0x0508 push
+    reqs = [p for p in packets if p["cmd"] in t.REQUEST_DECODERS]
+    check("request push count", len(reqs), 3)
+    check("0x0504 live", t.decode_request(0x0504, bytes(reqs[0]["payload"])),
+          {"eq_mode": 4})
+    check("0x0506 live", t.decode_request(0x0506, bytes(reqs[1]["payload"]))["entries"][0]["eq_id"], 4)
+    check("0x0508 live", t.decode_request(0x0508, bytes(reqs[2]["payload"])),
+          {"min": -5, "max": 5, "current": 0, "type": 0})
+
+
 def test_compactness_session() -> None:
     # the live-verified trigger (Air7 Pro, 2026-10-20): 0x0405 01 -> ack, then a
     # 0x0204 event-0x04 push carries two [earSide][value] records.

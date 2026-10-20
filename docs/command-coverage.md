@@ -139,11 +139,19 @@ removed **before a release**. Their obstacle is named.
 | What | Symbol | Obstacle |
 | --- | --- | --- |
 | bass-engine read `0x0124` | `parse_bass_engine` | cap-bit 38 is set, but the unit answers an empty `0x0124` with `00 00` — no reading to decode |
-| bass-engine write `0x041B` | `payload_set_bass_engine`, `restore` | never driven; the read gives no value to write back |
-| EQ write `0x0418` | `payload_set_eq` | the read (`0x0122`) and write are asymmetric (`isSelected` vs `action`) and the encoder refuses a zero-band record; never driven |
+| EQ write `0x0418` | `payload_set_eq` | the read (`0x0122`) and write are asymmetric (`isSelected` vs `action`) and the encoder refuses a zero-band record; only the `[05]` query form has been driven |
 | switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
 | feature detect `0x012A` | `parse_feature_detect` | not in the capability bitmap; the unit does not answer |
-| `0x0502`, `0x0503`, `0x0504`, `0x0506`, `0x0508`, `0x050E`, `0x0516` | `tlcore.requests` decoders | recovered statically; only `0x0500` has been observed live |
+| `0x0502`, `0x0503`, `0x050E`, `0x0516` | `tlcore.requests` decoders | recovered statically; not observed live yet |
+
+Live-verified device→app requests (Air7 Pro, 2026-10-20): `0x0500` (time),
+`0x0504` (pushed on every `0x0406`), `0x0506` (pushed on the `0x0418 [05]`
+query), and `0x0508` (pushed on `0x041B`). The `0x0508` decoder was corrected
+to read its range as **signed** (`fb 05` = `-5..+5`, not `251..5`).
+
+The bass-engine write `0x041B` (`payload_set_bass_engine`) is now live-tested:
+`0x041B [min][max][current]` is accepted and the device answers with `0x0508`;
+the device keeps its own fixed `-5..+5` range and only echoes `current`.
 
 Everything else implemented — the `0x01xx` reads, the noise / EQ-mode /
 key-function / high-volume / compactness / AI-status writes, `0x0204`, `0x0500` — has been

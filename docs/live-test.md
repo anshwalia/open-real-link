@@ -421,6 +421,23 @@ color id  : 6
 upgrade   : type=1 ota=True/1
 ```
 
+### Device → app request pushes (read-back side of a write)
+
+The device confirms some settings by pushing a `0x05xx` request the app parses,
+rather than answering with a read reply. Three of them are live-verified
+(Air7 Pro, 2026-10-20):
+
+| write | push | body |
+| --- | --- | --- |
+| `0x0406 [mode]` | `0x0504` | `[eqMode]` |
+| `0x0418 [05]` (query) | `0x0506` | custom-EQ list |
+| `0x041B [min][max][current]` | `0x0508` | `[min:int8][max:int8][current:int8][type:int8]` |
+
+The `0x0508` range is **signed** (`0x041B ...` against `-5..+5` yields
+`fb 05 07 00` = `min -5, max +5, current 7`). The device keeps its own fixed
+range and only echoes `current` from the write. `tlcli events` decodes these
+via `decode_request`.
+
 ### Backup and restore
 
 `backup` is read-only and can be run at any time:
