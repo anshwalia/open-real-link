@@ -77,9 +77,10 @@ to be written.
 
 ## Safety
 
-Three recovered command families are **documented but not implemented** — no
-builder, decoder, or CLI command is provided for any of them, and their IDs are
-recorded only so their traffic can be identified:
+Three recovered command families — and two vendor-app-only requests — are
+**documented but not implemented**: no builder, decoder, or CLI command is
+provided for any of them, and their IDs are recorded only so their traffic can be
+identified:
 
 * the **hearing-test / ear-scan** family (`0x011E`, `0x011F`, `0x040E`, `0x0415`)
   drives **loud, repeated test tones** in the wearer's ears;
@@ -87,6 +88,14 @@ recorded only so their traffic can be identified:
   **no read-back** path, and it is ungated, so a stray write could start a flash;
 * the **debug** family (`0x0F00`–`0x0F02`) toggles real firmware verbosity and is
   refused by retail units.
+
+The two **vendor-app-only** requests are a separate case, because they are
+unverifiable rather than unsafe: `0x0503` (feature-switch sync) only fires when
+the official app toggles a feature, and `0x0516` is the AI-conversation mic
+stream, emitted only while the app runs an AI feature. Neither trigger is
+host-reachable, so no live test can ever confirm the body — and a decoder that
+cannot be verified would present a static-only recovery as supported. Both are
+documented in [`protocol.md`](docs/protocol.md) and deliberately left undecoded.
 
 Do not sweep unknown commands against a headset that is being worn; any extension
 of this project should gate writes behind an explicit opt-in. See

@@ -199,15 +199,6 @@ def check_operation_request() -> None:
     check("empty", t.parse_operation_request(b""), {"action": None, "message": None})
 
 
-def check_feature_switch_status() -> None:
-    out = t.parse_feature_switch_status(bytes([2, 1, 1, 2, 0]))
-    check("count", out["count"], 2)
-    check("entries", out["entries"],
-          [{"feature_type": 1, "status": 1}, {"feature_type": 2, "status": 0}])
-    check("empty", t.parse_feature_switch_status(b""), {"count": 0, "entries": []})
-    check("truncated", len(t.parse_feature_switch_status(bytes([3, 1, 1]))["entries"]), 1)
-
-
 def check_eq_mode_and_bass() -> None:
     check("eq mode", t.parse_eq_mode_request(bytes([4])), {"eq_mode": 4})
     check("eq mode empty", t.parse_eq_mode_request(b""), {"eq_mode": None})
@@ -232,28 +223,18 @@ def check_use_time_list() -> None:
     check("empty", t.parse_use_time_list(b"")["count"], 0)
 
 
-def check_oneshot_audio() -> None:
-    body = (1).to_bytes(2, "little") + (1).to_bytes(2, "little") \
-        + (7).to_bytes(4, "little") + (3).to_bytes(2, "little") + b"\xaa\xbb\xcc"
-    out = t.parse_oneshot_audio(body)
-    check("frame_num", out["frame_num"], 1)
-    check("channel", out["channel"], 1)
-    check("frame seq", out["frames"][0]["seq_num"], 7)
-    check("frame data", out["frames"][0]["data"], b"\xaa\xbb\xcc")
-    check("channel 2",
-          t.parse_oneshot_audio((1).to_bytes(2, "little") + (2).to_bytes(2, "little")
-                                + (1).to_bytes(4, "little") + (1).to_bytes(2, "little")
-                                + b"\x00")["channel"], 2)
-    check("short", t.parse_oneshot_audio(b"\x01")["frame_num"], 0)
-
-
 def check_request_dispatch() -> None:
     check("known", t.decode_request(0x0504, bytes([4])), {"eq_mode": 4})
     check("unknown", t.decode_request(0x0501, b""), None)
-    check("registry size", len(t.REQUEST_DECODERS), 8)
-    for cmd in (0x0500, 0x0502, 0x0503, 0x0504, 0x0506, 0x0508, 0x050E, 0x0516):
+    check("registry size", len(t.REQUEST_DECODERS), 6)
+    for cmd in (0x0500, 0x0502, 0x0504, 0x0506, 0x0508, 0x050E):
         check(f"0x{cmd:04X} in REQUEST_DECODERS", cmd in t.REQUEST_DECODERS, True)
         check(f"0x{cmd:04X} has a name", t.command_spec(cmd).name != "", True)
+    # 0x0503 / 0x0516 are documented but deliberately not decoded: observing them
+    # needs the vendor app, so they can never be verified (see REQUEST_DECODERS).
+    for cmd in (0x0503, 0x0516):
+        check(f"0x{cmd:04X} not decoded by policy", cmd in t.REQUEST_DECODERS, False)
+        check(f"0x{cmd:04X} still in the catalogue", t.command_spec(cmd).name != "", True)
 
 
 def check_custom_eq() -> None:
@@ -279,8 +260,8 @@ def main() -> int:
                check_user_interaction_event,
                check_key_function_fixture, check_user_interaction_fixture,
                check_host_time_request,
-               check_operation_request, check_feature_switch_status,
-               check_eq_mode_and_bass, check_use_time_list, check_oneshot_audio,
+               check_operation_request,
+               check_eq_mode_and_bass, check_use_time_list,
                check_request_dispatch, check_custom_eq, check_switch_feature_builder):
         fn()
     if FAILURES:

@@ -173,6 +173,13 @@ This is the set `tlcore` implements. A builder (`payload_*`) constructs a
 request; a decoder (`parse_*`) interprets a reply or push. Commands with neither
 are “known only” and are listed for identification only.
 
+Two device→app requests, `0x0503` and `0x0516`, are **deliberately not
+implemented**. Observing either requires the official realme Link app to be
+running (a feature toggle, an AI conversation), so no live test can confirm the
+layout — and a decoder that cannot be verified would present a static-only
+recovery as supported. Their bodies are documented below, in §“device → app
+requests”, so the gap is recorded instead of guessed at.
+
 <!-- command-surface:start -->
 
 | Command | Purpose | Builder | Decoder | Status |
@@ -211,12 +218,12 @@ are “known only” and are listed for identification only.
 | `0x8200` | getNotificationCapabilities (push-event types) | — | `parse_notification_capabilities` | verified |
 | `0x0500` | device asks for the host time | `payload_host_time_reply` | `parse_host_time_request` | integrated |
 | `0x0502` | device operation request | — | `parse_operation_request` | integrated |
-| `0x0503` | feature-switch status sync | — | `parse_feature_switch_status` | integrated |
+| `0x0503` | feature-switch status sync | — | — | documented only (needs the vendor app) |
 | `0x0504` | device changed EQ mode | — | `parse_eq_mode_request` | integrated |
 | `0x0506` | custom-EQ list | — | `parse_custom_eq` | integrated |
 | `0x0508` | bass-engine status | — | `parse_bass_engine_status` | integrated |
 | `0x050E` | per-device use time | — | `parse_use_time_list` | integrated |
-| `0x0516` | framed audio data from the device | — | `parse_oneshot_audio` | integrated |
+| `0x0516` | framed audio data from the device | — | — | documented only (needs the vendor app) |
 
 Shared decoders that are not tied to one command:
 
@@ -525,12 +532,12 @@ Only `0x0500` expects a reply. All multi-byte fields are little-endian.
 | --- | --- | --- | --- |
 | `0x0500` | asks the host for the time; answer `0x8500` with `payload_host_time_reply(unix)` | `parse_host_time_request` | periodic / on connect |
 | `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` | **not emitted** for device-side gestures; needs one bound to an app-side function |
-| `0x0503` | `[count] + count x [featureType][status]` | `parse_feature_switch_status` | not observed |
+| `0x0503` | `[count] + count x [featureType][status]` | — | **not implemented by policy**: the sync only happens when the vendor app toggles a feature, so the layout can never be confirmed on hardware |
 | `0x0504` | `[eqMode]` | `parse_eq_mode_request` | **verified** -- pushed on every `0x0406` |
 | `0x0506` | custom-EQ list | `parse_custom_eq` | **verified** -- pushed on `0x0418 [05]` |
 | `0x0508` | `[min:int8][max:int8][current:int8]` + optional `[type:int8]` | `parse_bass_engine_status` | **verified** -- pushed on `0x041B`; the range is **signed** (`fb 05` = `-5..+5`) |
 | `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` | same body as the `0x0128` reply; **not emitted** in a connect + 120 s playback session (the app reads `0x0128` instead) |
-| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | `parse_oneshot_audio` | the **AI-conversation mic stream** (`AudioDataInfo.toAIMicVoiceData`); only emitted while the app runs an AI feature |
+| `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | — | **not implemented by policy**: this is the **AI-conversation mic stream** (`AudioDataInfo.toAIMicVoiceData`), emitted only while the vendor app runs an AI feature, so it is not host-triggerable |
 
 `0x0504`/`0x0506`/`0x0508` are the read-back side of the EQ/bass writes: the
 device pushes the new value right after the write, so a client can confirm a

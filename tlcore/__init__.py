@@ -181,9 +181,7 @@ from .requests import (
     parse_bass_engine_status,
     parse_custom_eq,
     parse_eq_mode_request,
-    parse_feature_switch_status,
     parse_host_time_request,
-    parse_oneshot_audio,
     parse_operation_request,
     parse_use_time_list,
     payload_host_time_reply,
@@ -254,7 +252,7 @@ __all__ = [
     # device -> app requests (0x05xx)
     "OPERATION_MESSAGES", "REQUEST_DECODERS", "decode_request", "payload_host_time_reply",
     "parse_bass_engine_status", "parse_custom_eq", "parse_eq_mode_request",
-    "parse_feature_switch_status", "parse_host_time_request", "parse_oneshot_audio",
+    "parse_eq_mode_request", "parse_host_time_request",
     "parse_operation_request", "parse_use_time_list",
     # errors
     "TLError", "FrameError", "PacketError", "DeviceRejected", "NotWorn",

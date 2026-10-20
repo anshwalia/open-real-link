@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **41 implemented** in `open-real-link`,
-**38 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **40 implemented** in `open-real-link`,
+**39 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -32,9 +32,9 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
 | `SetCommandManager` | `0x0400` | 22 | 10 | 18 | 22 cap-bit |
-| `RequestCommandManager` | `0x0500` | 8 | 8 | 1 | 1 cap-bit, 7 ungated |
+| `RequestCommandManager` | `0x0500` | 8 | 6 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **42** | **49** | |
+| **total** | | **79** | **40** | **49** | |
 
 ## Full catalogue
 
@@ -110,12 +110,12 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
 | `0x0500` | 1280 | device->app | ungated | build + decode | — | requestHostTime |
 | `0x0502` | 1282 | device->app | ungated | decode | — | requestOperation |
-| `0x0503` | 1283 | device->app | ungated | decode | — | featureSwitchStatus |
+| `0x0503` | 1283 | device->app | ungated | — | — | featureSwitchStatus |
 | `0x0504` | 1284 | device->app | ungated | decode | — | equalizerMode |
 | `0x0506` | 1286 | device->app | ungated | decode | — | customEq |
 | `0x0508` | 1288 | device->app | ungated | decode | — | bassEngineStatus |
 | `0x050e` | 1294 | device->app | cap-bit 46 | decode | live | useTime |
-| `0x0516` | 1302 | device->app | ungated | decode | — | oneshotAudioData |
+| `0x0516` | 1302 | device->app | ungated | — | — | oneshotAudioData |
 | `0x0f00` | 3840 | debug | always-on | — | live | switchDebugStatus |
 | `0x0f01` | 3841 | debug | ungated | — | — | — |
 | `0x0f02` | 3842 | debug | ungated | — | — | — |
@@ -162,8 +162,17 @@ removed **before a release**. Their obstacle is named.
 | switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
 | feature detect `0x012A` | `parse_feature_detect` | not in the capability bitmap; the unit does not answer |
 | `0x0502` | `parse_operation_request` | **not emitted** for device-side gestures: play/pause, track skip and the ANC cycle are handled by the firmware itself, so the app is never asked. Binding a gesture to an app-side function (`26`/`27`/`31`) was the proposed workaround and it **fails for a separate reason** — a gesture bound to `31` reports no press at all, so no `action=2` press can be observed that way (3 rounds with 0 events against 19/21/11 in the controls, and the press is dropped rather than queued) |
-| `0x0503`, `0x0516` | `parse_feature_switch_status`, `parse_oneshot_audio` | `0x0503` needs the vendor app to toggle a feature; `0x0516` is the AI-conversation mic stream and is only emitted while the app runs an AI feature, so it is not host-triggerable (layout confirmed against `AudioDataInfo.initData`) |
 | `0x050E` | `parse_use_time_list` | **not emitted** in a connect + 120 s playback + idle session; the app reads use time with `0x0128` (verified) instead, so the push looks unused on this firmware |
+
+### Documented but deliberately not implemented
+
+`0x0503` (feature-switch sync) and `0x0516` (oneshot audio) are **out of scope by
+policy**, not by accident: each one can only ever be observed while the official
+realme Link app is running — a feature toggle for `0x0503`, an AI conversation
+for `0x0516` — so no live test can confirm the body, and any decoder would be a
+static-only guess wearing a supported label. They are documented here and in
+`docs/protocol.md`, and the project does not implement them. (This is why the
+count of implemented IDs fell from 42 to 40; the prose above had drifted to 41.)
 
 Live-verified device→app requests (Air7 Pro, 2026-10-20): `0x0500` (time),
 `0x0504` (pushed on every `0x0406`), `0x0506` (pushed on the `0x0418 [05]`

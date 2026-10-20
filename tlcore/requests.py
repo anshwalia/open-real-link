@@ -64,25 +64,6 @@ def parse_operation_request(payload: bytes) -> dict:
     return {"action": action, "message": OPERATION_MESSAGES.get(action)}
 
 
-def parse_feature_switch_status(payload: bytes) -> dict:
-    """``0x0503``: ``[count:1] + count x [featureType:1][status:1]``.
-
-    ``CommandUtil.i`` -> ``FeatureSwitchInfo``.  Each pair is forwarded to
-    ``PollCommandManager.w0``, which maps ``featureType`` to a cached-feature
-    handler (the same handlers the poll commands feed).
-    """
-    if not payload:
-        return {"count": 0, "entries": []}
-    count = payload[0]
-    entries = []
-    for i in range(count):
-        off = 1 + 2 * i
-        if off + 2 > len(payload):
-            break
-        entries.append({"feature_type": payload[off], "status": payload[off + 1]})
-    return {"count": count, "entries": entries}
-
-
 def parse_eq_mode_request(payload: bytes) -> dict:
     """``0x0504``: ``[eqMode:1]`` -- the device changed the sound-effect/EQ mode."""
     if not payload:
@@ -164,42 +145,21 @@ def parse_use_time_list(payload: bytes) -> dict:
     return {"count": count, "entries": entries}
 
 
-def parse_oneshot_audio(payload: bytes) -> dict:
-    """``0x0516``: framed audio data from the device (``AudioDataInfo.initData``).
-
-    ``[frameNum:2 LE][channelCode:2 LE] + frameNum x
-    {seqNum:4 LE, dataSize:2 LE, data:dataSize}``.
-    ``channelCode`` 1 -> 1 channel, anything else -> 2 (per ``initData``).
-    """
-    if len(payload) < 4:
-        return {"frame_num": 0, "channel": None, "frames": []}
-    frame_num = struct.unpack_from("<H", payload, 0)[0]
-    channel = 1 if struct.unpack_from("<H", payload, 2)[0] == 1 else 2
-    frames = []
-    off = 4
-    for _ in range(frame_num):
-        if off + 6 > len(payload):
-            break
-        seq_num = struct.unpack_from("<I", payload, off)[0]
-        data_size = struct.unpack_from("<H", payload, off + 4)[0]
-        off += 6
-        if data_size <= 0 or off + data_size > len(payload):
-            break
-        frames.append({"seq_num": seq_num, "data": payload[off:off + data_size]})
-        off += data_size
-    return {"frame_num": frame_num, "channel": channel, "frames": frames}
-
-
 #: command id -> decoder for the device -> app request family.
+#:
+#: ``0x0503`` (feature-switch sync) and ``0x0516`` (oneshot audio) are
+#: deliberately absent, and should not be re-added by pattern-matching the other
+#: entries.  Observing either requires the official realme Link app to be running
+#: -- a feature toggle for ``0x0503``, an AI conversation for ``0x0516`` -- so no
+#: live test can ever confirm the layout, and implementing them would present a
+#: static-only recovery as supported.  Both are documented in ``docs/protocol.md``.
 REQUEST_DECODERS = {
     0x0500: parse_host_time_request,
     0x0502: parse_operation_request,
-    0x0503: parse_feature_switch_status,
     0x0504: parse_eq_mode_request,
     0x0506: parse_custom_eq,
     0x0508: parse_bass_engine_status,
     0x050E: parse_use_time_list,
-    0x0516: parse_oneshot_audio,
 }
 
 
