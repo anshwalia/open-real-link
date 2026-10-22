@@ -283,6 +283,17 @@ restored 0x01 (Normal (noise off))
 RESULT: OK
 ```
 
+### Expert surface re-check (read-only, 2026-10-23)
+
+The nine Expert-tab reads and the `0x0112` paired-device list were re-driven
+through the **app's own controller** against the same Air7 Pro. Every value
+matched what is recorded below: vendor `0x072F`, protocol `000001`, colour
+`0x06`, one upgrade-capability entry, `0x010D` still empty, push types
+`{2, 1}`, no personalized-ANC result, AI idle, and the bass engine at
+`type 1/2/3` with `min -5 / max +5 / current 0`. The paired list returned seven
+entries, one active, at the same record stride. Nothing here changed the
+protocol; the run exists to confirm the app's controller path, not the layouts.
+
 ### Feature-switch probe (read-only)
 
 `0x010D` is the read half of the switch/feature pair (`0x0403` writes it). On
@@ -381,6 +392,13 @@ find mode: off
 `--seconds N` sets the ring time (`0` rings and stops at once). If a run was
 killed mid-ring, `--stop` is the recovery path -- it sends `0x0400 00` alone.
 Take the buds out of your ears first.
+
+**The app sends the stop from both of its exits.** Re-checked on the Air7 Pro
+(2026-10-23): with the buds out and ringing, closing the window and disconnecting
+each sent `0x0400 00` (ack `00`) *before* the link dropped. The same run
+confirmed the write is **not** wear-gated -- `in_ear` was false before and after
+-- which is the point of a find-my-buds command. The audible half was not
+re-confirmed that run; it was verified on 2026-10-20.
 
 ### In-ear (compactness) probe (write, event-observed)
 
