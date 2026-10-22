@@ -22,31 +22,10 @@ import tlcore as t
 from tltransport import SPP_UUID, open_transport
 from tltransport.replay import FIXTURES_DIR, ReplayError, ReplayTransport
 
-#: Command families the ``send`` subcommand refuses unless ``--force`` is given.
-#: These are the deliberately-unimplemented families (docs/protocol.md section
-#: 7): the hearing / ear-scan tone sweep, the OTA firmware-push machine, and the
-#: debug log stream. Each ID maps to the family label used in the refusal.
-DANGEROUS = {
-    # loud, repeated test tones in the wearer's ears
-    0x011E: "hearing / ear-scan tone family",
-    0x011F: "hearing / ear-scan tone family",
-    0x040E: "hearing / ear-scan tone family",
-    0x0415: "hearing / ear-scan tone family",
-    # firmware push with no read-back path; ungated, so a stray write can flash
-    0x0300: "OTA firmware-push family",
-    0x0301: "OTA firmware-push family",
-    0x0302: "OTA firmware-push family",
-    0x0303: "OTA firmware-push family",
-    0x0304: "OTA firmware-push family",
-    0x0305: "OTA firmware-push family",
-    0x0306: "OTA firmware-push family",
-    0x0307: "OTA firmware-push family",
-    0x0308: "OTA firmware-push family",
-    # toggles real firmware verbosity
-    0x0F00: "debug log family",
-    0x0F01: "debug log family",
-    0x0F02: "debug log family",
-}
+#: The families ``send`` refuses unless ``--force`` is given.  The table itself
+#: lives in ``tlcore`` (:data:`tlcore.DANGEROUS_COMMANDS`) so that every front end
+#: shares one guard; this is just the local name for it.
+DANGEROUS = t.DANGEROUS_COMMANDS
 
 MODE_ALIASES = {
     "normal": t.NOISE_MODE_NORMAL,

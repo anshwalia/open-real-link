@@ -38,6 +38,7 @@ from .buttons import (
     patch_key_functions,
 )
 from .commands import (
+    DANGEROUS_COMMANDS,
     ALL_COMMANDS,
     ALWAYS_ON,
     CAPABILITY_TABLE,
@@ -92,6 +93,7 @@ from .commands import (
     RESPONSE_BIT,
     CommandSpec,
     cmd_class,
+    dangerous_family,
     command_spec,
     is_response,
     parse_capabilities,
@@ -225,7 +227,7 @@ __all__ = [
     "CMD_SET_SWITCH_FEATURE", "CMD_USE_TIME",
     "COMMAND_IDS", "CommandSpec",
     "RESPONSE_BIT",
-    "cmd_class", "command_spec", "is_response", "parse_capabilities",
+    "DANGEROUS_COMMANDS", "cmd_class", "command_spec", "dangerous_family", "is_response", "parse_capabilities",
     # noise
     "NOISE_FIELD_CYCLE", "NOISE_FIELD_MODE", "NOISE_MODE_ANC", "NOISE_MODE_ANC_DEEP",
     "NOISE_MODE_ANC_LIGHT", "NOISE_MODE_ANC_MEDIUM", "NOISE_MODE_ANC_SMART",

@@ -258,6 +258,13 @@ only so their traffic can be identified. The IDs are still listed in
 
 Do not sweep unknown command space against a worn headset.
 
+The guard is a **table, not a rule in each front end**: `tlcore.DANGEROUS_COMMANDS`
+maps every refused id to its family, and `tlcore.dangerous_family(cmd)` is the
+lookup. It lives in the core so that any front end inherits it and there is only
+ever one list to keep in step — a guard a caller can forget is not a guard.
+`tlcli send` refuses those ids unless `--force` is given; the desktop app refuses
+them with no override at all (see [`app.md`](app.md)).
+
 ### Known but not implemented
 
 Other recovered IDs have no builder or decoder. They are recorded for

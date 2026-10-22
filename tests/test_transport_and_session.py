@@ -761,6 +761,21 @@ def test_cli_replay() -> None:
             message = str(exc)
         check(f"{cmd} is refused", needle in message.lower(), True)
 
+    # the guard table is the core's, and `send` refuses EVERY id in it -- not
+    # just the three sampled above, so a new family cannot be added half-wired
+    from tlcli.cli import DANGEROUS
+    check("the CLI guard is the core's table", DANGEROUS, t.DANGEROUS_COMMANDS)
+    check("the guard covers three families",
+          len(set(t.DANGEROUS_COMMANDS.values())), 3)
+    for cmd in t.DANGEROUS_COMMANDS:
+        message = ""
+        try:
+            main(["--replay", "fixtures/mode-cycle.jsonl", "send", f"0x{cmd:04X}"])
+        except SystemExit as exc:
+            message = str(exc)
+        check(f"0x{cmd:04X} is refused by send",
+              t.dangerous_family(cmd) in message, True)
+
 
 def test_replay_edges() -> None:
     from tlcore.errors import NotConnected

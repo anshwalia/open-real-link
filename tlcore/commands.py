@@ -305,6 +305,46 @@ def parse_capabilities(payload: bytes) -> dict:
     }
 
 
+#: Command families that are **deliberately not implemented** and must not be
+#: driven: the hearing / ear-scan tone sweep, the OTA firmware-push machine, and
+#: the debug log stream.  Each id maps to the family label used in a refusal.
+#:
+#: This lives in the core, not in a front end, so there is exactly one table and
+#: every front end inherits it -- a guard that a caller can forget is not a guard.
+#: ``docs/command-coverage.md`` section "Safety" is the prose behind it.
+DANGEROUS_COMMANDS = {
+    # loud, repeated test tones in the wearer's ears
+    0x011E: "hearing / ear-scan tone family",
+    0x011F: "hearing / ear-scan tone family",
+    0x040E: "hearing / ear-scan tone family",
+    0x0415: "hearing / ear-scan tone family",
+    # firmware push with no read-back path; ungated, so a stray write can flash
+    0x0300: "OTA firmware-push family",
+    0x0301: "OTA firmware-push family",
+    0x0302: "OTA firmware-push family",
+    0x0303: "OTA firmware-push family",
+    0x0304: "OTA firmware-push family",
+    0x0305: "OTA firmware-push family",
+    0x0306: "OTA firmware-push family",
+    0x0307: "OTA firmware-push family",
+    0x0308: "OTA firmware-push family",
+    # toggles real firmware verbosity
+    0x0F00: "debug log family",
+    0x0F01: "debug log family",
+    0x0F02: "debug log family",
+}
+
+
+def dangerous_family(cmd: int) -> str | None:
+    """The family name if ``cmd`` must not be driven, else ``None``.
+
+    Deliberately a **lookup, not a gate**: it says why, and the caller decides
+    whether to refuse.  ``tlcli send`` refuses unless ``--force`` is given;
+    the app refuses outright.
+    """
+    return DANGEROUS_COMMANDS.get(cmd)
+
+
 def cmd_class(cmd: int) -> int:
     """Protocol.a(): which manager owns this command id."""
     return cmd & CLASS_MASK
