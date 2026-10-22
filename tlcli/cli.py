@@ -867,6 +867,14 @@ def status_sentence(status: dict) -> str:
 
 def cmd_say(args) -> int:
     """Speak text or a live status summary through the headset (host-side TTS)."""
+    # Every path out of this command needs the macOS ``say`` binary -- to list
+    # voices, to synthesise a file, or to speak -- so it is checked once, up
+    # front.  Without this, ``--list-voices`` off macOS reported an OSError
+    # about a missing executable instead of naming the platform.
+    if sys.platform != "darwin":
+        raise SystemExit(
+            "macOS-only: 'say' is the synthesis engine; on other systems play "
+            "the text with your own TTS engine to the headset's audio output")
     if args.list_voices:
         try:
             listing = subprocess.run(["say", "-v", "?"], capture_output=True,
@@ -893,8 +901,6 @@ def cmd_say(args) -> int:
         if not text:
             raise SystemExit("nothing to say; pass text, --status, or pipe it in")
     if args.out:
-        if sys.platform != "darwin":
-            raise SystemExit("macOS-only: 'say' is the synthesis engine")
         subprocess.run(say_command(text, voice=args.voice, rate=args.rate, out=args.out),
                        check=False)
         print(f"wrote {args.out} ({len(text)} chars)")

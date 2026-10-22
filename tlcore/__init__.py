@@ -151,6 +151,7 @@ from .errors import (
     Timeout,
     TLError,
     TransportError,
+    TransportUnavailable,
 )
 from .noise import (
     NOISE_FIELD_CYCLE,
@@ -256,6 +257,7 @@ __all__ = [
     # errors
     "TLError", "FrameError", "PacketError", "DeviceRejected", "NotWorn",
     "TransportError", "NotConnected", "ChannelRefused", "PageTimeout", "Timeout",
+    "TransportUnavailable",
     # session
     "Session", "Transport",
     # backup / restore

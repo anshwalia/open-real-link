@@ -114,6 +114,29 @@ The golden fixtures already exist: `fixtures/mode-cycle.jsonl` and
 only a timestamp, a direction and hex, so they contain no device address and are
 safe to publish.
 
+### Replay is not a fallback for a live connection
+
+Only **macOS** can reach a real device, so `--transport auto` means *the live
+transport for this platform* — and on a platform that has none, it raises
+`tlcore.TransportUnavailable` naming the platform, **before any I/O**:
+
+```console
+$ python -m tlcli info --address AA-BB-CC-DD-EE-FF   # on Linux
+error: no live transport on this platform (linux): the only implementation is
+macOS IOBluetooth. Use --replay FILE to run against a recording instead.
+```
+
+The first cut resolved `auto` to `replay` off macOS, which meant the user got
+`write past the end of the recording` — an error that names a *recording* they
+never asked for and says nothing about the platform. The lesson generalises:
+**a fallback that changes what the user is talking to is not a fallback.** The
+replay transport stays available everywhere and is reached only by asking for it
+(`--replay FILE` or `--transport replay`).
+
+The same distinction covers `--transport macos` on the wrong host, which is a
+platform error rather than an `ImportError` about a missing `pyobjc` dependency
+that reads like a fixable gap.
+
 ---
 
 ## 5. What goes where
@@ -240,18 +263,21 @@ discoverability by project name for discoverability by protocol name.
 ## 9. Build order
 
 1. **`tlcore`** — **done.** Ported from the validated reference by range
-   extraction, verified byte-for-byte against it (23,185 checks, `PARITY: OK`),
+   extraction, verified byte-for-byte against it (23,247 checks, `PARITY: OK`),
    no dependencies, no platform imports. `session.py` adds the request/response
    state machine, and `backup.py` adds settings backup/restore on top of the
    read-side decoders.
-2. **`tltransport`** — **done.** `macos.py` fitted to the six-method contract in
-   §3, and `replay.py` over `fixtures/*.jsonl`, which needs no hardware at all.
-   The macOS transport has been run end to end from this codebase on a device
-   (read-only `smoke` plus the six-mode write, see [`live-test.md`](live-test.md)).
+2. **`tltransport`** — **macOS only.** `macos.py` fitted to the six-method
+   contract in §3, and `replay.py` over `fixtures/*.jsonl`, which needs no
+   hardware at all. The macOS transport has been run end to end from this
+   codebase on a device (read-only `smoke` plus the six-mode write, see
+   [`live-test.md`](live-test.md)). No other platform has a live transport yet,
+   and `--transport auto` says so rather than quietly picking `replay` — see
+   §9.
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`
    (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
-4. **PySide6 app** — **started, in progress.** `tlapp/` exists with seven
+4. **PySide6 app** — **started, in progress.** `tlapp/` exists with nine
    slices: connect, capability view, device status, the noise selector, the EQ
    preset and its `0x0122` list, high volume, find my buds, the paired-device
    list, the gesture table, settings backup / restore, the push-event monitor,

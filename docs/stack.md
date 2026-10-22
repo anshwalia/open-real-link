@@ -48,7 +48,7 @@ browser are not reachable for this device, and no stack choice changes that.
 
 | layer | work | status |
 |---|---|---|
-| **transport** | SDP/connect, read/write bytes, reconnect, discover channel | `tltransport/` — macOS ~250 lines, other platforms ~150–200 each |
+| **transport** | SDP/connect, read/write bytes, reconnect, discover channel | `tltransport/` — macOS only so far. Linux and Windows have **no live transport**: `--transport auto` raises `TransportUnavailable` naming the platform, rather than falling back to a recording. `replay` works everywhere |
 | **framing** | OPPOv1: `0xAA`, LEB128 length, control byte, FSN, multi-frame reassembly | ✅ `tlcore.wire` |
 | **packet** | 5-byte LE header, response bit, manager dispatch | ✅ `tlcore.wire` |
 | **command table** | 79 IDs, 61 capability groups, always-on set | ✅ `tlcore.commands` |

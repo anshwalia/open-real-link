@@ -75,3 +75,14 @@ class PageTimeout(TransportError):
 
 class Timeout(TransportError):
     """A read or write did not complete in time."""
+
+
+class TransportUnavailable(TransportError):
+    """This platform has no transport that can reach a real device.
+
+    Raised *before* any I/O, so a caller on Linux or Windows gets one sentence
+    naming the platform instead of a decode failure from whatever implementation
+    happened to be picked.  The alternative -- silently falling back to the
+    replay transport -- produced ``write past the end of the recording`` for a
+    user who never asked for a recording.
+    """

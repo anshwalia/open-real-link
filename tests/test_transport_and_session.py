@@ -1076,15 +1076,102 @@ def test_transport_factory() -> None:
     from tltransport.replay import ReplayTransport as RT
 
     check("for_platform('replay')", tltransport.for_platform("replay"), RT)
-    check("for_platform() resolves here", tltransport.for_platform() is not None, True)
-    check_raises("unknown transport rejected", ValueError, tltransport.for_platform, "nope")
     check("replay is available", "replay" in tltransport.available_transports(), True)
+    check_raises("unknown transport rejected", ValueError, tltransport.for_platform, "nope")
+
+    # `auto` means "the live transport for this platform", and only macOS has one
+    if sys.platform == "darwin":
+        check("platform_transport", tltransport.platform_transport(), "macos")
+        check("for_platform() resolves here", tltransport.for_platform(),
+              tltransport.for_platform("macos"))
+        check("macos is available", "macos" in tltransport.available_transports(), True)
+    else:
+        check("no live transport here", tltransport.platform_transport(), None)
+        check("macos is not advertised",
+              "macos" in tltransport.available_transports(), False)
+        check_raises("auto refused here", t.TransportUnavailable,
+                     tltransport.for_platform)
 
     transport = tltransport.open_transport("x", name="replay", channel=12)
     check("open_transport returns replay", isinstance(transport, RT), True)
     check("open_transport is connected", transport.is_connected(), True)
     transport.close()
     check("close disconnects", transport.is_connected(), False)
+
+
+def test_no_live_transport_off_macos() -> None:
+    """`auto` must not fall back to replay on a platform with no radio.
+
+    Regression: it used to resolve to ``replay``, so ``tlcli info --address X``
+    on Linux died with ``write past the end of the recording`` -- naming a
+    recording the user never asked for and saying nothing about the platform.
+    The check runs on every host by faking ``sys.platform``, because the machine
+    that develops this is the one that would never notice.
+    """
+    import tltransport
+    from tltransport.replay import ReplayTransport as RT
+
+    saved = sys.platform
+    try:
+        for fake in ("linux", "win32"):
+            sys.platform = fake
+            check(f"{fake}: no live transport", tltransport.platform_transport(), None)
+            check(f"{fake}: only replay", tltransport.available_transports(), ["replay"])
+            check_raises(f"{fake}: auto refused", t.TransportUnavailable,
+                         tltransport.for_platform)
+            check_raises(f"{fake}: auto refused (explicit)", t.TransportUnavailable,
+                         tltransport.for_platform, "auto")
+            # `--transport macos` on the wrong host is a platform error, not an
+            # ImportError about a pyobjc dependency that reads like a fixable gap
+            check_raises(f"{fake}: macos refused", t.TransportUnavailable,
+                         tltransport.for_platform, "macos")
+            check(f"{fake}: replay still resolves", tltransport.for_platform("replay"), RT)
+            # raised before any I/O, so the caller never sees a decode failure
+            check_raises(f"{fake}: open_transport refused", t.TransportUnavailable,
+                         tltransport.open_transport, "AA-BB-CC-DD-EE-FF", channel=12)
+    finally:
+        sys.platform = saved
+
+
+def test_off_macos_errors_are_one_sentence() -> None:
+    """Both front ends must explain, not traceback."""
+    import contextlib
+    import io
+
+    from tlapp.controller import ControllerError, DeviceController, ConnectionOptions
+    from tlcli.cli import main
+
+    saved = sys.platform
+    try:
+        sys.platform = "linux"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            rc = main(["info", "--address", "AA-BB-CC-DD-EE-FF"])
+        check("cli rc", rc, 1)
+        check("cli says which platform", "linux" in err.getvalue(), True)
+        check("cli names the way out", "--replay" in err.getvalue(), True)
+        check("cli did not traceback", "Traceback" in err.getvalue(), False)
+
+        ctrl = DeviceController(ConnectionOptions(address="AA-BB-CC-DD-EE-FF"))
+        check_raises("app connect refused", ControllerError, ctrl.connect)
+        try:
+            ctrl.connect()
+        except ControllerError as exc:
+            check("app message names the platform", "linux" in str(exc), True)
+            check("app message names the way out", "--replay" in str(exc), True)
+
+        # every macOS-only path says so, including the one that used to fail
+        # with an OSError about a missing 'say' executable
+        for argv in (["services", "--address", "AA-BB-CC-DD-EE-FF"],
+                     ["say", "--list-voices"], ["say", "hello"],
+                     ["say", "--out", "/tmp/x.aiff", "hi"]):
+            try:
+                main(argv)
+                FAILURES.append(f"{' '.join(argv)}: expected SystemExit off macOS")
+            except SystemExit as exc:
+                check(f"{' '.join(argv)} names macOS", "macOS" in str(exc), True)
+    finally:
+        sys.platform = saved
 
 
 def test_cli_more_errors() -> None:
