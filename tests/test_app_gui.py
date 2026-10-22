@@ -120,6 +120,11 @@ def test_window_builds_and_connects() -> None:
         assert window.volume_apply_btn.isEnabled()    # capture advertises 0x0407
         assert not window.volume_check.isChecked()
 
+        # the bass engine is a read-only table, empty until asked
+        assert window.bass_read_btn.isEnabled()       # capture advertises 0x012C
+        assert window.bass_table.columnCount() == 4
+        assert window.bass_table.rowCount() == 0
+
         # the Backup tab is live too, empty until something is captured
         assert window.tabs.isTabEnabled(TAB_BACKUP)
         assert window.backup_table.rowCount() == 0
@@ -458,12 +463,41 @@ def test_sound_apply_buttons_are_capability_gated() -> None:
         assert not window.noise_apply_btn.isEnabled()
         assert not window.eq_apply_btn.isEnabled()
         assert not window.volume_apply_btn.isEnabled()
+        assert not window.bass_read_btn.isEnabled()
 
         window.controller.supports = lambda cmd: True
         window._apply_capability_gating()
         assert window.noise_apply_btn.isEnabled()
         assert window.eq_apply_btn.isEnabled()
         assert window.volume_apply_btn.isEnabled()
+        assert window.bass_read_btn.isEnabled()
+    finally:
+        window.close()
+
+
+def test_bass_table_renders_signed_bands() -> None:
+    """The bass read is display-only, and its values are signed."""
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_bass({"status": 0, "count": 3, "entries": [
+            {"min": -5, "max": 5, "current": 0, "type": 1},
+            {"min": -5, "max": 5, "current": -3, "type": 2},
+            {"min": -5, "max": 5, "current": 0, "type": None},
+        ]})
+        assert window.bass_table.rowCount() == 3
+        assert window.bass_table.item(0, 0).text() == "type 1"
+        assert window.bass_table.item(0, 1).text() == "-5"   # signed, not 251
+        assert window.bass_table.item(0, 2).text() == "+5"
+        assert window.bass_table.item(1, 3).text() == "-3"
+        # an absent type byte shows a dash rather than an invented label
+        assert window.bass_table.item(2, 0).text() == "\u2014"
+        assert "3 bass band(s)" in window.statusBar().currentMessage()
+
+        # re-reading replaces the table instead of appending
+        window._show_bass({"status": 0, "count": 1, "entries": [
+            {"min": -5, "max": 5, "current": 0, "type": 1}]})
+        assert window.bass_table.rowCount() == 1
     finally:
         window.close()
 

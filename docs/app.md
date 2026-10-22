@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **sixth slice.** The app is built one feature at a time, and a feature
+Status: **seventh slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-nine things and nothing else:
+ten things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -12,13 +12,14 @@ nine things and nothing else:
 4. **Equalizer preset get / set** — read `0x010F`, write `0x0406`, read back,
    plus the `0x0122` preset / custom-EQ list.
 5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
-6. **Settings backup / restore** — poll every setting the unit advertises into a
+6. **Bass-engine read** — the multi-band table from `0x012C`, display only.
+7. **Settings backup / restore** — poll every setting the unit advertises into a
    JSON snapshot, and re-apply the restorable ones from one.
-7. **Gesture table get / set** — read `0x0108`, edit the function bound to each
+8. **Gesture table get / set** — read `0x0108`, edit the function bound to each
    gesture, write the whole table back with `0x0401` and read it again.
-8. **Push-event monitor** — listen for the device's own notifications (button
+9. **Push-event monitor** — listen for the device's own notifications (button
    presses, battery, wear, noise, multi-connect) and decode them live.
-9. **Guarded raw console** — send one command the app has no control for, with
+10. **Guarded raw console** — send one command the app has no control for, with
    the tone / OTA / debug families refused.
 
 Everything else the CLI can do (voice, the SDP service list) is deliberately
@@ -97,6 +98,12 @@ populated.
   table, because no preset names were recovered.
 * **High volume** — the loudness-boost flag. **Read** sets the checkbox to the
   device's answer; **Apply** writes it and reads it back.
+* **Bass engine** — **Read** fills a table from `0x012C` (*type*, *min*, *max*,
+  *current*), showing the device's own band selector and the range it keeps
+  (`-5..+5`; the values are signed). **Read-only.** The `0x041B` write is
+  accepted by the device, but *which* band its `type` byte selects is not
+  verified, so a write control would be guessing at the effect — and the id this
+  was long assumed to be, `0x0124`, is never answered by an Air7 Pro.
 
 A noise-mode or high-volume write is accepted only while the buds are **worn**;
 otherwise the device answers `0x8404 0e` / `0x8407 0e` and the app says so

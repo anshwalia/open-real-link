@@ -338,6 +338,18 @@ class DeviceController:
         return {"requested": bool(enabled), "actual": bool(actual),
                 "ok": bool(actual) == bool(enabled)}
 
+    # -- bass engine -------------------------------------------------------
+    def bass_engine(self) -> dict:
+        """Read the multi-band bass engine (``0x012C``).
+
+        Read-only on purpose.  The ``0x041B`` write is accepted by the device,
+        but *which* band its ``type`` byte selects is not verified, so a write
+        control would be guessing at the effect.  ``0x0124``, the id this was
+        long assumed to be, is never answered by an Air7 Pro.
+        """
+        return self._call(self._require().read_multi_bass_engine,
+                          timeout=self.options.timeout)
+
     # -- 6. backup / restore -----------------------------------------------
     def backup(self) -> dict:
         """Capture the device's settings into a snapshot dict (no file written)."""

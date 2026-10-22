@@ -258,6 +258,54 @@ def test_high_volume_roundtrip() -> None:
 
 
 # --------------------------------------------------------------------------
+# 5b: bass engine (0x012C) -- read-only
+# --------------------------------------------------------------------------
+#: The body a live Air7 Pro answered to 0x012C: status 0, three bands, each
+#: `min -5 / max +5 / current 0`, with the device's own type selector 1/2/3.
+BASS_BODY = "0003fb050001fb050002fb050003"
+
+
+def _bass_records() -> list:
+    return [("tx", wire(0x012C)), ("rx", wire(0x812C, bytes.fromhex(BASS_BODY)))]
+
+
+def test_bass_engine_read() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = fixture(tmp, _bass_records())
+        ctrl = DeviceController(ConnectionOptions(replay=path))
+        ctrl.connect()
+        info = ctrl.bass_engine()
+        check("bass status", info["status"], 0)
+        check("bass count", info["count"], 3)
+        # signed: `fb` is -5, not 251
+        check("bass first band", info["entries"][0],
+              {"min": -5, "max": 5, "current": 0, "type": 1})
+        check("bass last band", info["entries"][-1],
+              {"min": -5, "max": 5, "current": 0, "type": 3})
+        check("the request carried no payload",
+              ctrl.transport.writes[-1], wire(0x012C))
+        ctrl.disconnect()
+
+
+def test_bass_engine_is_read_only() -> None:
+    """There must be no write control: 0x041B's type->band meaning is unverified.
+
+    The controller may expose a read and nothing else; if a future change adds a
+    writer it should fail here and be justified, not slip in.
+    """
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    for name in dir(ctrl):
+        if "bass" in name.lower():
+            check(f"{name} is a read", "set" not in name.lower(), True)
+    check("no bass writer", hasattr(ctrl, "set_bass_engine"), False)
+
+
+def test_bass_engine_disconnected() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    check_raises("bass without connect", ControllerError, ctrl.bass_engine)
+
+
+# --------------------------------------------------------------------------
 # 6: backup / restore -- plain JSON snapshot files, never a database
 # --------------------------------------------------------------------------
 #: The Air7 Pro's bitmap.  Entries the plan advertises but that have no canned

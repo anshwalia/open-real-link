@@ -238,6 +238,26 @@ class MainWindow(QMainWindow):
         vol_row.addWidget(self.volume_apply_btn)
         vol_row.addStretch(1)
         outer.addWidget(vol_box)
+
+        # -- bass engine (read-only) ---------------------------------------
+        bass_box = QGroupBox("Bass engine")
+        bass_outer = QVBoxLayout(bass_box)
+        bass_row = QHBoxLayout()
+        self.bass_read_btn = QPushButton("Read")
+        self.bass_read_btn.clicked.connect(
+            lambda: self._run(lambda c: c.bass_engine(), self._show_bass))
+        bass_row.addWidget(self.bass_read_btn)
+        bass_note = QLabel(
+            "Read-only (<code>0x012C</code>). The <code>0x041B</code> write is "
+            "accepted, but which band its <code>type</code> byte selects is not "
+            "verified, so the app does not offer it.")
+        bass_note.setWordWrap(True)
+        bass_row.addWidget(bass_note, 1)
+        bass_outer.addLayout(bass_row)
+        self.bass_table = self._table(["Type", "Min", "Max", "Current"])
+        self.bass_table.setMaximumHeight(110)
+        bass_outer.addWidget(self.bass_table)
+        outer.addWidget(bass_box)
         outer.addStretch(1)
         return page
 
@@ -503,6 +523,8 @@ class MainWindow(QMainWindow):
         self.noise_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_NOISE_REDUCTION))
         self.eq_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_EQ_MODE))
         self.volume_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_HIGH_VOLUME))
+        self.bass_read_btn.setEnabled(
+            self.controller.supports(t.CMD_GET_MULTI_BASS_ENGINE))
         self._gestures_readable = self.controller.supports(t.CMD_GET_KEY_FUNCTION)
         self._gestures_writable = self.controller.supports(t.CMD_SET_KEY_FUNCTION)
         self.gestures_read_btn.setEnabled(self._gestures_readable)
@@ -612,6 +634,24 @@ class MainWindow(QMainWindow):
             self.eq_table.setItem(row, 5, QTableWidgetItem(entry["name"] or "—"))
         self.statusBar().showMessage(
             f"{info['count']} preset record(s) reported by the device.")
+
+    def _show_bass(self, info: dict) -> None:
+        """Fill the bass table from a ``0x012C`` read.
+
+        The values are signed, so a range prints as ``-5..+5``; the type column
+        shows the device's own band selector rather than an invented name.
+        """
+        self.bass_table.setRowCount(0)
+        for entry in info["entries"]:
+            band_type = entry["type"]
+            self._add_row(
+                self.bass_table,
+                f"type {band_type}" if band_type is not None else "—",
+                f"{entry['min']:+d}",
+                f"{entry['max']:+d}",
+                f"{entry['current']:+d}")
+        self.statusBar().showMessage(
+            f"{info['count']} bass band(s) reported by the device.")
 
     def _show_high_volume(self, enabled: bool) -> None:
         self.volume_check.setChecked(bool(enabled))

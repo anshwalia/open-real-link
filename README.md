@@ -26,7 +26,8 @@ transport, an offline replay transport, a command-line front end and a PySide6
 desktop app are implemented. The app opens a device, reads its capability bitmap
 and status, gets/sets the noise mode, the equalizer preset, high volume and the
 gesture table, backs the settings up to (and restores them from) a plain JSON
-file, shows the device's own push events live, and carries a raw console that
+file, reads the multi-band bass engine, shows the device's own push events live,
+and carries a raw console that
 refuses the tone / OTA / debug families; see [`docs/app.md`](docs/app.md). It is
 built one verified feature at a time.
 

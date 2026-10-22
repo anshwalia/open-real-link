@@ -55,7 +55,7 @@ browser are not reachable for this device, and no stack choice changes that.
 | **capability gate** | decode `0x8100` bitmap → which commands this unit accepts | ✅ `tlcore.commands` |
 | **device model** | noise vocabulary, decoders for battery / wear / mode / EQ / use-time | ✅ `tlcore.noise`, `tlcore.decoders` |
 | **settings** | backup / restore (noise mode, key function, EQ mode, high volume) | ✅ `tlcore.backup`, `tlcli backup` / `restore` |
-| **UI** | scan/pair, connect, capability view, noise selector, firmware, paired list, EQ, battery/wear, raw console | ⚠️ **in progress** — `tlapp/`: connect, capability view, status, noise mode, EQ preset + `0x0122` list, high volume, gesture table, backup / restore, push-event monitor, guarded raw console ([`app.md`](app.md)) |
+| **UI** | scan/pair, connect, capability view, noise selector, firmware, paired list, EQ, battery/wear, raw console | ⚠️ **in progress** — `tlapp/`: connect, capability view, status, noise mode, EQ preset + `0x0122` list, high volume, gesture table, backup / restore, push-event monitor, guarded raw console, bass-engine read ([`app.md`](app.md)) |
 
 `tlcore` is the entire reverse-engineering result, and it is done: ported by
 range extraction from the validated reference, verified byte-for-byte against it.
