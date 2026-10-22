@@ -197,11 +197,10 @@ from the read-only capability poll it sends nothing.
 ### Step 8 — voice over: speak text through the headset (host-side)
 
 The TL protocol has **no text-to-speech command** — the AI/translation family
-(`0x0428 setTranslationAppStatus`, `0x0516` device→app audio,
-`0x012C startSocketConnect`) is a server/app feature with an unrecovered, unverified
-wire layout, so it is not implemented. `tlcli say` instead synthesizes speech on
-the host and plays it to the **current audio output**, so set the headset as the
-macOS output device.
+(`0x0428 setTranslationAppStatus`, `0x0516` device→app audio) is a server/app
+feature with an unrecovered, unverified wire layout, so it is not implemented.
+`tlcli say` instead synthesizes speech on the host and plays it to the **current
+audio output**, so set the headset as the macOS output device.
 
 ```console
 $ python -m tlcli say "Noise control is on."
