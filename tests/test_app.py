@@ -25,8 +25,10 @@ from tlapp import (  # noqa: E402
     DeviceController,
     EQ_PRESET_MAX,
     EQ_PRESET_MIN,
+    EVENT_POLL_SECONDS,
     default_backup_dir,
     eq_preset_choices,
+    event_phrase,
     friendly_error,
     noise_choices,
     read_snapshot,
@@ -463,6 +465,89 @@ def test_snapshot_summary_of_a_minimal_snapshot() -> None:
 
 
 # --------------------------------------------------------------------------
+# 7: push-event monitor
+# --------------------------------------------------------------------------
+def test_poll_events_decodes_a_recorded_capture() -> None:
+    """fixtures/user-interaction.jsonl is nine unprompted 0x0204 pushes."""
+    ctrl = DeviceController(ConnectionOptions(replay="user-interaction.jsonl"))
+    ctrl.connect()
+    rows = ctrl.poll_events(0.2)
+    check("decoded every push", len(rows), 9)
+    check("a button press is decoded", rows[0]["press"]["function_name"], "off")
+    check("the press keeps its raw fields",
+          (rows[0]["press"]["device_type"], rows[0]["press"]["button"],
+           rows[0]["press"]["button_action"], rows[0]["press"]["scene"]),
+          (1, 1, 2, 3))
+    check("a battery push decodes to its TLV", rows[1]["tlv"], {1: 100, 2: 100, 3: 0})
+    check("a noise push keeps its event name", rows[5]["event"], "noiseReduction")
+    check("the recording is drained", ctrl.poll_events(0.05), [])
+    ctrl.disconnect()
+
+
+def test_poll_events_drains_what_a_request_parked() -> None:
+    """A push seen while waiting for a reply must not be lost or shown twice."""
+    ctrl = DeviceController(ConnectionOptions(replay="user-interaction.jsonl"))
+    ctrl.connect()
+    ctrl.session.events.append({"cmd": 0x0204, "payload": bytes.fromhex("0f080003")})
+    rows = ctrl.poll_events(0.2)
+    check("the parked push comes first", rows[0]["event"], "publicEvent")
+    check("the parked push is decoded", rows[0]["public_event"]["volume"], 3)
+    check("the park list is drained", ctrl.session.events, [])
+    check("nothing else was dropped", len(rows), 10)
+    ctrl.disconnect()
+
+
+def test_poll_events_never_writes_to_the_device() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="user-interaction.jsonl"))
+    ctrl.connect()
+    ctrl.poll_events(0.1)
+    check("listening sent nothing", ctrl.transport.writes, [])
+    ctrl.disconnect()
+
+
+def test_event_types_from_a_recorded_capture() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="notification-caps.jsonl"))
+    ctrl.connect()
+    ctrl.capabilities()
+    caps = ctrl.event_types()
+    check("event-type count", caps["count"], 2)
+    check("event types", caps["types"], [2, 1])
+    ctrl.disconnect()
+
+
+def test_event_phrase_covers_every_shape() -> None:
+    check("button press", event_phrase({
+        "cmd": "0x0204", "press": {"function_name": "off", "device_type": 1,
+                                      "button": 1, "button_action": 2, "scene": 3}}),
+          "button press: off (dev=1 btn=1 action=2 scene=3)")
+    check("compactness", event_phrase({
+        "cmd": "0x0204", "compactness": [{"side_name": "left", "value": 1},
+                                          {"side_name": "right", "value": 0}]}),
+          "compactness: left=1, right=0")
+    check("multi-connect", event_phrase({
+        "cmd": "0x0204", "multi_connect": {"count": 1, "entries": [
+            {"mac": "66:55:44:33:22:11", "name": "Laptop-A"}]}}),
+          "multiConnect: 1 device(s) Laptop-A")
+    check("public event", event_phrase({
+        "cmd": "0x0204", "public_event": {"flags": 8, "volume": 3, "ai": None}}),
+          "publicEvent flags=0x0008 volume=3")
+    check("device -> app request", event_phrase({
+        "cmd": "0x0500", "request": {"raw": "e2000000", "value_le": 226}}),
+          "request: {'raw': 'e2000000', 'value_le': 226}")
+    check("plain TLV", event_phrase({
+        "cmd": "0x0204", "event": "battery", "tlv": {1: 100, 2: 100, 3: 0}}),
+          "battery {1=100, 2=100, 3=0}")
+    check("an event with only a body", event_phrase({
+        "cmd": "0x0204", "event": "earScanResult", "body": "0102"}),
+          "body 0102")
+    check("a state push", event_phrase({"cmd": "0x8109", "state": {"wear": 3}}),
+          "{'wear': 3}")
+    check("something no decoder understood",
+          event_phrase({"cmd": "0x9999", "payload": "deadbeef"}), "deadbeef")
+    check("the poll budget is short", 0 < EVENT_POLL_SECONDS <= 0.1, True)
+
+
+# --------------------------------------------------------------------------
 # helpers and error paths
 # --------------------------------------------------------------------------
 def test_noise_choices() -> None:
@@ -503,6 +588,8 @@ def test_requires_connection() -> None:
         check_raises("backup_to without connect", ControllerError, ctrl.backup_to, path)
         check_raises("preview without connect", ControllerError, ctrl.preview_restore, path)
         check_raises("restore without connect", ControllerError, ctrl.restore_from, path)
+    check_raises("poll events without connect", ControllerError, ctrl.poll_events)
+    check_raises("event types without connect", ControllerError, ctrl.event_types)
 
 
 def test_double_connect_is_safe() -> None:

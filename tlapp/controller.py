@@ -14,10 +14,10 @@ Every operation is **synchronous**: one call is a handful of round trips at
 ~10 ms each, so the window runs them on the GUI thread behind a wait cursor.
 
 This file implements the app feature by feature -- connect + capability view,
-device status, noise mode get/set, the equalizer / high-volume settings, and
-settings backup / restore. Later features (gestures, events, voice, console) are
-added here as they are built, so the app never carries a control for something
-that is not yet wired up.
+device status, noise mode get/set, the equalizer / high-volume settings,
+settings backup / restore, and the push-event monitor. Later features (gestures,
+voice, console) are added here as they are built, so the app never carries a
+control for something that is not yet wired up.
 """
 from __future__ import annotations
 
@@ -36,13 +36,19 @@ from . import backupfile
 EQ_PRESET_MIN = 0
 EQ_PRESET_MAX = 6
 
+#: How long one event-monitor poll may block, in seconds.  The monitor runs on
+#: the GUI thread, so this is also the worst-case input latency while it is on.
+EVENT_POLL_SECONDS = 0.05
+
 __all__ = [
     "ConnectionOptions",
     "ControllerError",
     "DeviceController",
     "EQ_PRESET_MAX",
     "EQ_PRESET_MIN",
+    "EVENT_POLL_SECONDS",
     "eq_preset_choices",
+    "event_phrase",
     "friendly_error",
     "noise_choices",
 ]
@@ -99,6 +105,45 @@ def noise_choices() -> list[tuple[int, str]]:
         t.NOISE_MODE_ANC_SMART,
     )
     return [(value, noise_name(value)) for value in order]
+
+
+def event_phrase(row: dict) -> str:
+    """One line describing a decoded push, for the event monitor.
+
+    Takes a :func:`tlcore.decode_event` row.  Every branch is guarded by the
+    key it needs, because a monitor must render whatever the device sends --
+    including a packet no decoder understood.
+    """
+    if "press" in row:
+        press = row["press"]
+        return (f"button press: {press['function_name']} "
+                f"(dev={press['device_type']} btn={press['button']} "
+                f"action={press['button_action']} scene={press['scene']})")
+    if "compactness" in row:
+        return "compactness: " + ", ".join(
+            f"{side['side_name']}={side['value']}" for side in row["compactness"])
+    if "multi_connect" in row:
+        entries = row["multi_connect"]["entries"]
+        names = ", ".join(entry["name"] or entry["mac"] for entry in entries)
+        return f"multiConnect: {row['multi_connect']['count']} device(s) {names}"
+    if "public_event" in row:
+        public = row["public_event"]
+        parts = []
+        if public["volume"] is not None:
+            parts.append(f"volume={public['volume']}")
+        if public["ai"] is not None:
+            parts.append(f"ai={public['ai']['state']}/{public['ai']['type']}")
+        return f"publicEvent flags=0x{public['flags']:04X} " + " ".join(parts)
+    if "request" in row:
+        return f"request: {row['request']}"
+    if row.get("tlv"):
+        pairs = ", ".join(f"{key}={value}" for key, value in row["tlv"].items())
+        return f"{row.get('event', '')} {{{pairs}}}"
+    if row.get("body"):
+        return f"body {row['body']}"
+    if "state" in row:
+        return str(row["state"])
+    return row.get("payload", "")
 
 
 def eq_preset_choices() -> list[tuple[int, str]]:
@@ -260,6 +305,27 @@ class DeviceController:
         """Re-apply the restorable settings from the snapshot at ``path``."""
         snapshot = self._file(backupfile.read_snapshot, path)
         return self._call(t.restore, self._require(), snapshot,
+                          timeout=self.options.timeout)
+
+    # -- 7. push-event monitor ---------------------------------------------
+    def poll_events(self, seconds: float = EVENT_POLL_SECONDS) -> list[dict]:
+        """Read device pushes for up to ``seconds`` and decode them.
+
+        Bounded, but blocking -- the window calls this from a timer with a
+        short budget, because the transport has one reader and the controller
+        is deliberately single-threaded.  Pushes that a request parked while it
+        waited for its reply are drained here too, so nothing is lost and
+        nothing is shown twice.
+        """
+        session = self._require()
+        parked = list(session.events)
+        session.events.clear()
+        packets = parked + self._call(session.listen, seconds)
+        return [t.decode_event(packet) for packet in packets]
+
+    def event_types(self) -> dict:
+        """Read the push-event types this unit sends (``0x0200``)."""
+        return self._call(self._require().read_notification_capabilities,
                           timeout=self.options.timeout)
 
     @staticmethod

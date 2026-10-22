@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT))
 
 import tlcore as t  # noqa: E402
 from tlapp import ConnectionOptions  # noqa: E402
-from tlapp.window import TAB_BACKUP, TAB_SOUND, MainWindow  # noqa: E402
+from tlapp.window import TAB_BACKUP, TAB_EVENTS, TAB_SOUND, MainWindow  # noqa: E402
 
 
 def _app():
@@ -65,6 +65,78 @@ def test_window_builds_and_connects() -> None:
         assert window.backup_table.rowCount() == 0
         assert window.restore_table.rowCount() == 0
         assert window.backup_path_edit.text() == ""
+
+        # the event monitor exists but is idle until asked
+        assert window.tabs.isTabEnabled(TAB_EVENTS)
+        assert not window.events_timer.isActive()
+        assert window.listen_btn.text() == "Start listening"
+        assert window.events_table.columnCount() == 3
+    finally:
+        window.close()
+
+
+def test_event_monitor_toggles_renders_and_clears() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+
+        window._toggle_listening()
+        assert window.events_timer.isActive()
+        assert window.listen_btn.text() == "Stop listening"
+        assert "Listening" in window.lbl_events.text()
+
+        # the capture still holds one unprompted 0x0500 device -> app request
+        window._poll_events()
+        assert window.events_table.rowCount() == 1
+        assert window.events_table.item(0, 1).text() == "requestHostTime"
+        assert "request" in window.events_table.item(0, 2).text()
+
+        # newest first, and every shape gets a readable phrase
+        window._add_event_row({"cmd": "0x0204", "name": "notificationEvent",
+                               "event": "battery", "tlv": {1: 100, 2: 100, 3: 0}})
+        window._add_event_row({"cmd": "0x0204", "name": "notificationEvent",
+                               "event": "userInteraction",
+                               "press": {"function_name": "off", "device_type": 1,
+                                         "button": 1, "button_action": 2, "scene": 3}})
+        assert window.events_table.rowCount() == 3
+        assert window.events_table.item(0, 1).text() == "userInteraction"
+        assert "button press: off" in window.events_table.item(0, 2).text()
+        assert window.events_table.item(1, 1).text() == "battery"
+        assert "1=100" in window.events_table.item(1, 2).text()
+
+        window._toggle_listening()
+        assert not window.events_timer.isActive()
+        assert window.listen_btn.text() == "Start listening"
+        assert "Not listening" in window.lbl_events.text()
+
+        window._clear_events()
+        assert window.events_table.rowCount() == 0
+
+        # 0x0200 is ungated, so a synthetic reply is enough to check the report
+        window._show_event_types({"count": 2, "types": [2, 1]})
+        assert "2 event type(s)" in window.statusBar().currentMessage()
+        assert "0x02, 0x01" in window.statusBar().currentMessage()
+    finally:
+        window.close()
+
+
+def test_disconnecting_stops_the_event_monitor() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        window._toggle_listening()
+        assert window.events_timer.isActive()
+
+        window._toggle_connection()   # disconnect
+        app.processEvents()
+        assert not window.controller.connected
+        assert not window.events_timer.isActive()
+        assert window.listen_btn.text() == "Start listening"
+        assert not window.tabs.isTabEnabled(TAB_EVENTS)
     finally:
         window.close()
 
@@ -252,9 +324,10 @@ def test_window_disconnected_state() -> None:
     _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
-        # Sound and Backup are disabled until a device is connected; Device stays usable
+        # Sound, Backup and Events are disabled until a device is connected
         assert window.connect_btn.text() == "Connect"
         assert not window.tabs.isTabEnabled(TAB_SOUND)
         assert not window.tabs.isTabEnabled(TAB_BACKUP)
+        assert not window.tabs.isTabEnabled(TAB_EVENTS)
     finally:
         window.close()

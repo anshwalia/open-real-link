@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **third slice.** The app is built one feature at a time, and a feature
+Status: **fourth slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-six things and nothing else:
+seven things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -14,9 +14,11 @@ six things and nothing else:
 5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
 6. **Settings backup / restore** — poll every setting the unit advertises into a
    JSON snapshot, and re-apply the restorable ones from one.
+7. **Push-event monitor** — listen for the device's own notifications (button
+   presses, battery, wear, noise, multi-connect) and decode them live.
 
-Everything else the CLI can do (gestures, events, voice, raw console, the SDP
-service list) is deliberately **not** in the UI yet. It is added, wired up and
+Everything else the CLI can do (gestures, voice, raw console, the SDP service
+list) is deliberately **not** in the UI yet. It is added, wired up and
 live-tested one item at a time, so the app never carries a control for something
 that is not implemented.
 
@@ -138,6 +140,37 @@ half-written backup), the file is validated on read, and a backup library is a
 **directory of timestamped files** (`buds-air7-pro-20261020T120000Z.json` under
 the platform data directory) that `ls`, `diff` and `git` already understand.
 
+### Events
+
+* **Start / Stop listening** toggles the monitor. Nothing is *sent* while it is
+  on — the app only reads — and it is off by default, because listening holds the
+  link in short slices.
+* Each push becomes a row, newest first: the time, the event name (or the
+  command name for a `0x05xx` request), and a one-line description. A button
+  press shows its device, button, action and scene; a battery push shows its
+  decoded TLV; a multi-connect push shows the count; a packet no decoder
+  understood still shows its raw payload rather than being dropped.
+* **Read event types** asks the unit which `0x0204` types it can push (`0x0200`,
+  ungated) and reports them in the status bar.
+* **Clear** empties the table.
+
+Pushes that arrive while some other operation is waiting for its reply are not
+lost: the core parks them, and the monitor drains that queue too, so nothing is
+shown twice and nothing disappears.
+
+#### Why a timer, not a reader thread
+
+The monitor polls from a `QTimer` — a 50 ms read budget every 60 ms — rather than
+running a background reader. A thread would keep the UI perfectly smooth, but the
+link has **one** reader and the controller is deliberately single-threaded: a
+background reader would need a lock held across every other operation (so a
+user's click would still wait behind the read) *and* a transport that tolerates
+being read from two threads at once, which is not something this project has
+established for IOBluetooth RFCOMM. The timer costs at most one poll budget of
+input latency and cannot corrupt the session. A read failure stops the monitor
+and reports it in the status bar — never a modal, because a modal opened from a
+`QTimer` callback spins a nested event loop.
+
 ## Design
 
 Widgets live in `tlapp/window.py`; every device action goes through
@@ -171,5 +204,5 @@ The controller opens the device exactly the way the CLI does, by reusing
 ## What is next
 
 The remaining verified features, each added the same way: the gesture table and
-a long-press disable, an event/button-press monitor, host-side voice, a guarded
-raw console, and the SDP service list.
+a long-press disable, host-side voice, a guarded raw console, and the SDP
+service list.

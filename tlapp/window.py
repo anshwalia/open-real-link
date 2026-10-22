@@ -5,14 +5,15 @@ Widgets only: every device action is delegated to
 box. The widgets never touch the wire, and the controller never imports Qt.
 
 The app is built feature by feature: connect + capability view, device status,
-noise mode get/set, the equalizer / high-volume settings, and settings
-backup / restore. The tone / OTA / debug families have no control here at all,
-and neither does any operation that has not been verified on hardware -- those
-are added one at a time as they are built and live-tested.
+noise mode get/set, the equalizer / high-volume settings, settings
+backup / restore, and the push-event monitor. The tone / OTA / debug families
+have no control here at all, and neither does any operation that has not been
+verified on hardware -- those are added one at a time as they are built and
+live-tested.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -39,10 +40,12 @@ import tlcore as t
 
 from . import backupfile
 from .controller import (
+    EVENT_POLL_SECONDS,
     ConnectionOptions,
     ControllerError,
     DeviceController,
     eq_preset_choices,
+    event_phrase,
     noise_choices,
 )
 
@@ -52,10 +55,15 @@ _FAILED = object()
 TAB_DEVICE = 0
 TAB_SOUND = 1
 TAB_BACKUP = 2
+TAB_EVENTS = 3
+
+#: How often the event monitor reads the link, in milliseconds.  Slightly
+#: longer than the read budget so the GUI thread always gets a turn.
+EVENT_POLL_MS = 60
 
 
 class MainWindow(QMainWindow):
-    """The application window: a connection bar and three tabs."""
+    """The application window: a connection bar and four tabs."""
 
     def __init__(self, options: ConnectionOptions):
         super().__init__()
@@ -99,6 +107,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_device_tab(), "Device")
         self.tabs.addTab(self._build_sound_tab(), "Sound")
         self.tabs.addTab(self._build_backup_tab(), "Backup")
+        self.tabs.addTab(self._build_events_tab(), "Events")
         self.setCentralWidget(self.tabs)
 
     @staticmethod
@@ -291,6 +300,47 @@ class MainWindow(QMainWindow):
         outer.addStretch(1)
         return page
 
+    # ------------------------------------------------------------- events tab
+    def _build_events_tab(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+
+        note = QLabel(
+            "The device pushes state changes on its own: button presses, battery "
+            "and wear updates, noise-mode and multi-connect reports. Nothing is "
+            "sent while listening — the app only reads. Listening holds the link "
+            "in short slices, so leave it off when you are not watching.")
+        note.setWordWrap(True)
+        outer.addWidget(note)
+
+        row = QHBoxLayout()
+        self.listen_btn = QPushButton("Start listening")
+        self.listen_btn.clicked.connect(self._toggle_listening)
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(self._clear_events)
+        self.event_types_btn = QPushButton("Read event types")
+        self.event_types_btn.clicked.connect(
+            lambda: self._run(lambda c: c.event_types(), self._show_event_types))
+        row.addWidget(self.listen_btn)
+        row.addWidget(clear_btn)
+        row.addWidget(self.event_types_btn)
+        row.addStretch(1)
+        outer.addLayout(row)
+
+        self.lbl_events = QLabel("Not listening.")
+        self.lbl_events.setWordWrap(True)
+        outer.addWidget(self.lbl_events)
+
+        self.events_table = self._table(["Time", "Event", "Detail"])
+        outer.addWidget(self.events_table, 1)
+
+        # Poll on a timer rather than in a thread: the transport has one reader,
+        # and a background reader would need a lock over every other operation.
+        self.events_timer = QTimer(self)
+        self.events_timer.setInterval(EVENT_POLL_MS)
+        self.events_timer.timeout.connect(self._poll_events)
+        return page
+
     # ------------------------------------------------------------- connection
     def connect_device(self) -> None:
         """Public entry point: connect now (used by ``--connect`` / ``--replay``)."""
@@ -328,6 +378,9 @@ class MainWindow(QMainWindow):
             "color: #080; font-weight: 600;" if state else "color: #a00; font-weight: 600;")
         self.tabs.setTabEnabled(TAB_SOUND, state)
         self.tabs.setTabEnabled(TAB_BACKUP, state)
+        self.tabs.setTabEnabled(TAB_EVENTS, state)
+        if not state:
+            self._stop_listening()
 
     def _apply_capability_gating(self) -> None:
         """Gray out controls the unit says it does not take."""
@@ -485,6 +538,68 @@ class MainWindow(QMainWindow):
                        f"back {'on' if result['actual'] else 'off'}; the read is "
                        "authoritative.")
 
+    # --------------------------------------------------------- event monitor
+    def _toggle_listening(self) -> None:
+        if self.events_timer.isActive():
+            self._stop_listening()
+            self.statusBar().showMessage("Stopped listening for device pushes.")
+            return
+        if not self.controller.connected:
+            self._warn("Not connected", "Connect to a device first.")
+            return
+        self.events_timer.start()
+        self.listen_btn.setText("Stop listening")
+        self.lbl_events.setText("Listening for device pushes…")
+        self.statusBar().showMessage("Listening for device pushes…")
+
+    def _stop_listening(self) -> None:
+        self.events_timer.stop()
+        self.listen_btn.setText("Start listening")
+        if self.lbl_events.text().startswith("Listening"):
+            self.lbl_events.setText(
+                f"Not listening. {self.events_table.rowCount()} event(s) captured.")
+
+    def _clear_events(self) -> None:
+        self.events_table.setRowCount(0)
+        self.lbl_events.setText(
+            "Listening for device pushes…" if self.events_timer.isActive()
+            else "Not listening.")
+
+    def _poll_events(self) -> None:
+        """One timer tick: drain whatever the device pushed.
+
+        Deliberately **not** routed through :meth:`_run`: that puts up a wait
+        cursor and a modal on failure, and a modal opened from a timer callback
+        spins a nested event loop.  A read failure stops listening and reports
+        in the status bar instead.
+        """
+        try:
+            rows = self.controller.poll_events(EVENT_POLL_SECONDS)
+        except ControllerError as exc:
+            self._stop_listening()
+            self.lbl_events.setText(f"Listening stopped: {exc}")
+            self.statusBar().showMessage(f"Listening stopped: {exc}")
+            return
+        for row in rows:
+            self._add_event_row(row)
+        if rows:
+            total = self.events_table.rowCount()
+            self.lbl_events.setText(f"Listening… {total} event(s) captured.")
+
+    def _add_event_row(self, row: dict) -> None:
+        self.events_table.insertRow(0)  # newest first
+        cells = (QTime.currentTime().toString("HH:mm:ss.zzz"),
+                 row.get("event") or row.get("name") or row["cmd"],
+                 event_phrase(row))
+        for column, value in enumerate(cells):
+            self.events_table.setItem(0, column, QTableWidgetItem(value))
+        self.events_table.resizeColumnToContents(0)
+
+    def _show_event_types(self, caps: dict) -> None:
+        names = ", ".join(f"0x{kind:02X}" for kind in caps["types"])
+        self.statusBar().showMessage(
+            f"This unit pushes {caps['count']} event type(s): {names or 'none'}.")
+
     # ------------------------------------------------------- backup / restore
     def _choose_save_path(self) -> str | None:
         start = (self.backup_path_edit.text().strip()
@@ -576,6 +691,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        self.events_timer.stop()
         self.controller.disconnect()
         super().closeEvent(event)
 
