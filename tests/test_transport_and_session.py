@@ -611,7 +611,8 @@ def test_cli_compactness() -> None:
 
 
 def test_keys_session_and_cli() -> None:
-    from tlcli.cli import decode_event, main, parse_key_update
+    from tlcli.cli import main, parse_key_update
+    from tlcore import decode_event
 
     kf_table = bytes.fromhex(
         "000a"

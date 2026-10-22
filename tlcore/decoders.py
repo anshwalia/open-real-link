@@ -16,6 +16,10 @@ from __future__ import annotations
 import re
 import struct
 
+from .buttons import EVENT_USER_INTERACTION, parse_user_interaction
+from .commands import CMD_NAMES, CMD_NOTIFICATION_EVENT
+from .requests import REQUEST_DECODERS, decode_request
+
 
 # ``parse_feature_detect`` (``0x812A``, the answer to the ``0x012A`` feature
 # query) was removed rather than shipped: a Buds Air7 Pro does not advertise
@@ -541,3 +545,45 @@ def decode_state(cmd: int, payload: bytes) -> dict | None:
     """Decode ``cmd``'s payload with the matching decoder, or ``None``."""
     fn = STATE_DECODERS.get(cmd)
     return fn(payload) if fn else None
+
+
+def decode_event(packet: dict) -> dict:
+    """Decode one **unsolicited** packet into a serializable dict.
+
+    The device talks back in three shapes, and this is the single place that
+    sorts them out so a monitor does not need a switch statement:
+
+    * ``0x0204`` -- a notification event; the type byte picks the decoder, and
+      ``userInteraction`` adds a decoded button press.
+    * a ``0x05xx`` **device -> app request** (see :data:`REQUEST_DECODERS`).
+    * any other ``0x81xx`` state push, decoded through :data:`STATE_DECODERS`.
+
+    Anything unrecognised still comes back with its raw payload, because a
+    monitor must show what arrived rather than drop it.
+    """
+    cmd = packet["cmd"]
+    payload = packet["payload"]
+    out = {"cmd": f"0x{cmd:04X}", "cmd_int": cmd,
+           "name": CMD_NAMES.get(cmd, ""), "payload": payload.hex()}
+    if cmd == CMD_NOTIFICATION_EVENT:
+        event = parse_notification_event(payload)
+        out["event"] = event["event_name"]
+        out["event_int"] = event["event"]
+        if event["body"]:
+            out["body"] = event["body"].hex()
+        if event["tlv"]:
+            out["tlv"] = event["tlv"]
+        if event["event"] == EVENT_USER_INTERACTION:
+            press = parse_user_interaction(event["body"])
+            if press:
+                out["press"] = press
+        for key in ("compactness", "multi_connect", "public_event"):
+            if key in event:
+                out[key] = event[key]
+    elif cmd in REQUEST_DECODERS:
+        out["request"] = decode_request(cmd, payload)
+    else:
+        state = decode_state(cmd, payload)
+        if state is not None:
+            out["state"] = state
+    return out

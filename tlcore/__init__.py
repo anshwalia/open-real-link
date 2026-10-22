@@ -102,6 +102,7 @@ from .decoders import (
     EVENT_TYPE_NAMES,
     STATE_DECODERS,
     WEAR_IN_EAR,
+    decode_event,
     decode_state,
     parse_ai_status,
     parse_bass_engine,
@@ -236,7 +237,7 @@ __all__ = [
     "payload_set_noise_mode", "payload_set_noise_reduction", "payload_set_switch_feature",
     # decoders
     "CASE_ID", "DEVICE_NAMES", "EVENT_TYPE_NAMES", "STATE_DECODERS", "WEAR_IN_EAR",
-    "decode_state", "parse_ai_status", "parse_bass_engine", "parse_battery", "parse_color_id", "parse_compactness_event", "parse_device_version",
+    "decode_event", "decode_state", "parse_ai_status", "parse_bass_engine", "parse_battery", "parse_color_id", "parse_compactness_event", "parse_device_version",
     "parse_earbud_status",
     "parse_eq_info", "parse_eq_mode", "parse_high_volume",
     "parse_key_function", "parse_model_id", "parse_multi_connect",

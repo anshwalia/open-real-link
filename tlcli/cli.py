@@ -461,7 +461,7 @@ def cmd_compactness(args) -> int:
         packets = session.listen(seconds)
     finally:
         transport.close()
-    rows = [decode_event(p) for p in packets]
+    rows = [t.decode_event(p) for p in packets]
     if args.json:
         print(json.dumps({"action": action, "events": rows}, indent=2, default=str))
         return 0
@@ -658,6 +658,15 @@ def _print_event(row: dict) -> None:
         for entry in mc["entries"]:
             print(f"        {entry['mac']}  state={entry['state']} "
                   f"flag={entry['flag']}  {entry['name']!r}")
+    elif "public_event" in row:
+        public = row["public_event"]
+        detail = []
+        if public["volume"] is not None:
+            detail.append(f"volume={public['volume']}")
+        if public["ai"] is not None:
+            detail.append(f"ai={public['ai']['state']}/{public['ai']['type']}")
+        print(f"{head}  publicEvent: flags=0x{public['flags']:04X} "
+              + (" ".join(detail) or "(no flag set)"))
     elif "event" in row:
         print(f"{head}  event={row['event']}  body={row.get('body', '')}")
     elif "request" in row:
@@ -679,7 +688,7 @@ def cmd_events(args) -> int:
         packets = list(session.events) + session.listen(args.seconds)
     finally:
         transport.close()
-    rows = [decode_event(p) for p in packets]
+    rows = [t.decode_event(p) for p in packets]
     if args.json:
         print(json.dumps(rows, indent=2, default=str))
         return 0

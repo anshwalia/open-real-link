@@ -239,6 +239,7 @@ Shared decoders that are not tied to one command:
 | `parse_pairs` | Generic `[status][count][id, value]×count` TLV helper (used by the battery and wear decoders) |
 | `decode_state` | Dispatches a `0x81xx` reply to its decoder via `STATE_DECODERS`, or returns `None` |
 | `decode_request` | Dispatches a device → app `0x05xx` body to its decoder via `REQUEST_DECODERS`, or returns `None` |
+| `decode_event` | Decodes **one unsolicited packet** into a serializable dict: `0x0204` events (with a decoded button press for `userInteraction`), `0x05xx` device → app requests, or any other `0x81xx` push. Unrecognised packets keep their raw payload |
 
 <!-- command-surface:end -->
 
@@ -614,16 +615,34 @@ snapshot = tlcore.capture(session)          # reads; safe
 report = tlcore.restore(session, snapshot)  # writes only what it can
 ```
 
-Restore re-applies the four settings whose read and write forms are recovered
+Restore re-applies only the settings whose read and write forms are recovered
 and symmetric -- **noise mode** (`0x010C`/`0x0404`), **key function**
-(`0x0108`/`0x0401`), **EQ mode** (`0x010F`/`0x0406`), **switch features**
-(`0x010D`/`0x0403`) -- and reports the rest as `not_restored` rather than
-guessing at payloads it does not know.
+(`0x0108`/`0x0401`), **EQ mode** (`0x010F`/`0x0406`), **high volume**
+(`0x0110`/`0x0407`), **switch features** (`0x010D`/`0x0403`) and
+**bass engine** (`0x0124`/`0x041B`, captured only when the reply carries a
+reading) -- and reports the rest as `not_restored` rather than guessing at
+payloads it does not know. `tlcore.backup.RESTORABLE` is the authority;
+`restore` skips anything the connected unit does not advertise.
 
 ```console
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore settings.json
+```
+
+### Watching for pushes
+
+`Session.listen(seconds)` reads the link for up to `seconds` and returns every
+packet it saw; `Session.events` holds the unsolicited packets that arrived while
+a `request` was waiting for its reply, so a caller must drain both or it will
+miss pushes. `tlcore.decode_event(packet)` is the single entry point that turns
+either kind into a serializable row -- it dispatches `0x0204` events (decoding a
+button press for `userInteraction`, the TLVs for the rest), `0x05xx`
+device -> app requests, and any other `0x81xx` push. Nothing is ever written
+while listening.
+
+```console
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF events --seconds 20
 ```
 
 ## 11. What this document does not cover
