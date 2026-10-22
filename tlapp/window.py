@@ -6,10 +6,10 @@ box. The widgets never touch the wire, and the controller never imports Qt.
 
 The app is built feature by feature: connect + capability view, device status,
 noise mode get/set, the equalizer / high-volume settings, settings
-backup / restore, the push-event monitor, and the gesture table. The tone / OTA /
-debug families have no control here at all, and neither does any operation that
-has not been verified on hardware -- those are added one at a time as they are
-built and live-tested.
+backup / restore, the push-event monitor, the gesture table, and a guarded raw
+console. The tone / OTA / debug families have no control here at all -- the raw
+console refuses them -- and neither does any operation that has not been verified
+on hardware; those are added one at a time as they are built and live-tested.
 """
 from __future__ import annotations
 
@@ -41,6 +41,7 @@ import tlcore as t
 from . import backupfile
 from .controller import (
     EVENT_POLL_SECONDS,
+    SEND_LISTEN_SECONDS,
     ConnectionOptions,
     ControllerError,
     DeviceController,
@@ -48,6 +49,8 @@ from .controller import (
     event_phrase,
     function_choices,
     noise_choices,
+    parse_command,
+    parse_payload,
 )
 
 #: Sentinel so ``_run`` can tell "returned None" from "failed".
@@ -58,6 +61,7 @@ TAB_SOUND = 1
 TAB_GESTURES = 2
 TAB_BACKUP = 3
 TAB_EVENTS = 4
+TAB_RAW = 5
 
 #: How often the event monitor reads the link, in milliseconds.  Slightly
 #: longer than the read budget so the GUI thread always gets a turn.
@@ -65,7 +69,7 @@ EVENT_POLL_MS = 60
 
 
 class MainWindow(QMainWindow):
-    """The application window: a connection bar and five tabs."""
+    """The application window: a connection bar and six tabs."""
 
     def __init__(self, options: ConnectionOptions):
         super().__init__()
@@ -111,6 +115,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_gestures_tab(), "Gestures")
         self.tabs.addTab(self._build_backup_tab(), "Backup")
         self.tabs.addTab(self._build_events_tab(), "Events")
+        self.tabs.addTab(self._build_raw_tab(), "Raw")
         self.setCentralWidget(self.tabs)
 
     @staticmethod
@@ -389,6 +394,66 @@ class MainWindow(QMainWindow):
         self.events_timer.timeout.connect(self._poll_events)
         return page
 
+    # -------------------------------------------------------------- raw tab
+    def _build_raw_tab(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+
+        note = QLabel(
+            "Send one command and show the frames and every reply. This is the "
+            "only place a command without a verified UI can be driven, so it is "
+            "also where the guard lives: the <b>hearing / ear-scan tones</b>, "
+            "<b>OTA firmware push</b> and <b>debug log</b> families are refused "
+            "outright. There is no override here — <code>tlcli send --force</code> "
+            "is the documented escape hatch. Never sweep unknown command space "
+            "against a worn headset.")
+        note.setWordWrap(True)
+        outer.addWidget(note)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Command"))
+        self.raw_command_edit = QLineEdit()
+        self.raw_command_edit.setPlaceholderText("0x010C")
+        self.raw_command_edit.setMaximumWidth(110)
+        self.raw_command_edit.textChanged.connect(self._raw_command_changed)
+        row.addWidget(self.raw_command_edit)
+        row.addWidget(QLabel("Payload"))
+        self.raw_payload_edit = QLineEdit()
+        self.raw_payload_edit.setPlaceholderText("01 01 20  (hex; empty is fine)")
+        row.addWidget(self.raw_payload_edit, 1)
+        row.addWidget(QLabel("Type"))
+        self.raw_type_edit = QLineEdit("0")
+        self.raw_type_edit.setMaximumWidth(50)
+        row.addWidget(self.raw_type_edit)
+        row.addWidget(QLabel("Listen"))
+        self.raw_listen_edit = QLineEdit(f"{SEND_LISTEN_SECONDS:g}")
+        self.raw_listen_edit.setMaximumWidth(50)
+        row.addWidget(self.raw_listen_edit)
+        row.addWidget(QLabel("s"))
+        self.raw_send_btn = QPushButton("Send")
+        self.raw_send_btn.clicked.connect(self._send_raw)
+        row.addWidget(self.raw_send_btn)
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(self._clear_raw)
+        row.addWidget(clear_btn)
+        outer.addLayout(row)
+
+        self.lbl_raw_command = QLabel("e.g. 0x010C")
+        self.lbl_raw_command.setWordWrap(True)
+        outer.addWidget(self.lbl_raw_command)
+
+        self.lbl_raw = QLabel("Nothing sent yet.")
+        self.lbl_raw.setWordWrap(True)
+        outer.addWidget(self.lbl_raw)
+
+        self.raw_table = self._table(["Time", "Dir", "Command", "Detail"])
+        outer.addWidget(self.raw_table, 1)
+        #: Whether the buds are in-ear, from the last status read.  The console
+        #: warns on this rather than refusing, because a single command the user
+        #: typed is not a sweep -- but it must never be a surprise either.
+        self._wear: bool | None = None
+        return page
+
     # ------------------------------------------------------------- connection
     def connect_device(self) -> None:
         """Public entry point: connect now (used by ``--connect`` / ``--replay``)."""
@@ -428,8 +493,10 @@ class MainWindow(QMainWindow):
         self.tabs.setTabEnabled(TAB_GESTURES, state)
         self.tabs.setTabEnabled(TAB_BACKUP, state)
         self.tabs.setTabEnabled(TAB_EVENTS, state)
+        self.tabs.setTabEnabled(TAB_RAW, state)
         if not state:
             self._stop_listening()
+            self._wear = None
 
     def _apply_capability_gating(self) -> None:
         """Gray out controls the unit says it does not take."""
@@ -511,6 +578,7 @@ class MainWindow(QMainWindow):
             f"{dev}: {d['level']}%{' (charging)' if d['charging'] else ''}"
             for dev, d in battery.items()) or "unknown")
         wear = status["wear"]
+        self._wear = bool(wear["in_ear"])
         self.lbl_wear.setText("in-ear" if wear["in_ear"] else f"not worn  {wear['devices']}")
         mode = status["noise_mode"]
         self._show_noise(mode)
@@ -591,6 +659,101 @@ class MainWindow(QMainWindow):
                        f"Wrote high volume {'on' if wanted else 'off'} but read "
                        f"back {'on' if result['actual'] else 'off'}; the read is "
                        "authoritative.")
+
+    # ------------------------------------------------------------ raw console
+    def _raw_command_changed(self) -> None:
+        """Say what the typed command is -- and whether it is refused -- live."""
+        try:
+            cmd = parse_command(self.raw_command_edit.text())
+        except ControllerError as exc:
+            self.lbl_raw_command.setText(str(exc))
+            self.lbl_raw_command.setStyleSheet("color: #a00;")
+            return
+        family = t.dangerous_family(cmd)
+        if family is not None:
+            self.lbl_raw_command.setText(
+                f"0x{cmd:04X} — {family}: the app will refuse this.")
+            self.lbl_raw_command.setStyleSheet("color: #a00; font-weight: 600;")
+            return
+        spec = t.command_spec(cmd)
+        manager = t.CLASS_NAMES.get(t.cmd_class(cmd), "unknown manager")
+        name = t.CMD_NAMES.get(cmd) or (spec.name if spec else "not a known command")
+        gating = f" · {spec.gating}" if spec else ""
+        self.lbl_raw_command.setText(f"0x{cmd:04X} — {manager} · {name}{gating}")
+        self.lbl_raw_command.setStyleSheet("")
+
+    def _send_raw(self) -> None:
+        try:
+            cmd = parse_command(self.raw_command_edit.text())
+            payload = parse_payload(self.raw_payload_edit.text())
+            type_byte = int(self.raw_type_edit.text().strip() or "0", 0)
+            listen = float(self.raw_listen_edit.text().strip() or SEND_LISTEN_SECONDS)
+        except ControllerError as exc:
+            self._warn("Check the command", str(exc))
+            return
+        except ValueError as exc:
+            self._warn("Check the numbers", f"Type and Listen must be numbers: {exc}")
+            return
+        if not 0 <= type_byte <= 0xFF:
+            self._warn("Check the numbers", "Type must be one byte (0..255).")
+            return
+
+        family = t.dangerous_family(cmd)
+        if family is not None:
+            self._warn(
+                "Refused",
+                f"0x{cmd:04X} is part of the {family}, which is deliberately not "
+                "implemented.\n\nThe app will not send it. `tlcli send --force` is "
+                "the documented escape hatch for someone who has read the "
+                "protocol notes and knows why they want it.")
+            return
+
+        name = t.CMD_NAMES.get(cmd, "")
+        lines = [f"Send 0x{cmd:04X}" + (f" ({name})" if name else ""),
+                 f"Payload: {payload.hex(' ') or '(none)'}   "
+                 f"type {type_byte}   listening {listen:g}s", ""]
+        if self._wear:
+            lines.append("The buds are WORN. Never sweep unknown command space "
+                         "against a worn headset.")
+        elif self._wear is False:
+            lines.append("The buds are not being worn.")
+        if QMessageBox.question(self, "Send a raw command", "\n".join(lines)) \
+                != QMessageBox.StandardButton.Yes:
+            return
+
+        result = self._run(lambda c: c.send_raw(cmd, payload, type_byte=type_byte,
+                                                listen=listen))
+        if result is _FAILED or result is None:
+            return
+        self._show_raw_result(result)
+
+    def _show_raw_result(self, result: dict) -> None:
+        # replies first, so that after inserting at the top the tx row sits
+        # above its own replies and the block reads top-to-bottom
+        for row in reversed(result["events"]):
+            self._add_raw_row("rx", row.get("name") or row["cmd"], event_phrase(row))
+        self._add_raw_row(
+            "tx", t.CMD_NAMES.get(result["cmd"], "") or f"0x{result['cmd']:04X}",
+            f"0x{result['cmd']:04X}  [{result['payload'].hex(' ')}]  "
+            f"type {result['type_byte']}  {len(result['frames'])} frame(s)")
+        replies = len(result["events"])
+        self.lbl_raw.setText(
+            f"0x{result['cmd']:04X} sent in {len(result['frames'])} frame(s); "
+            f"{replies} packet(s) heard in {result['listen']:g}s."
+            + ("" if replies else "  (no reply — the command may take none, or the "
+                                  "unit may not take it at all)"))
+
+    def _add_raw_row(self, direction: str, command: str, detail: str) -> None:
+        self.raw_table.insertRow(0)
+        cells = (QTime.currentTime().toString("HH:mm:ss.zzz"), direction,
+                 command, detail)
+        for column, value in enumerate(cells):
+            self.raw_table.setItem(0, column, QTableWidgetItem(value))
+        self.raw_table.resizeColumnToContents(0)
+
+    def _clear_raw(self) -> None:
+        self.raw_table.setRowCount(0)
+        self.lbl_raw.setText("Nothing sent yet.")
 
     # ------------------------------------------------------ gesture table
     def _show_gestures(self, table: dict) -> None:

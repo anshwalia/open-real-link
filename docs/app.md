@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **fifth slice.** The app is built one feature at a time, and a feature
+Status: **sixth slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-eight things and nothing else:
+nine things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -18,11 +18,12 @@ eight things and nothing else:
    gesture, write the whole table back with `0x0401` and read it again.
 8. **Push-event monitor** — listen for the device's own notifications (button
    presses, battery, wear, noise, multi-connect) and decode them live.
+9. **Guarded raw console** — send one command the app has no control for, with
+   the tone / OTA / debug families refused.
 
-Everything else the CLI can do (voice, raw console, the SDP service list) is
-deliberately **not** in the UI yet. It is added, wired up and live-tested one
-item at a time, so the app never carries a control for something that is not
-implemented.
+Everything else the CLI can do (voice, the SDP service list) is deliberately
+**not** in the UI yet. It is added, wired up and live-tested one item at a time,
+so the app never carries a control for something that is not implemented.
 
 ## Running it
 
@@ -205,6 +206,31 @@ input latency and cannot corrupt the session. A read failure stops the monitor
 and reports it in the status bar — never a modal, because a modal opened from a
 `QTimer` callback spins a nested event loop.
 
+### Raw
+
+A console for commands the app has no verified control for. Type a command id
+(`0x0404`, or bare `404` for decimal, the same rule as `tlcli send`), a hex
+payload, a type byte, and how long to listen; it shows the frames sent and every
+reply, decoded where the core can and as raw hex where it cannot.
+
+**The guard is the point of this tab.** The hearing / ear-scan tones, OTA
+firmware push and debug log families are refused, and the refusal is shown as you
+type, before anything is clicked. Unlike `tlcli send` there is **no override**
+in the app: `tlcli send --force` is the documented escape hatch for someone who
+has read the protocol notes, and a one-click override in a window is exactly the
+accident the guard exists to prevent. The command id is looked up live and the
+line under it names the manager, the command and its gating.
+
+Two more things it does that a bare console would not:
+
+* it **confirms** before sending, and the confirmation carries the wear state —
+  the buds must never be swept with unknown command space while they are in;
+* it says when a send heard **nothing**, rather than leaving the user to guess
+  whether the command took no reply or was not accepted at all.
+
+The guard table itself lives in the core (`tlcore.DANGEROUS_COMMANDS`), not in
+the app, so the CLI and the app cannot drift apart on which ids are refused.
+
 ## Design
 
 Widgets live in `tlapp/window.py`; every device action goes through
@@ -227,7 +253,10 @@ The controller opens the device exactly the way the CLI does, by reusing
 
 * The hearing-test / ear-scan tones, OTA and debug families have **no control**
   in the UI — they are documented but not implemented
-  ([`protocol.md`](protocol.md) §7).
+  ([`protocol.md`](protocol.md) §7) — and the raw console, the one place they
+  could be typed, refuses them with no override.
+* The raw console confirms every send and shows whether the buds are worn, so
+  unknown command space is never swept against a worn headset by accident.
 * Controls are gated by the unit's own capability bitmap: **Apply** is disabled
   when the device does not advertise the write.
 * A whole-table write (`0x0401`) is only ever built from a table the device just
@@ -239,5 +268,7 @@ The controller opens the device exactly the way the CLI does, by reusing
 
 ## What is next
 
-The remaining verified features, each added the same way: host-side voice, a
-guarded raw console, and the SDP service list.
+The remaining verified features, each added the same way: the SDP service list.
+There is no protocol work left — everything the CLI can do that the app cannot is
+either macOS-only (`tlcli say` speaks through the host's audio output, `tlcli
+services` reads the SDP record) or already here.

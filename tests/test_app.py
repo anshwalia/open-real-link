@@ -32,6 +32,8 @@ from tlapp import (  # noqa: E402
     friendly_error,
     function_choices,
     noise_choices,
+    parse_command,
+    parse_payload,
     read_snapshot,
     snapshot_summary,
     suggested_name,
@@ -598,7 +600,89 @@ def test_function_choices() -> None:
 
 
 # --------------------------------------------------------------------------
-# 8: push-event monitor
+# 8: guarded raw console
+# --------------------------------------------------------------------------
+def test_parse_command() -> None:
+    check("0x hex", parse_command("0x0404"), 0x0404)
+    check("bare digits are decimal, like tlcli", parse_command("404"), 404)
+    check("whitespace is tolerated", parse_command("  1028 "), 1028)
+    check("the top of the range", parse_command("0xFFFF"), 0xFFFF)
+    check_raises("empty", ControllerError, parse_command, "")
+    check_raises("not a number", ControllerError, parse_command, "zz")
+    check_raises("negative", ControllerError, parse_command, "-1")
+    check_raises("out of range", ControllerError, parse_command, "0x10000")
+
+
+def test_parse_payload() -> None:
+    check("spaces", parse_payload("01 01 20"), b"\x01\x01\x20")
+    check("0x prefixes", parse_payload("0x01 0x20"), b"\x01\x20")
+    check("commas", parse_payload("01,02"), b"\x01\x02")
+    check("no separator at all", parse_payload("0101"), b"\x01\x01")
+    check("empty is an empty payload", parse_payload(""), b"")
+    check("whitespace only is empty too", parse_payload("   "), b"")
+    check_raises("odd digit count", ControllerError, parse_payload, "012")
+    check_raises("not hex", ControllerError, parse_payload, "zz")
+
+
+def test_send_raw_refuses_every_guarded_family() -> None:
+    """The app refuses the tone / OTA / debug families, with no override."""
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, [("tx", wire(0x0106)),
+                                ("rx", wire(0x8106, bytes.fromhex("0003016402640300")))])
+        families = set()
+        for cmd in t.DANGEROUS_COMMANDS:
+            try:
+                ctrl.send_raw(cmd, b"\x01")
+                FAILURES.append(f"0x{cmd:04X} was sent but should have been refused")
+            except ControllerError as exc:
+                families.add(t.dangerous_family(cmd))
+                if t.dangerous_family(cmd) not in str(exc):
+                    FAILURES.append(f"0x{cmd:04X} refusal does not name the family")
+        check("all three families are covered", len(families), 3)
+        check("nothing guarded was written", ctrl.transport.writes, [])
+        check("every guarded id is in the table", len(t.DANGEROUS_COMMANDS), 16)
+        ctrl.disconnect()
+
+
+def test_send_raw_sends_and_decodes_the_reply() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, [("tx", wire(0x0106)),
+                                ("rx", wire(0x8106, bytes.fromhex("0003016402640300")))])
+        result = ctrl.send_raw(0x0106, listen=0.05)
+        check("the command is echoed", result["cmd"], 0x0106)
+        check("one frame was sent", len(result["frames"]), 1)
+        check("the frame is the wire form", result["frames"][0], wire(0x0106))
+        check("one packet came back", len(result["events"]), 1)
+        check("and it was decoded", result["events"][0]["state"]["devices"],
+              {"L": {"level": 100, "charging": False},
+               "R": {"level": 100, "charging": False},
+               "CASE": {"level": 0, "charging": False}})
+        ctrl.disconnect()
+
+
+def test_send_raw_carries_a_payload_and_a_type_byte() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, [("tx", wire(0x010C, b"\x01")),
+                                ("rx", wire(0x810C, bytes.fromhex("00010101")))])
+        result = ctrl.send_raw(0x010C, b"\x01", listen=0.05)
+        check("the payload is on the wire", result["payload"], b"\x01")
+        check("the reply came back", len(result["events"]), 1)
+        check("an undecoded reply keeps its raw payload",
+              result["events"][0]["payload"], "00010101")
+        ctrl.disconnect()
+
+
+def test_send_raw_can_skip_listening() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, [("tx", wire(0x0106))])
+        result = ctrl.send_raw(0x0106, listen=0)
+        check("nothing was heard", result["events"], [])
+        check("but the frame still went out", len(result["frames"]), 1)
+        ctrl.disconnect()
+
+
+# --------------------------------------------------------------------------
+# 9: push-event monitor
 # --------------------------------------------------------------------------
 def test_poll_events_decodes_a_recorded_capture() -> None:
     """fixtures/user-interaction.jsonl is nine unprompted 0x0204 pushes."""
@@ -727,6 +811,10 @@ def test_requires_connection() -> None:
     check_raises("set gestures without connect", ControllerError, ctrl.set_gestures, {})
     check_raises("disable long press without connect",
                  ControllerError, ctrl.disable_long_press)
+    check_raises("send raw without connect", ControllerError, ctrl.send_raw, 0x0106)
+    # the guard must fire before the connection check, so it holds even offline
+    check_raises("send raw is guarded even when disconnected",
+                 ControllerError, ctrl.send_raw, 0x0415)
 
 
 def test_double_connect_is_safe() -> None:

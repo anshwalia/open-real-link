@@ -15,13 +15,14 @@ Every operation is **synchronous**: one call is a handful of round trips at
 
 This file implements the app feature by feature -- connect + capability view,
 device status, noise mode get/set, the equalizer / high-volume settings,
-settings backup / restore, the push-event monitor, and the gesture table. Later
-features (voice, console) are added here as they are built, so the app never
-carries a control for something that is not yet wired up.
+settings backup / restore, the push-event monitor, the gesture table, and the
+guarded raw console. Later features (voice) are added here as they are built, so
+the app never carries a control for something that is not yet wired up.
 """
 from __future__ import annotations
 
 import pathlib
+import re
 from dataclasses import dataclass
 
 import tlcore as t
@@ -40,6 +41,9 @@ EQ_PRESET_MAX = 6
 #: the GUI thread, so this is also the worst-case input latency while it is on.
 EVENT_POLL_SECONDS = 0.05
 
+#: Default seconds the raw console listens for a reply after sending.
+SEND_LISTEN_SECONDS = 1.0
+
 __all__ = [
     "ConnectionOptions",
     "ControllerError",
@@ -47,11 +51,14 @@ __all__ = [
     "EQ_PRESET_MAX",
     "EQ_PRESET_MIN",
     "EVENT_POLL_SECONDS",
+    "SEND_LISTEN_SECONDS",
     "eq_preset_choices",
     "event_phrase",
     "friendly_error",
     "function_choices",
     "noise_choices",
+    "parse_command",
+    "parse_payload",
 ]
 
 
@@ -106,6 +113,47 @@ def noise_choices() -> list[tuple[int, str]]:
         t.NOISE_MODE_ANC_SMART,
     )
     return [(value, noise_name(value)) for value in order]
+
+
+def parse_command(text: str) -> int:
+    """Parse a command id the way ``tlcli send`` does.
+
+    ``int(text, 0)`` means ``0x0404`` is hex but a bare ``404`` is **decimal** --
+    the same rule in both front ends, so an id pasted from the docs behaves
+    identically wherever it is typed.
+    """
+    text = (text or "").strip()
+    if not text:
+        raise ControllerError("Enter a command id, e.g. 0x0404.")
+    try:
+        value = int(text, 0)
+    except ValueError:
+        raise ControllerError(
+            f"A command id must be numeric, e.g. 0x0404 (got {text!r}).") from None
+    if not 0 <= value <= 0xFFFF:
+        raise ControllerError(f"Command id out of range: {text!r}")
+    return value
+
+
+def parse_payload(text: str) -> bytes:
+    """Parse a hex payload, tolerating spaces, commas and ``0x`` prefixes.
+
+    Empty text is an empty payload: plenty of commands take none.
+    """
+    text = (text or "").strip()
+    if not text:
+        return b""
+    cleaned = re.sub(r"\s+", "", text.replace("0x", "").replace("0X", ""))
+    cleaned = cleaned.replace(",", "")
+    if len(cleaned) % 2:
+        raise ControllerError(
+            f"A payload is whole bytes, so its hex needs an even number of digits "
+            f"(got {len(cleaned)} in {text!r}).")
+    try:
+        return bytes.fromhex(cleaned)
+    except ValueError:
+        raise ControllerError(
+            f"A payload must be hex, e.g. '01 01 20' (got {text!r}).") from None
 
 
 def function_choices() -> list[tuple[int, str]]:
@@ -375,6 +423,30 @@ class DeviceController:
         after = self._call(session.read_key_function, timeout=self.options.timeout)
         return {"changed": changed, "status": status,
                 "verified": list(after["entries"]) == list(entries), "table": after}
+
+    # -- 9. guarded raw console --------------------------------------------
+    def send_raw(self, cmd: int, payload: bytes = b"", *, type_byte: int = 0,
+                 listen: float = SEND_LISTEN_SECONDS) -> dict:
+        """Send one raw command; return the frames sent and everything heard.
+
+        Refuses the tone / OTA / debug families **outright**.  There is
+        deliberately no override here: ``tlcli send --force`` is the documented
+        escape hatch for someone who has read the protocol notes, and a
+        one-click override in a window is precisely the accident the guard
+        exists to prevent.
+        """
+        family = t.dangerous_family(cmd)
+        if family is not None:
+            raise ControllerError(
+                f"0x{cmd:04X} is part of the {family}, which is deliberately not "
+                "implemented. The app will not send it; use `tlcli send --force` "
+                "if you have read the protocol notes and know why you want it.")
+        session = self._require()
+        frames = self._call(session.send, cmd, payload, type_byte)
+        packets = self._call(session.listen, listen) if listen > 0 else []
+        return {"cmd": cmd, "payload": payload, "type_byte": type_byte,
+                "listen": listen, "frames": frames, "packets": packets,
+                "events": [t.decode_event(packet) for packet in packets]}
 
     # -- 8. push-event monitor ---------------------------------------------
     def poll_events(self, seconds: float = EVENT_POLL_SECONDS) -> list[dict]:

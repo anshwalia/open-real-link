@@ -30,9 +30,52 @@ from tlapp.window import (  # noqa: E402
     TAB_BACKUP,
     TAB_EVENTS,
     TAB_GESTURES,
+    TAB_RAW,
     TAB_SOUND,
     MainWindow,
 )
+
+
+class _Modal:
+    """Answer the window's modal dialogs so a test never blocks on a click.
+
+    Rebinds ``tlapp.window.QMessageBox`` to a stub for the duration, recording
+    what was asked and what was warned about.
+    """
+
+    def __init__(self, answer: bool = True):
+        self.answer = answer
+        self.questions: list = []
+        self.warnings: list = []
+
+    def __enter__(self):
+        import tlapp.window as window_module
+
+        self._module = window_module
+        self._original = window_module.QMessageBox
+        outer = self
+        real = window_module.QMessageBox.StandardButton
+
+        class Stub:
+            StandardButton = real
+
+            @staticmethod
+            def question(_parent, title, text, *args, **kwargs):
+                outer.questions.append((title, text))
+                return Stub.StandardButton.Yes if outer.answer \
+                    else Stub.StandardButton.No
+
+            @staticmethod
+            def warning(_parent, title, text, *args, **kwargs):
+                outer.warnings.append((title, text))
+                return Stub.StandardButton.Ok
+
+        window_module.QMessageBox = Stub
+        return self
+
+    def __exit__(self, *exc):
+        self._module.QMessageBox = self._original
+        return False
 
 #: The Air7 Pro's 0x8108 body: 5 gestures x left/right, long press bound to 8.
 GESTURE_BODY = ("000a0201010002010201020103060201040802010600"
@@ -97,6 +140,117 @@ def test_window_builds_and_connects() -> None:
         assert not window.gestures_apply_btn.isEnabled()
         assert window.gestures_table.rowCount() == 0
         assert window.lbl_gestures.text() == "No table read yet."
+
+        # the raw console is live but empty, and explains the guard before use
+        assert window.tabs.isTabEnabled(TAB_RAW)
+        assert window.raw_table.rowCount() == 0
+        assert window.lbl_raw.text() == "Nothing sent yet."
+        assert window.raw_command_edit.text() == ""
+        assert window.raw_payload_edit.text() == ""
+        assert window.raw_type_edit.text() == "0"
+    finally:
+        window.close()
+
+
+def test_raw_console_refuses_the_guarded_families() -> None:
+    """The guard is the point of this tab, so it gets its own test."""
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+
+        # typing a guarded id says so before anything is clicked
+        for text, needle in (("0x0415", "hearing"), ("0x0302", "OTA"),
+                             ("0x0f00", "debug")):
+            window.raw_command_edit.setText(text)
+            assert "will refuse" in window.lbl_raw_command.text()
+            assert needle in window.lbl_raw_command.text()
+
+        # typing an ordinary id names its manager, command and gating
+        window.raw_command_edit.setText("0x0404")
+        assert "setNoiseReduction" in window.lbl_raw_command.text()
+        assert "set" in window.lbl_raw_command.text()
+        assert "will refuse" not in window.lbl_raw_command.text()
+
+        # sending one is refused, and the dialog explains why -- with no override
+        window.raw_command_edit.setText("0x0415")
+        window.raw_payload_edit.setText("01")
+        # connecting already wrote frames, so compare against that, not zero
+        written = len(window.controller.transport.writes)
+        with _Modal() as modal:
+            window._send_raw()
+        assert len(modal.warnings) == 1
+        assert modal.warnings[0][0] == "Refused"
+        assert "hearing" in modal.warnings[0][1]
+        assert "tlcli send --force" in modal.warnings[0][1]
+        assert modal.questions == [], "a refused command must not even ask"
+        assert window.raw_table.rowCount() == 0
+        assert len(window.controller.transport.writes) == written
+    finally:
+        window.close()
+
+
+def test_raw_console_sends_only_after_a_confirmation() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        window.raw_command_edit.setText("0x010C")
+        window.raw_payload_edit.setText("01")
+
+        # declining the confirmation must not put anything on the wire
+        written = len(window.controller.transport.writes)
+        with _Modal(answer=False) as modal:
+            window._send_raw()
+        assert len(modal.questions) == 1
+        assert "Send 0x010C" in modal.questions[0][1]
+        assert window.raw_table.rowCount() == 0
+        assert len(window.controller.transport.writes) == written
+
+        # a bad payload is reported instead of being sent
+        window.raw_payload_edit.setText("012")
+        with _Modal() as modal:
+            window._send_raw()
+        assert modal.warnings and modal.warnings[0][0] == "Check the command"
+        assert "even number of digits" in modal.warnings[0][1]
+    finally:
+        window.close()
+
+
+def test_raw_console_renders_a_send_and_its_replies() -> None:
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_raw_result({
+            "cmd": 0x010C, "payload": b"\x01", "type_byte": 0, "listen": 1.0,
+            "frames": [b"\xaa"], "packets": [],
+            "events": [
+                {"cmd": "0x810C", "name": "getNoiseReduction", "payload": "00010101"},
+                {"cmd": "0x0204", "name": "notificationEvent", "event": "battery",
+                 "payload": "0103016402640300", "tlv": {1: 100, 2: 100, 3: 0}},
+            ]})
+        assert window.raw_table.rowCount() == 3
+        # the tx row sits above its replies and the block reads top to bottom
+        assert window.raw_table.item(0, 1).text() == "tx"
+        assert window.raw_table.item(1, 1).text() == "rx"
+        assert window.raw_table.item(2, 1).text() == "rx"
+        assert "0x010C" in window.raw_table.item(0, 3).text()
+        assert "1 frame(s)" in window.raw_table.item(0, 3).text()
+        assert "1=100" in window.raw_table.item(2, 3).text()
+        assert "2 packet(s) heard" in window.lbl_raw.text()
+
+        # no reply is reported as such, not as silence
+        window._show_raw_result({"cmd": 0x0400, "payload": b"", "type_byte": 0,
+                                 "listen": 0.5, "frames": [b"\xaa"], "packets": [],
+                                 "events": []})
+        assert window.raw_table.rowCount() == 4
+        assert "no reply" in window.lbl_raw.text()
+
+        window._clear_raw()
+        assert window.raw_table.rowCount() == 0
+        assert window.lbl_raw.text() == "Nothing sent yet."
     finally:
         window.close()
 
@@ -434,11 +588,12 @@ def test_window_disconnected_state() -> None:
     _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
-        # Sound, Gestures, Backup and Events are disabled until a device is connected
+        # Sound, Gestures, Backup, Events and Raw all need a device
         assert window.connect_btn.text() == "Connect"
         assert not window.tabs.isTabEnabled(TAB_SOUND)
         assert not window.tabs.isTabEnabled(TAB_GESTURES)
         assert not window.tabs.isTabEnabled(TAB_BACKUP)
         assert not window.tabs.isTabEnabled(TAB_EVENTS)
+        assert not window.tabs.isTabEnabled(TAB_RAW)
     finally:
         window.close()
