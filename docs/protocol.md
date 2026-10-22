@@ -160,7 +160,9 @@ sending an optional command; the `ALWAYS_ON` set (`{0x0100, 0x0101, 0x0102,
 0x0103, 0x0104, 0x010B, 0x0F00}`) needs no check.
 
 `0x012A` is a different query — “which single feature does this device support”
-— answered by an `0x812A` body decoded by `parse_feature_detect`.
+— answered by an `0x812A` body. It is **documented only**: a Buds Air7 Pro does
+not advertise `0x012A` and never answers it, so no live test can confirm the
+body and no decoder is shipped for it.
 
 Because the accepted set is a runtime property of the unit, no per-model
 capability table is shipped. What *is* shipped is a static, tiered list of
@@ -173,12 +175,17 @@ This is the set `tlcore` implements. A builder (`payload_*`) constructs a
 request; a decoder (`parse_*`) interprets a reply or push. Commands with neither
 are “known only” and are listed for identification only.
 
-Two device→app requests, `0x0503` and `0x0516`, are **deliberately not
-implemented**. Observing either requires the official realme Link app to be
-running (a feature toggle, an AI conversation), so no live test can confirm the
-layout — and a decoder that cannot be verified would present a static-only
-recovery as supported. Their bodies are documented below, in §“device → app
-requests”, so the gap is recorded instead of guessed at.
+Four device→app requests — `0x0502`, `0x0503`, `0x050E`, `0x0516` — and the
+`0x812A` feature reply are **documented, not implemented**. `0x0503`
+(feature-switch sync) and `0x0516` (oneshot audio) can only be observed while
+the official realme Link app is running (a feature toggle, an AI conversation),
+so their trigger is not host-reachable at all. `0x0502` (operation request) and
+`0x050E` (use-time list) *are* host-reachable but were never observed: the
+device neither emits `0x0502` for its own gestures nor when a gesture is bound
+to an app-side function, and it never pushes `0x050E`. No live test can confirm
+any of these layouts, and a decoder that cannot be verified would present a
+static-only recovery as supported. Their bodies are documented below, in
+§“device → app requests”, so the gap is recorded instead of guessed at.
 
 <!-- command-surface:start -->
 
@@ -206,7 +213,7 @@ requests”, so the gap is recorded instead of guessed at.
 | `0x0124` | bass engine (read) | — | `parse_bass_engine` | inferred |
 | `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | inferred |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
-| `0x812A` | detectFeature reply | — | `parse_feature_detect` | verified |
+| `0x812A` | detectFeature reply | — | — | documented only (the unit never answers `0x012A`) |
 | `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_public_event`, `parse_user_interaction`, `parse_multi_connect_event` | verified |
 | `0x8106` | battery | — | `parse_battery` | verified |
 | `0x8109` | earbud / wear status | — | `parse_earbud_status` | verified |
@@ -217,12 +224,12 @@ requests”, so the gap is recorded instead of guessed at.
 | `0x810D` | switch / feature status | — | `parse_switch_features` | integrated |
 | `0x8200` | getNotificationCapabilities (push-event types) | — | `parse_notification_capabilities` | verified |
 | `0x0500` | device asks for the host time | `payload_host_time_reply` | `parse_host_time_request` | integrated |
-| `0x0502` | device operation request | — | `parse_operation_request` | integrated |
+| `0x0502` | device operation request | — | — | documented only (never emitted) |
 | `0x0503` | feature-switch status sync | — | — | documented only (needs the vendor app) |
 | `0x0504` | device changed EQ mode | — | `parse_eq_mode_request` | integrated |
 | `0x0506` | custom-EQ list | — | `parse_custom_eq` | integrated |
 | `0x0508` | bass-engine status | — | `parse_bass_engine_status` | integrated |
-| `0x050E` | per-device use time | — | `parse_use_time_list` | integrated |
+| `0x050E` | per-device use time | — | — | documented only (never emitted; the `0x0128` reply is used) |
 | `0x0516` | framed audio data from the device | — | — | documented only (needs the vendor app) |
 
 Shared decoders that are not tied to one command:
@@ -531,12 +538,12 @@ Only `0x0500` expects a reply. All multi-byte fields are little-endian.
 | Command | Body | Decoder | Live trigger (Air7 Pro 2026-10-20) |
 | --- | --- | --- | --- |
 | `0x0500` | asks the host for the time; answer `0x8500` with `payload_host_time_reply(unix)` | `parse_host_time_request` | periodic / on connect |
-| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | `parse_operation_request` | **not emitted** for device-side gestures; needs one bound to an app-side function |
+| `0x0502` | `[action]` (5 -> app message 54, 6 -> 55) | — | **not emitted** for device-side gestures, and binding one to an app-side function (the host-reachable way to provoke it) did not produce one either |
 | `0x0503` | `[count] + count x [featureType][status]` | — | **not implemented by policy**: the sync only happens when the vendor app toggles a feature, so the layout can never be confirmed on hardware |
 | `0x0504` | `[eqMode]` | `parse_eq_mode_request` | **verified** -- pushed on every `0x0406` |
 | `0x0506` | custom-EQ list | `parse_custom_eq` | **verified** -- pushed on `0x0418 [05]` |
 | `0x0508` | `[min:int8][max:int8][current:int8]` + optional `[type:int8]` | `parse_bass_engine_status` | **verified** -- pushed on `0x041B`; the range is **signed** (`fb 05` = `-5..+5`) |
-| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | `parse_use_time_list` | same body as the `0x0128` reply; **not emitted** in a connect + 120 s playback session (the app reads `0x0128` instead) |
+| `0x050E` | `[count] + count x [deviceType][seconds:4 LE]` | — | same body as the `0x0128` reply; **not emitted** in a connect + 120 s playback session (the app reads the verified `0x0128` reply instead) |
 | `0x0516` | `[frameNum:2 LE][channel:2 LE] + frames{seqNum:4 LE, dataSize:2 LE, data}` | — | **not implemented by policy**: this is the **AI-conversation mic stream** (`AudioDataInfo.toAIMicVoiceData`), emitted only while the vendor app runs an AI feature, so it is not host-triggerable |
 
 `0x0504`/`0x0506`/`0x0508` are the read-back side of the EQ/bass writes: the

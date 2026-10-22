@@ -52,16 +52,11 @@ def parse_host_time_request(payload: bytes) -> dict:
     return out
 
 
-def parse_operation_request(payload: bytes) -> dict:
-    """``0x0502``: ``[action:1]``.
-
-    ``action`` 5 -> handler message 54, 6 -> 55; any other value is ignored by
-    the app.  The user-facing meaning of 5/6 was not recovered.
-    """
-    if not payload:
-        return {"action": None, "message": None}
-    action = payload[0]
-    return {"action": action, "message": OPERATION_MESSAGES.get(action)}
+# ``parse_operation_request`` (``0x0502``) was removed rather than shipped: the
+# device does not emit it for its own gestures (play/pause, track skip and the
+# ANC cycle are handled in firmware, so the app is never asked), and binding a
+# gesture to an app-side function -- the host-reachable way to provoke it -- does
+# not produce one either.  The body stays documented in ``docs/protocol.md``.
 
 
 def parse_eq_mode_request(payload: bytes) -> dict:
@@ -125,41 +120,33 @@ def parse_bass_engine_status(payload: bytes) -> dict:
     return out
 
 
-def parse_use_time_list(payload: bytes) -> dict:
-    """``0x050E``: ``[count:1] + count x [deviceType:1][seconds:4 LE]``.
-
-    ``CommandUtil.o`` -> ``UseTimeInfo`` (stride 5).
-    """
-    if not payload:
-        return {"count": 0, "entries": []}
-    count = payload[0]
-    entries = []
-    for i in range(count):
-        off = 1 + 5 * i
-        if off + 5 > len(payload):
-            break
-        device = payload[off]
-        entries.append({"device_type": device,
-                        "device": DEVICE_NAMES.get(device, str(device)),
-                        "seconds": struct.unpack_from("<I", payload, off + 1)[0]})
-    return {"count": count, "entries": entries}
+# ``parse_use_time_list`` (``0x050E``, ``[count:1] + count x [deviceType:1]
+# [seconds:4 LE]``) was removed rather than shipped: it is not emitted in a
+# connect + playback + idle session -- the app reads use time with the verified
+# ``0x0128`` reply instead -- so the push cannot be confirmed on this firmware.
+# The body stays documented in ``docs/protocol.md``.
 
 
 #: command id -> decoder for the device -> app request family.
 #:
-#: ``0x0503`` (feature-switch sync) and ``0x0516`` (oneshot audio) are
-#: deliberately absent, and should not be re-added by pattern-matching the other
-#: entries.  Observing either requires the official realme Link app to be running
-#: -- a feature toggle for ``0x0503``, an AI conversation for ``0x0516`` -- so no
-#: live test can ever confirm the layout, and implementing them would present a
-#: static-only recovery as supported.  Both are documented in ``docs/protocol.md``.
+#: Four IDs are deliberately absent and should not be re-added by
+#: pattern-matching the other entries:
+#:
+#: * ``0x0503`` (feature-switch sync) and ``0x0516`` (oneshot audio) can only be
+#:   observed while the official realme Link app is running -- a feature toggle,
+#:   an AI conversation -- so their trigger is not host-reachable and no live
+#:   test can ever confirm the layout.
+#: * ``0x0502`` (operation request) and ``0x050E`` (use-time list) are reachable
+#:   but were never observed: the device answers neither its own gestures nor a
+#:   host-bound app-side gesture with ``0x0502``, and it never pushes ``0x050E``.
+#:
+#: All four stay documented in ``docs/protocol.md``; implementing them here would
+#: present a static-only recovery as supported.
 REQUEST_DECODERS = {
     0x0500: parse_host_time_request,
-    0x0502: parse_operation_request,
     0x0504: parse_eq_mode_request,
     0x0506: parse_custom_eq,
     0x0508: parse_bass_engine_status,
-    0x050E: parse_use_time_list,
 }
 
 

@@ -193,10 +193,11 @@ def check_host_time_request() -> None:
 
 
 def check_operation_request() -> None:
-    check("action 5", t.parse_operation_request(bytes([5])), {"action": 5, "message": 54})
-    check("action 6", t.parse_operation_request(bytes([6])), {"action": 6, "message": 55})
-    check("action 9", t.parse_operation_request(bytes([9])), {"action": 9, "message": None})
-    check("empty", t.parse_operation_request(b""), {"action": None, "message": None})
+    # 0x0502 is documented, not decoded: the device never emitted it for its own
+    # gestures, and a host-bound app-side gesture did not produce one either.
+    check("0x0502 not decoded", hasattr(t, "parse_operation_request"), False)
+    check("0x0502 still in the catalogue", t.command_spec(0x0502).name != "", True)
+    check("0x0502 message ids still documented", t.OPERATION_MESSAGES, {5: 54, 6: 55})
 
 
 def check_eq_mode_and_bass() -> None:
@@ -215,24 +216,26 @@ def check_eq_mode_and_bass() -> None:
 
 
 def check_use_time_list() -> None:
-    body = bytes([2, 1]) + (57551).to_bytes(4, "little") + bytes([2]) + (57773).to_bytes(4, "little")
-    out = t.parse_use_time_list(body)
-    check("count", out["count"], 2)
-    check("left", out["entries"][0], {"device_type": 1, "device": "L", "seconds": 57551})
-    check("right", out["entries"][1], {"device_type": 2, "device": "R", "seconds": 57773})
-    check("empty", t.parse_use_time_list(b"")["count"], 0)
+    # 0x050E is documented, not decoded: it was never pushed, and the app reads
+    # use time from the verified 0x0128 reply instead.
+    check("0x050E not decoded", hasattr(t, "parse_use_time_list"), False)
+    check("0x050E still in the catalogue", t.command_spec(0x050E).name != "", True)
+    check("0x0128 (verified) still decodes",
+          t.parse_use_time(bytes.fromhex("000301cfe0000002ade100000300000000"))["devices"],
+          {"L": 57551, "R": 57773, "CASE": 0})
 
 
 def check_request_dispatch() -> None:
     check("known", t.decode_request(0x0504, bytes([4])), {"eq_mode": 4})
     check("unknown", t.decode_request(0x0501, b""), None)
-    check("registry size", len(t.REQUEST_DECODERS), 6)
-    for cmd in (0x0500, 0x0502, 0x0504, 0x0506, 0x0508, 0x050E):
+    check("registry size", len(t.REQUEST_DECODERS), 4)
+    for cmd in (0x0500, 0x0504, 0x0506, 0x0508):
         check(f"0x{cmd:04X} in REQUEST_DECODERS", cmd in t.REQUEST_DECODERS, True)
         check(f"0x{cmd:04X} has a name", t.command_spec(cmd).name != "", True)
-    # 0x0503 / 0x0516 are documented but deliberately not decoded: observing them
-    # needs the vendor app, so they can never be verified (see REQUEST_DECODERS).
-    for cmd in (0x0503, 0x0516):
+    # Documented but deliberately not decoded.  Two need the vendor app (their
+    # trigger is not host-reachable); two are host-reachable but were never
+    # observed.  All four stay in the catalogue so they can still be identified.
+    for cmd in (0x0502, 0x0503, 0x050E, 0x0516):
         check(f"0x{cmd:04X} not decoded by policy", cmd in t.REQUEST_DECODERS, False)
         check(f"0x{cmd:04X} still in the catalogue", t.command_spec(cmd).name != "", True)
 

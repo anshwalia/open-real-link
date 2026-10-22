@@ -112,7 +112,6 @@ from .decoders import (
     parse_earbud_status,
     parse_eq_info,
     parse_eq_mode,
-    parse_feature_detect,
     parse_high_volume,
     parse_key_function,
     parse_model_id,
@@ -182,8 +181,6 @@ from .requests import (
     parse_custom_eq,
     parse_eq_mode_request,
     parse_host_time_request,
-    parse_operation_request,
-    parse_use_time_list,
     payload_host_time_reply,
 )
 from .session import Session
@@ -241,7 +238,7 @@ __all__ = [
     "CASE_ID", "DEVICE_NAMES", "EVENT_TYPE_NAMES", "STATE_DECODERS", "WEAR_IN_EAR",
     "decode_state", "parse_ai_status", "parse_bass_engine", "parse_battery", "parse_color_id", "parse_compactness_event", "parse_device_version",
     "parse_earbud_status",
-    "parse_eq_info", "parse_eq_mode", "parse_feature_detect", "parse_high_volume",
+    "parse_eq_info", "parse_eq_mode", "parse_high_volume",
     "parse_key_function", "parse_model_id", "parse_multi_connect",
     "parse_multi_connect_event",
     "parse_notification_capabilities", "parse_notification_event", "parse_pairs", "parse_personalized_anc", "parse_protocol_version", "parse_public_event", "parse_remote_vendor_id", "parse_switch_features", "parse_upgrade_capability", "parse_use_time",
@@ -252,8 +249,7 @@ __all__ = [
     # device -> app requests (0x05xx)
     "OPERATION_MESSAGES", "REQUEST_DECODERS", "decode_request", "payload_host_time_reply",
     "parse_bass_engine_status", "parse_custom_eq", "parse_eq_mode_request",
-    "parse_eq_mode_request", "parse_host_time_request",
-    "parse_operation_request", "parse_use_time_list",
+    "parse_host_time_request",
     # errors
     "TLError", "FrameError", "PacketError", "DeviceRejected", "NotWorn",
     "TransportError", "NotConnected", "ChannelRefused", "PageTimeout", "Timeout",

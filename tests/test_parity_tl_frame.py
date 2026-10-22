@@ -334,7 +334,10 @@ def parity_decoders(ref, core) -> None:
         ("parse_capabilities", "00bf4f5ae665dc4004"),
         ("parse_capabilities", "000000000000000000"),
         ("parse_capabilities", "ff"),
-        ("parse_feature_detect", "001201000000"),
+        # ``parse_feature_detect`` is deliberately absent from tlcore: the unit
+        # never answers ``0x012A``, so the decoder was removed rather than
+        # shipped unverified.  The reference out-of-tree copy still has it, so
+        # it is not a parity case.
         ("parse_notification_event", "03010101"),
         ("parse_notification_event", "01036402640300"),
         ("parse_notification_event", "0401040204"),

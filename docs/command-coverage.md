@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **40 implemented** in `open-real-link`,
-**39 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **37 implemented** in `open-real-link`,
+**42 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 22 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 21 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
 | `SetCommandManager` | `0x0400` | 22 | 10 | 18 | 22 cap-bit |
-| `RequestCommandManager` | `0x0500` | 8 | 6 | 1 | 1 cap-bit, 7 ungated |
+| `RequestCommandManager` | `0x0500` | 8 | 4 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **40** | **49** | |
+| **total** | | **79** | **37** | **49** | |
 
 ## Full catalogue
 
@@ -68,7 +68,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0124` | 292 | poll | cap-bit 38 | send + decode | live | — |
 | `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
-| `0x012a` | 298 | poll | ungated | decode | — | detectFeature |
+| `0x012a` | 298 | poll | ungated | — | — | detectFeature |
 | `0x012c` | 300 | poll | cap-bit 54 | — | live | startSocketConnect |
 | `0x0131` | 305 | poll | cap-bit 58 | send + decode | live | — |
 | `0x0200` | 512 | notify | ungated | send + decode | — | getNotificationCapabilities |
@@ -109,12 +109,12 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0428` | 1064 | set | cap-bit 58 | build + send | live | setAIStatus / setTranslationAppStatus |
 | `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
 | `0x0500` | 1280 | device->app | ungated | build + decode | — | requestHostTime |
-| `0x0502` | 1282 | device->app | ungated | decode | — | requestOperation |
+| `0x0502` | 1282 | device->app | ungated | — | — | requestOperation |
 | `0x0503` | 1283 | device->app | ungated | — | — | featureSwitchStatus |
 | `0x0504` | 1284 | device->app | ungated | decode | — | equalizerMode |
 | `0x0506` | 1286 | device->app | ungated | decode | — | customEq |
 | `0x0508` | 1288 | device->app | ungated | decode | — | bassEngineStatus |
-| `0x050e` | 1294 | device->app | cap-bit 46 | decode | live | useTime |
+| `0x050e` | 1294 | device->app | cap-bit 46 | — | live | useTime |
 | `0x0516` | 1302 | device->app | ungated | — | — | oneshotAudioData |
 | `0x0f00` | 3840 | debug | always-on | — | live | switchDebugStatus |
 | `0x0f01` | 3841 | debug | ungated | — | — | — |
@@ -160,19 +160,30 @@ removed **before a release**. Their obstacle is named.
 | bass-engine read `0x0124` | `parse_bass_engine` | cap-bit 38 is set, but the unit answers an empty `0x0124` with `00 00` — no reading to decode |
 | EQ write `0x0418` | `payload_set_eq` | the read (`0x0122`) and write are asymmetric (`isSelected` vs `action`) and the encoder refuses a zero-band record; only the `[05]` query form has been driven |
 | switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
-| feature detect `0x012A` | `parse_feature_detect` | not in the capability bitmap; the unit does not answer |
-| `0x0502` | `parse_operation_request` | **not emitted** for device-side gestures: play/pause, track skip and the ANC cycle are handled by the firmware itself, so the app is never asked. Binding a gesture to an app-side function (`26`/`27`/`31`) was the proposed workaround and it **fails for a separate reason** — a gesture bound to `31` reports no press at all, so no `action=2` press can be observed that way (3 rounds with 0 events against 19/21/11 in the controls, and the press is dropped rather than queued) |
-| `0x050E` | `parse_use_time_list` | **not emitted** in a connect + 120 s playback + idle session; the app reads use time with `0x0128` (verified) instead, so the push looks unused on this firmware |
 
 ### Documented but deliberately not implemented
 
-`0x0503` (feature-switch sync) and `0x0516` (oneshot audio) are **out of scope by
-policy**, not by accident: each one can only ever be observed while the official
-realme Link app is running — a feature toggle for `0x0503`, an AI conversation
-for `0x0516` — so no live test can confirm the body, and any decoder would be a
-static-only guess wearing a supported label. They are documented here and in
-`docs/protocol.md`, and the project does not implement them. (This is why the
-count of implemented IDs fell from 42 to 40; the prose above had drifted to 41.)
+Four IDs are **out of scope by policy**, not by accident; the project does not
+implement them, and all four stay documented here and in `docs/protocol.md`:
+
+* `0x0503` (feature-switch sync) and `0x0516` (oneshot audio) can only ever be
+  observed while the official realme Link app is running — a feature toggle for
+  `0x0503`, an AI conversation for `0x0516` — so their trigger is not
+  host-reachable and no live test can confirm the body.
+* `0x0502` (operation request) and `0x050E` (use-time list) *are* host-reachable
+  but were **never observed** on this unit: the device does not emit `0x0502`
+  for its own gestures, and binding a gesture to an app-side function — the
+  host-reachable way to provoke one — did not produce it either; and it never
+  pushes `0x050E`, because the app reads use time from the verified `0x0128`
+  reply instead.
+
+`0x012A` is the same kind of entry: the unit does not advertise it and never
+answers it, so its `0x812A` reply is not decoded either.
+
+Implementing any of them would put a static-only guess behind a supported label.
+That is why the implemented count is now **37** (it fell by three here, and
+before that from 42 to 40 for `0x0503`/`0x0516`): the per-manager table and the
+total row above are the authority, not any prose figure.
 
 Live-verified device→app requests (Air7 Pro, 2026-10-20): `0x0500` (time),
 `0x0504` (pushed on every `0x0406`), `0x0506` (pushed on the `0x0418 [05]`

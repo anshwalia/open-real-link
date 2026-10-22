@@ -922,7 +922,8 @@ def test_stream_decoder_edges() -> None:
 
 
 def test_decoder_edges() -> None:
-    check_raises("feature_detect too short", ValueError, t.parse_feature_detect, b"\x00")
+    # 0x812A / parse_feature_detect was removed: the unit never answers 0x012A.
+    check("feature_detect not implemented", hasattr(t, "parse_feature_detect"), False)
     check("pairs on empty input", t.parse_pairs(b""), (0, []))
     check("use_time too short", t.parse_use_time(b"\x00")["devices"], {})
     check("model_id too short", t.parse_model_id(b"\x00")["model_id"], None)

@@ -17,26 +17,13 @@ import re
 import struct
 
 
-def parse_feature_detect(payload: bytes) -> dict:
-    """Decode the 0x812A body from `PollCommandManager.b` / `O`.
-
-    Layout (all read via `ProtocolUtil`, so multi-byte fields are LE):
-
-        payload[0]    status code (0 == success)
-        payload[1]    featureId   (echo of the requested type)
-        payload[2:6]  value       uint32 LITTLE endian
-
-    `O` builds `FeatureDetectBean(payload[1], ProtocolUtil.e(payload,2,4,true))`.
-    """
-    if len(payload) < 6:
-        raise ValueError("0x812A body needs status(1) + featureId(1) + value(4)")
-    status = payload[0]
-    return {
-        "status": status,
-        "ok": status == 0,
-        "feature_id": payload[1],
-        "value": struct.unpack_from("<I", payload, 2)[0],
-    }
+# ``parse_feature_detect`` (``0x812A``, the answer to the ``0x012A`` feature
+# query) was removed rather than shipped: a Buds Air7 Pro does not advertise
+# ``0x012A`` in its capability bitmap and never answers it, so no live test can
+# confirm the body, and a decoder that cannot be verified would present a
+# static-only recovery as supported.  The layout is documented in
+# ``docs/protocol.md``.  Do not re-add it by pattern-matching its neighbours.
+#
 # NotificationCommandManager.k(): device -> app event pushed in a 0x0204
 # packet.  payload[0] is the event type; the rest is event-specific TLVs.
 # Names corrected 2026-10-20 from the decompiled dispatch (the earlier labels
@@ -545,7 +532,6 @@ STATE_DECODERS = {
     0x811A: parse_personalized_anc,
     0x8200: parse_notification_capabilities,
     0x8131: parse_ai_status,
-    0x812A: parse_feature_detect,
     0x8108: parse_key_function,
     0x810D: parse_switch_features,
 }
