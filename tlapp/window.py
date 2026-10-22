@@ -61,7 +61,7 @@ TAB_SOUND = 1
 TAB_GESTURES = 2
 TAB_BACKUP = 3
 TAB_EVENTS = 4
-TAB_RAW = 5
+TAB_EXPERT = 5
 
 #: How often the event monitor reads the link, in milliseconds.  Slightly
 #: longer than the read budget so the GUI thread always gets a turn.
@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         self.options = options
         self.controller = DeviceController(options)
         self.setWindowTitle("OpenRealLink")
-        self.resize(880, 640)
+        self.resize(900, 780)
         self._build_toolbar()
         self._build_tabs()
         self._set_connected(False)
@@ -115,7 +115,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_gestures_tab(), "Gestures")
         self.tabs.addTab(self._build_backup_tab(), "Backup")
         self.tabs.addTab(self._build_events_tab(), "Events")
-        self.tabs.addTab(self._build_raw_tab(), "Raw")
+        self.tabs.addTab(self._build_expert_tab(), "Expert")
         self.setCentralWidget(self.tabs)
 
     @staticmethod
@@ -196,10 +196,7 @@ class MainWindow(QMainWindow):
         pair_outer.addWidget(self.pair_table)
         outer.addWidget(pair_box)
 
-        outer.addWidget(QLabel("Capability bitmap (0x8100) — every known command"))
-        self.caps_table = self._table(["Command", "Manager", "Name", "Advertised"])
-        self.caps_table.setColumnWidth(0, 80)
-        outer.addWidget(self.caps_table, 1)
+        outer.addStretch(1)
         return page
 
     # -------------------------------------------------------------- sound tab
@@ -272,25 +269,6 @@ class MainWindow(QMainWindow):
         vol_row.addStretch(1)
         outer.addWidget(vol_box)
 
-        # -- bass engine (read-only) ---------------------------------------
-        bass_box = QGroupBox("Bass engine")
-        bass_outer = QVBoxLayout(bass_box)
-        bass_row = QHBoxLayout()
-        self.bass_read_btn = QPushButton("Read")
-        self.bass_read_btn.clicked.connect(
-            lambda: self._run(lambda c: c.bass_engine(), self._show_bass))
-        bass_row.addWidget(self.bass_read_btn)
-        bass_note = QLabel(
-            "Read-only (<code>0x012C</code>). The <code>0x041B</code> write is "
-            "accepted, but which band its <code>type</code> byte selects is not "
-            "verified, so the app does not offer it.")
-        bass_note.setWordWrap(True)
-        bass_row.addWidget(bass_note, 1)
-        bass_outer.addLayout(bass_row)
-        self.bass_table = self._table(["Type", "Min", "Max", "Current"])
-        self.bass_table.setMaximumHeight(110)
-        bass_outer.addWidget(self.bass_table)
-        outer.addWidget(bass_box)
         outer.addStretch(1)
         return page
 
@@ -448,10 +426,76 @@ class MainWindow(QMainWindow):
         return page
 
     # -------------------------------------------------------------- raw tab
-    def _build_raw_tab(self) -> QWidget:
+    def _build_expert_tab(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
 
+        intro = QLabel(
+            "Everything here needs protocol knowledge to read, and none of it is "
+            "needed to use the headset. The diagnostic reads and the raw console "
+            "live together on this one tab so the everyday tabs can stay simple.")
+        intro.setWordWrap(True)
+        outer.addWidget(intro)
+
+        # -- diagnostics ---------------------------------------------------
+        diag_box = QGroupBox("Diagnostics")
+        diag_outer = QVBoxLayout(diag_box)
+        diag_row = QHBoxLayout()
+        self._diag_buttons = {}
+        for label, cmd, slot in (
+            ("Identity", 0x0102, self._read_identity),
+            ("Upgrade capability", t.CMD_GET_UPGRADE_CAPABILITY,
+             self._read_upgrade_capability),
+            ("Switch features", t.CMD_GET_SWITCH_FEATURE, self._read_switch_features),
+            ("Notification caps", 0x0200, self._read_notification_caps),
+            ("Personalized ANC", t.CMD_GET_PERSONALIZED_ANC,
+             self._read_personalized_anc),
+            ("AI status", t.CMD_GET_AI_STATUS, self._read_ai_status),
+        ):
+            button = QPushButton(label)
+            button.clicked.connect(slot)
+            diag_row.addWidget(button)
+            self._diag_buttons[button] = cmd
+        diag_row.addStretch(1)
+        diag_outer.addLayout(diag_row)
+        self.diag_table = self._table(["Field", "Value"])
+        self.diag_table.setMaximumHeight(130)
+        diag_outer.addWidget(self.diag_table)
+        outer.addWidget(diag_box)
+
+        # -- capability bitmap ---------------------------------------------
+        caps_box = QGroupBox("Capability bitmap (0x8100) — every known command")
+        caps_outer = QVBoxLayout(caps_box)
+        self.caps_table = self._table(["Command", "Manager", "Name", "Advertised"])
+        self.caps_table.setColumnWidth(0, 80)
+        caps_outer.addWidget(self.caps_table)
+        outer.addWidget(caps_box, 1)
+
+        # -- bass engine ---------------------------------------------------
+        bass_box = QGroupBox("Bass engine (0x012C)")
+        bass_outer = QVBoxLayout(bass_box)
+        bass_row = QHBoxLayout()
+        self.bass_read_btn = QPushButton("Read")
+        self.bass_read_btn.clicked.connect(
+            lambda: self._run(lambda c: c.bass_engine(), self._show_bass))
+        bass_row.addWidget(self.bass_read_btn)
+        bass_note = QLabel(
+            "Read-only. The <code>0x041B</code> write is accepted, but which band "
+            "its <code>type</code> byte selects is not verified, so the app does "
+            "not offer it — and the bands carry the device's own selector "
+            "(<code>type 1/2/3</code>), not a name.")
+        bass_note.setWordWrap(True)
+        bass_row.addWidget(bass_note, 1)
+        bass_outer.addLayout(bass_row)
+        self.bass_table = self._table(["Type", "Min", "Max", "Current"])
+        self.bass_table.setMaximumHeight(100)
+        bass_outer.addWidget(self.bass_table)
+        outer.addWidget(bass_box)
+
+        # -- raw console ---------------------------------------------------
+        raw_box = QGroupBox("Raw console")
+        outer.addWidget(raw_box, 2)
+        outer = QVBoxLayout(raw_box)
         note = QLabel(
             "Send one command and show the frames and every reply. This is the "
             "only place a command without a verified UI can be driven, so it is "
@@ -507,6 +551,88 @@ class MainWindow(QMainWindow):
         self._wear: bool | None = None
         return page
 
+    # -------------------------------------------------------- diagnostics
+    def _read_identity(self) -> None:
+        result = self._run(lambda c: c.identity())
+        if result is _FAILED or result is None:
+            return
+        vendor = result["vendor_id"]
+        proto = result["protocol_version"]
+        color = result["color_id"]
+        self.diag_table.setRowCount(0)
+        self._add_row(self.diag_table, "Vendor id",
+                      f"0x{vendor['vendor_id']:04X}" if vendor.get("vendor_id") is not None
+                      else "—")
+        self._add_row(self.diag_table, "Protocol version",
+                      proto.get("data", "—"))
+        self._add_row(self.diag_table, "Colour id",
+                      f"0x{color['color_id']:02X}" if color.get("color_id") is not None
+                      else "—")
+        self.statusBar().showMessage("Read the identity block (0x0102 / 0x0104 / 0x010B).")
+
+    def _read_upgrade_capability(self) -> None:
+        result = self._run(lambda c: c.upgrade_capability())
+        if result is _FAILED or result is None:
+            return
+        self._show_diag("Upgrade capability (0x0107)", result)
+
+    def _read_switch_features(self) -> None:
+        result = self._run(lambda c: c.switch_features())
+        if result is _FAILED or result is None:
+            return
+        entries = result["entries"]
+        self.diag_table.setRowCount(0)
+        if not entries:
+            # the finding on this unit: the capability is advertised but the
+            # device exposes no switch features at all
+            self._add_row(self.diag_table, "Switch features",
+                          "none — the unit advertises the capability but reports "
+                          "an empty list")
+        for entry in entries:
+            self._add_row(self.diag_table, f"Feature 0x{entry['feature']:02X}",
+                          "enabled" if entry["enabled"] else "disabled")
+        self.statusBar().showMessage(
+            f"Switch features (0x010D): {len(entries)} reported.")
+
+    def _read_notification_caps(self) -> None:
+        result = self._run(lambda c: c.notification_capabilities())
+        if result is _FAILED or result is None:
+            return
+        self._show_diag("Notification capabilities (0x0200)", result)
+
+    def _read_personalized_anc(self) -> None:
+        result = self._run(lambda c: c.personalized_anc())
+        if result is _FAILED or result is None:
+            return
+        self._show_diag("Personalized ANC (0x011A)", result)
+
+    def _read_ai_status(self) -> None:
+        result = self._run(lambda c: c.ai_status())
+        if result is _FAILED or result is None:
+            return
+        self._show_diag("AI status (0x0131)", result)
+
+    def _show_diag(self, title: str, result: dict) -> None:
+        """Render any diagnostic read as a flat field/value list.
+
+        One renderer for every read keeps the tab honest: nothing here is
+        dressed up as a control, and a field this build does not understand
+        still appears rather than being silently dropped.
+        """
+        self.diag_table.setRowCount(0)
+        self._add_row(self.diag_table, "Read", title)
+        for key, value in result.items():
+            if isinstance(value, list):
+                shown = (f"{len(value)} record(s)" if value else "none")
+            elif isinstance(value, bool):
+                shown = "yes" if value else "no"
+            elif isinstance(value, int):
+                shown = f"0x{value:02X} ({value})"
+            else:
+                shown = str(value)
+            self._add_row(self.diag_table, key, shown)
+        self.statusBar().showMessage(f"{title} read.")
+
     # ------------------------------------------------------------- connection
     def connect_device(self) -> None:
         """Public entry point: connect now (used by ``--connect`` / ``--replay``)."""
@@ -547,25 +673,45 @@ class MainWindow(QMainWindow):
         self.tabs.setTabEnabled(TAB_GESTURES, state)
         self.tabs.setTabEnabled(TAB_BACKUP, state)
         self.tabs.setTabEnabled(TAB_EVENTS, state)
-        self.tabs.setTabEnabled(TAB_RAW, state)
+        self.tabs.setTabEnabled(TAB_EXPERT, state)
         if not state:
             self._stop_listening()
             self._wear = None
             self._set_ringing(False)
 
+    def _capability_enabled(self, cmd: int) -> bool:
+        """Whether a control for ``cmd`` should be live on this unit.
+
+        Only a ``cap-bit N`` command is decided by the bitmap.  An *always-on*
+        or *ungated* command is **not in the bitmap at all**, so asking
+        ``supports()`` about one would wrongly switch it off -- which is exactly
+        what happened to the ``0x0200`` notification-capabilities read the first
+        time this gating was written.
+        """
+        if not self.controller.connected:
+            return False
+        spec = t.command_spec(cmd)
+        if spec is not None and not spec.gating.startswith("cap-bit"):
+            return True
+        return self.controller.supports(cmd)
+
     def _apply_capability_gating(self) -> None:
         """Gray out controls the unit says it does not take."""
-        self.noise_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_NOISE_REDUCTION))
-        self.eq_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_EQ_MODE))
-        self.volume_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_HIGH_VOLUME))
+        self.noise_apply_btn.setEnabled(
+            self._capability_enabled(t.CMD_SET_NOISE_REDUCTION))
+        self.eq_apply_btn.setEnabled(self._capability_enabled(t.CMD_SET_EQ_MODE))
+        self.volume_apply_btn.setEnabled(
+            self._capability_enabled(t.CMD_SET_HIGH_VOLUME))
         self.bass_read_btn.setEnabled(
-            self.controller.supports(t.CMD_GET_MULTI_BASS_ENGINE))
-        self._gestures_readable = self.controller.supports(t.CMD_GET_KEY_FUNCTION)
-        self._gestures_writable = self.controller.supports(t.CMD_SET_KEY_FUNCTION)
+            self._capability_enabled(t.CMD_GET_MULTI_BASS_ENGINE))
+        self._gestures_readable = self._capability_enabled(t.CMD_GET_KEY_FUNCTION)
+        self._gestures_writable = self._capability_enabled(t.CMD_SET_KEY_FUNCTION)
         self.gestures_read_btn.setEnabled(self._gestures_readable)
         self.long_press_btn.setEnabled(self._gestures_writable)
         self.pair_read_btn.setEnabled(
-            self.controller.supports(t.CMD_GET_MULTI_CONNECT))
+            self._capability_enabled(t.CMD_GET_MULTI_CONNECT))
+        for button, cmd in getattr(self, "_diag_buttons", {}).items():
+            button.setEnabled(self._capability_enabled(cmd))
         self._set_ringing(self._ringing)
         self._gesture_edited()
 

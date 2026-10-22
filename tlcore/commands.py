@@ -61,6 +61,7 @@ CMD_GET_NOISE_REDUCTION = 0x010C  # PollCommandManager.h/.y/z -> read a NoiseRed
 CMD_GET_KEY_FUNCTION = 0x0108    # PollCommandManager.h0 -> the gesture/key-function table
 CMD_GET_MULTI_CONNECT = 0x0112   # PollCommandManager -> the paired-device / multipoint list
 CMD_GET_PERSONALIZED_ANC = 0x011A  # PollCommandManager.A -> personalized-noise result exists flag
+CMD_GET_SWITCH_FEATURE = 0x010D    # PollCommandManager -> switch/feature status list ([count] + pairs)
 #: `PollCommandManager.Q`.  Named for identification only -- the id is dead on
 #: this firmware: a Buds Air7 Pro advertises capability bit 38 and never answers
 #: `0x0124`, with any body, even after a `0x041B` write.  The bass value is read

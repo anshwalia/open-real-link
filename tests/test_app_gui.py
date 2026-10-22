@@ -28,9 +28,10 @@ import tlcore as t  # noqa: E402
 from tlapp import ConnectionOptions  # noqa: E402
 from tlapp.window import (  # noqa: E402
     TAB_BACKUP,
+    TAB_DEVICE,
     TAB_EVENTS,
+    TAB_EXPERT,
     TAB_GESTURES,
-    TAB_RAW,
     TAB_SOUND,
     MainWindow,
 )
@@ -147,7 +148,7 @@ def test_window_builds_and_connects() -> None:
         assert window.lbl_gestures.text() == "No table read yet."
 
         # the raw console is live but empty, and explains the guard before use
-        assert window.tabs.isTabEnabled(TAB_RAW)
+        assert window.tabs.isTabEnabled(TAB_EXPERT)
         assert window.raw_table.rowCount() == 0
         assert window.lbl_raw.text() == "Nothing sent yet."
         assert window.raw_command_edit.text() == ""
@@ -622,13 +623,13 @@ def test_window_disconnected_state() -> None:
     _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
-        # Sound, Gestures, Backup, Events and Raw all need a device
+        # Sound, Gestures, Backup, Events and Expert all need a device
         assert window.connect_btn.text() == "Connect"
         assert not window.tabs.isTabEnabled(TAB_SOUND)
         assert not window.tabs.isTabEnabled(TAB_GESTURES)
         assert not window.tabs.isTabEnabled(TAB_BACKUP)
         assert not window.tabs.isTabEnabled(TAB_EVENTS)
-        assert not window.tabs.isTabEnabled(TAB_RAW)
+        assert not window.tabs.isTabEnabled(TAB_EXPERT)
     finally:
         window.close()
 
@@ -802,5 +803,160 @@ def test_find_buttons_are_disabled_while_disconnected() -> None:
         assert not window.controller.connected
         assert not window.find_btn.isEnabled()
         assert not window.find_stop_btn.isEnabled()
+    finally:
+        window.close()
+
+
+def test_expert_tab_collects_the_diagnostics() -> None:
+    """The expert surface is one tab, and Normal keeps the simple tabs simple."""
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+
+        assert window.tabs.count() == 6
+        assert window.tabs.tabText(TAB_EXPERT) == "Expert"
+
+        expert = window.tabs.widget(TAB_EXPERT)
+        device = window.tabs.widget(TAB_DEVICE)
+        sound = window.tabs.widget(TAB_SOUND)
+
+        # everything diagnostic moved here
+        for widget in (window.caps_table, window.bass_table,
+                       window.bass_read_btn, window.diag_table,
+                       window.raw_table, window.raw_send_btn):
+            assert expert.isAncestorOf(widget), widget
+
+        # and left the everyday tabs alone
+        assert not device.isAncestorOf(window.caps_table)
+        assert not sound.isAncestorOf(window.bass_table)
+        assert not sound.isAncestorOf(window.bass_read_btn)
+
+        # the capability table is still populated the moment we connect
+        assert window.caps_table.rowCount() == len(t.ALL_COMMANDS)
+        assert len(window._diag_buttons) == 6
+    finally:
+        window.close()
+
+
+def test_diag_renderer_handles_every_shape() -> None:
+    """One renderer for every read: nothing is dressed up as a control."""
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_diag("Example (0x0000)", {
+            "status": 0, "flag": True, "off": False,
+            "entries": [1, 2, 3], "empty": [], "text": "0.0.0.1",
+        })
+        rows = {window.diag_table.item(r, 0).text():
+                window.diag_table.item(r, 1).text()
+                for r in range(window.diag_table.rowCount())}
+        assert rows["Read"] == "Example (0x0000)"
+        assert rows["status"] == "0x00 (0)"
+        assert rows["flag"] == "yes"
+        assert rows["off"] == "no"
+        assert rows["entries"] == "3 record(s)"
+        assert rows["empty"] == "none"
+        assert rows["text"] == "0.0.0.1"
+    finally:
+        window.close()
+
+
+def test_read_switch_features_reports_the_empty_finding() -> None:
+    """An empty list is the finding on this unit, so it must be said, not blank."""
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        window.controller.switch_features = lambda: {"status": 0, "entries": []}
+        window._read_switch_features()
+        assert window.diag_table.rowCount() == 1
+        assert "none" in window.diag_table.item(0, 1).text()
+        assert "empty list" in window.diag_table.item(0, 1).text()
+
+        window.controller.switch_features = lambda: {
+            "status": 0, "entries": [{"feature": 0x11, "enabled": 1},
+                                     {"feature": 0x12, "enabled": 0}]}
+        window._read_switch_features()
+        assert window.diag_table.rowCount() == 2
+        assert window.diag_table.item(0, 0).text() == "Feature 0x11"
+        assert window.diag_table.item(0, 1).text() == "enabled"
+        assert window.diag_table.item(1, 1).text() == "disabled"
+    finally:
+        window.close()
+
+
+def test_diag_buttons_are_capability_gated() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        assert all(b.isEnabled() for b in window._diag_buttons)
+
+        window.controller.supports = lambda cmd: False
+        window._apply_capability_gating()
+        for button, cmd in window._diag_buttons.items():
+            spec = t.command_spec(cmd)
+            gated = spec is not None and spec.gating.startswith("cap-bit")
+            assert button.isEnabled() is not gated, (button.text(), hex(cmd))
+
+        window.controller.supports = lambda cmd: True
+        window._apply_capability_gating()
+        assert all(b.isEnabled() for b in window._diag_buttons)
+
+        # and nothing is live while disconnected, ungated or not
+        window.controller.disconnect()
+        window._set_connected(False)
+        window._apply_capability_gating()
+        assert not any(b.isEnabled() for b in window._diag_buttons)
+    finally:
+        window.close()
+
+
+def test_an_ungated_read_is_not_switched_off_by_the_bitmap() -> None:
+    """Regression: 0x0200 is ungated, so it is absent from the bitmap.
+
+    Asking ``supports()`` about an always-on or ungated command therefore says
+    "no" for a command that plainly works -- which is exactly how the
+    notification-capabilities read got disabled the first time.
+    """
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        assert not window.controller.supports(0x0200)   # not in the bitmap
+        assert window._capability_enabled(0x0200)       # yet it is usable
+        assert not window.controller.supports(0x0107) is False
+        assert window._capability_enabled(0x0107)
+        # a cap-bit command really does follow the bitmap
+        window.controller.supports = lambda cmd: False
+        assert not window._capability_enabled(0x0107)
+        assert window._capability_enabled(0x0200)
+    finally:
+        window.close()
+
+
+def test_read_identity_renders_the_three_reads() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        window.controller.identity = lambda: {
+            "vendor_id": {"status": 0, "vendor_id": 0x072F},
+            "protocol_version": {"status": 0, "data": "000001"},
+            "color_id": {"status": 0, "color_id": 6},
+        }
+        window._read_identity()
+        rows = {window.diag_table.item(r, 0).text():
+                window.diag_table.item(r, 1).text()
+                for r in range(window.diag_table.rowCount())}
+        assert rows["Vendor id"] == "0x072F"
+        assert rows["Protocol version"] == "000001"
+        assert rows["Colour id"] == "0x06"
     finally:
         window.close()

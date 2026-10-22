@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **eighth slice.** The app is built one feature at a time, and a feature
+Status: **ninth slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-twelve things and nothing else:
+eleven things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -12,18 +12,20 @@ twelve things and nothing else:
 4. **Equalizer preset get / set** — read `0x010F`, write `0x0406`, read back,
    plus the `0x0122` preset / custom-EQ list.
 5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
-6. **Bass-engine read** — the multi-band table from `0x012C`, display only.
-7. **Find my buds** — ring `0x0400 01` / stop `0x0400 00`, with the stop sent
+6. **Find my buds** — ring `0x0400 01` / stop `0x0400 00`, with the stop sent
    from every exit path.
-8. **Connected devices** — the multipoint / paired-device list from `0x0112`.
-9. **Settings backup / restore** — poll every setting the unit advertises into a
+7. **Connected devices** — the multipoint / paired-device list from `0x0112`.
+8. **Settings backup / restore** — poll every setting the unit advertises into a
    JSON snapshot, and re-apply the restorable ones from one.
-10. **Gesture table get / set** — read `0x0108`, edit the function bound to each
-    gesture, write the whole table back with `0x0401` and read it again.
-11. **Push-event monitor** — listen for the device's own notifications (button
+9. **Gesture table get / set** — read `0x0108`, edit the function bound to each
+   gesture, write the whole table back with `0x0401` and read it again.
+10. **Push-event monitor** — listen for the device's own notifications (button
     presses, battery, wear, noise, multi-connect) and decode them live.
-12. **Guarded raw console** — send one command the app has no control for, with
-    the tone / OTA / debug families refused.
+11. **Expert tab** — the diagnostic reads (`0x0102`, `0x0104`, `0x010B`,
+    `0x0107`, `0x010D`, `0x0200`, `0x011A`, `0x0131`), the capability bitmap,
+    the bass-engine read from `0x012C`, and the **guarded raw console** (one
+    command the app has no control for, with the tone / OTA / debug families
+    refused), collected on one tab.
 
 Everything else the CLI can do (voice, the SDP service list) is deliberately
 **not** in the UI yet. It is added, wired up and live-tested one item at a time,
@@ -82,9 +84,8 @@ path can be overridden with `OPEN_REAL_LINK_LOCK` to run two builds side by side
 * **Read status** fills in the model (resolved to a name from the static
   candidate list), firmware, version, battery for left/right/case, wear state,
   the active noise mode, and use time.
-* **Read capabilities** shows the `0x8100` capability bitmap: every known
-  command, its manager class, and whether this unit advertises it (`yes`,
-  `always-on`, or blank).
+* **Read capabilities** reads the `0x8100` bitmap and summarises it; the full
+  table lives on the **Expert** tab.
 * **Find my buds** — Ring / Stop, and **Connected devices** — the `0x0112`
   paired-device list. Both have their own notes below.
 
@@ -131,12 +132,11 @@ identity, not a setting.
   table, because no preset names were recovered.
 * **High volume** — the loudness-boost flag. **Read** sets the checkbox to the
   device's answer; **Apply** writes it and reads it back.
-* **Bass engine** — **Read** fills a table from `0x012C` (*type*, *min*, *max*,
-  *current*), showing the device's own band selector and the range it keeps
-  (`-5..+5`; the values are signed). **Read-only.** The `0x041B` write is
-  accepted by the device, but *which* band its `type` byte selects is not
-  verified, so a write control would be guessing at the effect — and the id this
-  was long assumed to be, `0x0124`, is never answered by an Air7 Pro.
+
+The bass-engine read lives on the **Expert** tab, not here: its bands are the
+device's own `type 1/2/3` selector with no recovered user-facing name, so a
+table of unlabelled bands on the everyday tab invites a question it cannot
+answer.
 
 A noise-mode or high-volume write is accepted only while the buds are **worn**;
 otherwise the device answers `0x8404 0e` / `0x8407 0e` and the app says so
@@ -246,14 +246,46 @@ input latency and cannot corrupt the session. A read failure stops the monitor
 and reports it in the status bar — never a modal, because a modal opened from a
 `QTimer` callback spins a nested event loop.
 
-### Raw
+### Expert
+
+Everything on this tab needs protocol knowledge to read, and none of it is
+needed to use the headset. Keeping it together is what lets the other five tabs
+stay simple. It holds four groups:
+
+* **Diagnostics** — six reads, each gated on its own capability bit: **Identity**
+  (vendor id `0x0102`, protocol version `0x0104`, colour id `0x010B`),
+  **Upgrade capability** (`0x0107`), **Switch features** (`0x010D`),
+  **Notification caps** (`0x0200`), **Personalized ANC** (`0x011A`) and
+  **AI status** (`0x0131`). Results render into one flat field/value table, so
+  nothing here is dressed up as a control and a field this build does not
+  understand still appears rather than being silently dropped. An empty list is
+  the *finding* on this unit for switch features, so it is said out loud rather
+  than left blank.
+* **Capability bitmap** — the full `0x8100` table: every known command, its
+  manager class, and whether this unit advertises it.
+* **Bass engine** — **Read** fills a table from `0x012C` (*type*, *min*, *max*,
+  *current*), showing the device's own band selector and the range it keeps
+  (`-5..+5`; the values are signed). **Read-only.** The `0x041B` write is
+  accepted by the device, but *which* band its `type` byte selects is not
+  verified, so a write control would be guessing at the effect — and the id this
+  was long assumed to be, `0x0124`, is never answered by an Air7 Pro.
+* **Raw console** — see below.
+
+One gating rule is worth stating because it bit this tab during development: a
+control is only switched off by the bitmap when its command is genuinely
+`cap-bit N`. An **always-on or ungated** command is not in the bitmap at all, so
+asking `supports()` about one answers "no" for a command that plainly works.
+`0x0200` is ungated and was wrongly disabled the first time this gating was
+written; `_capability_enabled` now draws that distinction, and a test pins it.
+
+#### Raw console
 
 A console for commands the app has no verified control for. Type a command id
 (`0x0404`, or bare `404` for decimal, the same rule as `tlcli send`), a hex
 payload, a type byte, and how long to listen; it shows the frames sent and every
 reply, decoded where the core can and as raw hex where it cannot.
 
-**The guard is the point of this tab.** The hearing / ear-scan tones, OTA
+**The guard is the point of this console.** The hearing / ear-scan tones, OTA
 firmware push and debug log families are refused, and the refusal is shown as you
 type, before anything is clicked. Unlike `tlcli send` there is **no override**
 in the app: `tlcli send --force` is the documented escape hatch for someone who
@@ -308,7 +340,13 @@ The controller opens the device exactly the way the CLI does, by reusing
 
 ## What is next
 
-The remaining verified features, each added the same way: the SDP service list.
-There is no protocol work left — everything the CLI can do that the app cannot is
-either macOS-only (`tlcli say` speaks through the host's audio output, `tlcli
-services` reads the SDP record) or already here.
+The remaining verified feature is the SDP service list, and it is macOS-only:
+`tlcli services` enumerates the headset's SDP records through IOBluetooth, which
+the platform-neutral controller has no way to reach. `tlcli say` is not a
+protocol feature at all -- it speaks through the host's audio output.
+
+Otherwise the verified surface is fully exposed. What is **not** here is
+deliberately not here: `0x041E` spatial audio, `0x0412` personalized-ANC write
+and `0x040A` auto power-off are all features a user would want and none of them
+could be verified, so they are documented in `docs/protocol.md` rather than
+shipped as guesses. See `docs/command-coverage.md` for the per-id reason.

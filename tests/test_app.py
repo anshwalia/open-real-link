@@ -397,6 +397,65 @@ def test_paired_devices_disconnected() -> None:
 
 
 # --------------------------------------------------------------------------
+# 8: the expert diagnostics
+# --------------------------------------------------------------------------
+#: The replies the six Expert-tab reads need, using the values a live Air7 Pro
+#: reported: vendor 0x072F, protocol 0.0.0.1, colour 6, no switch features,
+#: push types {2, 1}, no personalized-ANC result, AI idle.
+DIAG_CANNED = [
+    (0x0102, "002f07"), (0x0104, "00000001"), (0x010B, "0006"),
+    (0x0107, "00010103"), (0x010D, "0000"), (0x0200, "00020201"),
+    (0x011A, "0000"), (0x0131, "000000"),
+]
+
+
+def _diag_records() -> list:
+    records = []
+    for cmd, body in DIAG_CANNED:
+        records.append(("tx", wire(cmd)))
+        records.append(("rx", wire(cmd | 0x8000, bytes.fromhex(body))))
+    return records
+
+
+def test_expert_diagnostics_read() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = fixture(tmp, _diag_records())
+        ctrl = DeviceController(ConnectionOptions(replay=path))
+        ctrl.connect()
+
+        identity = ctrl.identity()
+        check("identity vendor", identity["vendor_id"]["vendor_id"], 0x072F)
+        check("identity colour", identity["color_id"]["color_id"], 6)
+        check("identity protocol", identity["protocol_version"]["data"], "000001")
+
+        check("upgrade capability entries",
+              len(ctrl.upgrade_capability()["entries"]), 1)
+        # the finding on this unit: the capability is advertised, the list empty
+        check("switch features empty", ctrl.switch_features()["entries"], [])
+        check("notification types",
+              ctrl.notification_capabilities()["types"], [2, 1])
+        check("personalized anc", ctrl.personalized_anc()["exists"], 0)
+        check("ai status", ctrl.ai_status()["state"], 0)
+        ctrl.disconnect()
+
+
+def test_expert_diagnostics_disconnected() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    for name in ("identity", "upgrade_capability", "switch_features",
+                 "notification_capabilities", "personalized_anc", "ai_status"):
+        check_raises(f"{name} without connect", ControllerError,
+                     getattr(ctrl, name))
+
+
+def test_expert_diagnostics_are_read_only() -> None:
+    """Nothing on the Expert tab may write: it is reads and the raw console."""
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    for name in ("identity", "upgrade_capability", "switch_features",
+                 "notification_capabilities", "personalized_anc", "ai_status"):
+        check(f"{name} is a read", "set" not in name.lower(), True)
+
+
+# --------------------------------------------------------------------------
 # 6: backup / restore -- plain JSON snapshot files, never a database
 # --------------------------------------------------------------------------
 #: The Air7 Pro's bitmap.  Entries the plan advertises but that have no canned

@@ -376,6 +376,48 @@ class DeviceController:
         return self._call(self._require().read_multi_bass_engine,
                           timeout=self.options.timeout)
 
+    # -- expert diagnostics ------------------------------------------------
+    def identity(self) -> dict:
+        """Read the identity block: vendor id, protocol version, colour id.
+
+        None of these mean anything to a listener -- they identify the *wire*
+        peer, not the product -- which is exactly why they live behind the
+        Expert tab rather than on Device.
+        """
+        session = self._require()
+        timeout = self.options.timeout
+        return {
+            "vendor_id": self._call(session.read_remote_vendor_id, timeout=timeout),
+            "protocol_version": self._call(session.read_protocol_version,
+                                          timeout=timeout),
+            "color_id": self._call(session.read_color_id, timeout=timeout),
+        }
+
+    def upgrade_capability(self) -> dict:
+        """Read the OTA capability list (``0x0107``)."""
+        return self._call(self._require().read_upgrade_capability,
+                          timeout=self.options.timeout)
+
+    def switch_features(self) -> dict:
+        """Read the switch / feature status list (``0x010D``)."""
+        return self._call(self._require().read_switch_features,
+                          timeout=self.options.timeout)
+
+    def notification_capabilities(self) -> dict:
+        """Read the push-event types the device supports (``0x0200``)."""
+        return self._call(self._require().read_notification_capabilities,
+                          timeout=self.options.timeout)
+
+    def personalized_anc(self) -> dict:
+        """Read the personalized-noise result-exists flag (``0x011A``)."""
+        return self._call(self._require().read_personalized_anc,
+                          timeout=self.options.timeout)
+
+    def ai_status(self) -> dict:
+        """Read the AI / translation status (``0x0131``)."""
+        return self._call(self._require().read_ai_status,
+                          timeout=self.options.timeout)
+
     # -- 6. backup / restore -----------------------------------------------
     def backup(self) -> dict:
         """Capture the device's settings into a snapshot dict (no file written)."""

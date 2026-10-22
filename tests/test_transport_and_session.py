@@ -370,6 +370,28 @@ def test_ai_status_session() -> None:
     session.set_ai_status(0, 1)
     check("read_ai_status cleared", session.read_ai_status(), {"state": 0, "type": 0})
     check("payload_set_ai_status(1,1)", t.payload_set_ai_status(1, 1), b"\x01\x01")
+
+
+def test_switch_feature_session() -> None:
+    # the live-verified read (Air7 Pro, 2026-10-20): 0x010D -> 00 00, i.e. the
+    # unit advertises the capability and exposes no switch features at all.
+    transport, session = replay([
+        ("tx", wire(0x010D)), ("rx", wire(0x810D, bytes.fromhex("0000"))),
+    ])
+    check("read_switch_features empty", session.read_switch_features(),
+          {"status": 0, "entries": []})
+    check("the request carried no payload", transport.writes[0], wire(0x010D))
+
+    # and with records, so the pair walk is exercised too
+    _, session2 = replay([
+        ("tx", wire(0x010D)),
+        ("rx", wire(0x810D, bytes.fromhex("000211011200"))),
+    ])
+    check("read_switch_features pairs", session2.read_switch_features(),
+          {"status": 0, "entries": [{"feature": 0x11, "enabled": 1},
+                                    {"feature": 0x12, "enabled": 0}]})
+    # no write half ships: 0x0403 is accepted by the device but changes nothing
+    check("no set_switch_feature", hasattr(t.Session, "set_switch_feature"), False)
     check("payload_set_ai_status(0,4)", t.payload_set_ai_status(0, 4), b"\x00\x04")
     check("parse_ai_status", t.parse_ai_status(bytes.fromhex("000101")),
           {"status": 0, "state": 1, "type": 1})

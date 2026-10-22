@@ -28,6 +28,7 @@ from .commands import (
     CMD_GET_PROTOCOL_VERSION,
     CMD_GET_REMOTE_CAPABILITY,
     CMD_GET_REMOTE_VENDOR_ID,
+    CMD_GET_SWITCH_FEATURE,
     CMD_GET_UPGRADE_CAPABILITY,
     CMD_NOTIFICATION_CAPS,
     CMD_SET_AI_STATUS,
@@ -357,6 +358,21 @@ class Session:
         reply = self.request(CMD_GET_PERSONALIZED_ANC, b"", timeout=timeout)
         self.check_status(reply)
         return parse_personalized_anc(reply["payload"])
+
+    def read_switch_features(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the switch / feature status list (``0x010D``).
+
+        **Verified live** on the Air7 Pro (2026-10-20): the reply is
+        ``[status][count] + (feature, enabled) x count`` and this unit reports
+        ``00 00`` -- it advertises the capability but exposes no switch
+        features.  The ``0x0403`` companion write is deliberately not shipped:
+        the device accepts it and changes nothing, so it cannot be verified.
+        """
+        from .decoders import parse_switch_features
+
+        reply = self.request(CMD_GET_SWITCH_FEATURE, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_switch_features(reply["payload"])
 
     def read_notification_capabilities(self, *, timeout: Optional[float] = None) -> dict:
         """Read the push-event types the device supports (``0x0200``).
