@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT))
 
 import tlcore as t  # noqa: E402
 from tlapp import ConnectionOptions  # noqa: E402
-from tlapp.window import MainWindow  # noqa: E402
+from tlapp.window import TAB_BACKUP, TAB_SOUND, MainWindow  # noqa: E402
 
 
 def _app():
@@ -59,6 +59,49 @@ def test_window_builds_and_connects() -> None:
         assert window.eq_apply_btn.isEnabled()        # capture advertises 0x0406
         assert window.volume_apply_btn.isEnabled()    # capture advertises 0x0407
         assert not window.volume_check.isChecked()
+
+        # the Backup tab is live too, empty until something is captured
+        assert window.tabs.isTabEnabled(TAB_BACKUP)
+        assert window.backup_table.rowCount() == 0
+        assert window.restore_table.rowCount() == 0
+        assert window.backup_path_edit.text() == ""
+    finally:
+        window.close()
+
+
+def test_backup_tab_renders_a_summary_and_a_report() -> None:
+    """The Backup tab's display handlers, with no device involved."""
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_backup_summary({
+            "created": "2026-10-20T12:00:00+00:00",
+            "model": "0x064C12", "firmware": ["1.1.0.85"],
+            "captured": 18, "skipped": 2,
+            "restorable": ["eq_mode", "high_volume"],
+            "captured_only": ["multi_point", "status_0107"],
+            "contains_paired_devices": True,
+        })
+        assert "0x064C12" in window.lbl_backup.text()
+        assert "1.1.0.85" in window.lbl_backup.text()
+        assert "18 response(s) captured" in window.lbl_backup.text()
+        assert window.backup_table.rowCount() == 4
+        assert window.backup_table.item(0, 1).text() == "restorable"
+        assert "paired-device" in window.backup_table.item(2, 1).text()
+
+        window._show_restore_report({
+            "applied": [{"setting": "eq_mode", "dry_run": True}],
+            "not_restored": [{"setting": "multi_point",
+                               "reason": "captured, no restorer"}],
+        })
+        assert window.restore_table.rowCount() == 2
+        assert window.restore_table.item(0, 1).text() == "would apply (dry run)"
+        assert window.restore_table.item(1, 1).text() == "captured, no restorer"
+
+        # an empty snapshot must say so rather than render an empty table
+        window._show_restore_report({"applied": [], "not_restored": []})
+        assert window.restore_table.rowCount() == 1
+        assert window.restore_table.item(0, 0).text() == "(nothing)"
     finally:
         window.close()
 
@@ -209,8 +252,9 @@ def test_window_disconnected_state() -> None:
     _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
-        # Sound is disabled until a device is connected; Device stays usable
+        # Sound and Backup are disabled until a device is connected; Device stays usable
         assert window.connect_btn.text() == "Connect"
-        assert not window.tabs.isTabEnabled(window.tabs.indexOf(window.tabs.widget(1)))
+        assert not window.tabs.isTabEnabled(TAB_SOUND)
+        assert not window.tabs.isTabEnabled(TAB_BACKUP)
     finally:
         window.close()

@@ -5,10 +5,10 @@ Widgets only: every device action is delegated to
 box. The widgets never touch the wire, and the controller never imports Qt.
 
 The app is built feature by feature: connect + capability view, device status,
-noise mode get/set, and the equalizer / high-volume settings. The tone / OTA /
-debug families have no control here at all, and neither does any operation that
-has not been verified on hardware -- those are added one at a time as they are
-built and live-tested.
+noise mode get/set, the equalizer / high-volume settings, and settings
+backup / restore. The tone / OTA / debug families have no control here at all,
+and neither does any operation that has not been verified on hardware -- those
+are added one at a time as they are built and live-tested.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -36,6 +37,7 @@ from PySide6.QtWidgets import (
 
 import tlcore as t
 
+from . import backupfile
 from .controller import (
     ConnectionOptions,
     ControllerError,
@@ -49,10 +51,11 @@ _FAILED = object()
 
 TAB_DEVICE = 0
 TAB_SOUND = 1
+TAB_BACKUP = 2
 
 
 class MainWindow(QMainWindow):
-    """The application window: a connection bar and two tabs."""
+    """The application window: a connection bar and three tabs."""
 
     def __init__(self, options: ConnectionOptions):
         super().__init__()
@@ -95,6 +98,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_device_tab(), "Device")
         self.tabs.addTab(self._build_sound_tab(), "Sound")
+        self.tabs.addTab(self._build_backup_tab(), "Backup")
         self.setCentralWidget(self.tabs)
 
     @staticmethod
@@ -220,6 +224,73 @@ class MainWindow(QMainWindow):
         outer.addStretch(1)
         return page
 
+    # ------------------------------------------------------------- backup tab
+    def _build_backup_tab(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+
+        note = QLabel(
+            "A backup polls every setting the unit advertises and stores each raw "
+            "reply, plus the capability bitmap and identity, as one plain JSON "
+            "file. Restore re-applies only the settings whose read and write "
+            "forms are both recovered; the rest are reported, never guessed at. "
+            "<b>A snapshot is personal data</b> — if the unit supports "
+            "<code>0x0112</code> it embeds your paired-device names. Redact "
+            "before sharing.")
+        note.setWordWrap(True)
+        outer.addWidget(note)
+
+        # -- capture -------------------------------------------------------
+        save_box = QGroupBox("Back up this device")
+        save_outer = QVBoxLayout(save_box)
+        save_row = QHBoxLayout()
+        self.backup_path_edit = QLineEdit()
+        self.backup_path_edit.setPlaceholderText(
+            str(backupfile.default_backup_dir() / "backup.json"))
+        browse_btn = QPushButton("Save as…")
+        browse_btn.clicked.connect(self._choose_save_path)
+        self.backup_btn = QPushButton("Back up now")
+        self.backup_btn.clicked.connect(self._do_backup)
+        save_row.addWidget(self.backup_path_edit, 1)
+        save_row.addWidget(browse_btn)
+        save_row.addWidget(self.backup_btn)
+        save_outer.addLayout(save_row)
+        self.lbl_backup = QLabel("—")
+        self.lbl_backup.setWordWrap(True)
+        save_outer.addWidget(self.lbl_backup)
+        self.backup_table = self._table(["Setting", "In the snapshot"])
+        self.backup_table.setMaximumHeight(140)
+        save_outer.addWidget(self.backup_table)
+        outer.addWidget(save_box)
+
+        # -- restore -------------------------------------------------------
+        load_box = QGroupBox("Restore from a file")
+        load_outer = QVBoxLayout(load_box)
+        load_row = QHBoxLayout()
+        self.restore_path_edit = QLineEdit()
+        self.restore_path_edit.setPlaceholderText("path to a .json backup")
+        open_btn = QPushButton("Open…")
+        open_btn.clicked.connect(self._choose_open_path)
+        self.preview_btn = QPushButton("Preview")
+        self.preview_btn.clicked.connect(self._preview_restore)
+        self.restore_btn = QPushButton("Restore")
+        self.restore_btn.clicked.connect(self._do_restore)
+        load_row.addWidget(self.restore_path_edit, 1)
+        load_row.addWidget(open_btn)
+        load_row.addWidget(self.preview_btn)
+        load_row.addWidget(self.restore_btn)
+        load_outer.addLayout(load_row)
+        self.lbl_restore = QLabel("Preview first: it reports what a restore would "
+                                  "do without writing anything.")
+        self.lbl_restore.setWordWrap(True)
+        load_outer.addWidget(self.lbl_restore)
+        self.restore_table = self._table(["Setting", "Result"])
+        self.restore_table.setMaximumHeight(140)
+        load_outer.addWidget(self.restore_table)
+        outer.addWidget(load_box)
+        outer.addStretch(1)
+        return page
+
     # ------------------------------------------------------------- connection
     def connect_device(self) -> None:
         """Public entry point: connect now (used by ``--connect`` / ``--replay``)."""
@@ -256,6 +327,7 @@ class MainWindow(QMainWindow):
         self.conn_label.setStyleSheet(
             "color: #080; font-weight: 600;" if state else "color: #a00; font-weight: 600;")
         self.tabs.setTabEnabled(TAB_SOUND, state)
+        self.tabs.setTabEnabled(TAB_BACKUP, state)
 
     def _apply_capability_gating(self) -> None:
         """Gray out controls the unit says it does not take."""
@@ -289,6 +361,13 @@ class MainWindow(QMainWindow):
 
     def _warn(self, title: str, message: str) -> None:
         QMessageBox.warning(self, title, message)
+
+    @staticmethod
+    def _add_row(table: QTableWidget, *values: str) -> None:
+        row = table.rowCount()
+        table.insertRow(row)
+        for column, value in enumerate(values):
+            table.setItem(row, column, QTableWidgetItem(value))
 
     # -------------------------------------------------------------- show data
     def _show_caps(self, caps: dict) -> None:
@@ -405,6 +484,95 @@ class MainWindow(QMainWindow):
                        f"Wrote high volume {'on' if wanted else 'off'} but read "
                        f"back {'on' if result['actual'] else 'off'}; the read is "
                        "authoritative.")
+
+    # ------------------------------------------------------- backup / restore
+    def _choose_save_path(self) -> str | None:
+        start = (self.backup_path_edit.text().strip()
+                 or str(backupfile.default_backup_dir() / "backup.json"))
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save backup", start, "JSON files (*.json)")
+        if path:
+            self.backup_path_edit.setText(path)
+        return path or None
+
+    def _choose_open_path(self) -> str | None:
+        start = (self.restore_path_edit.text().strip()
+                 or str(backupfile.default_backup_dir()))
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open backup", start, "JSON files (*.json)")
+        if path:
+            self.restore_path_edit.setText(path)
+        return path or None
+
+    def _do_backup(self) -> None:
+        path = self.backup_path_edit.text().strip() or self._choose_save_path()
+        if not path:
+            return
+        result = self._run(lambda c: c.backup_to(path))
+        if result is _FAILED or result is None:
+            return
+        written, summary = result
+        # the file we just wrote is the obvious thing to restore from
+        self.backup_path_edit.setText(str(written))
+        self.restore_path_edit.setText(str(written))
+        self._show_backup_summary(summary)
+        self.statusBar().showMessage(f"Backup written to {written}.")
+
+    def _show_backup_summary(self, summary: dict) -> None:
+        firmware = ", ".join(summary["firmware"]) or "unknown"
+        self.lbl_backup.setText(
+            f"{summary['model'] or 'unknown model'} · firmware {firmware} · "
+            f"{summary['captured']} response(s) captured, {summary['skipped']} "
+            f"skipped · {len(summary['restorable'])} restorable")
+        self.backup_table.setRowCount(0)
+        for key in summary["restorable"]:
+            self._add_row(self.backup_table, key, "restorable")
+        for key in summary["captured_only"]:
+            extra = (" — may hold paired-device names"
+                     if key == "multi_point" and summary["contains_paired_devices"] else "")
+            self._add_row(self.backup_table, key, f"captured, no restorer{extra}")
+
+    def _preview_restore(self) -> None:
+        path = self.restore_path_edit.text().strip() or self._choose_open_path()
+        if not path:
+            return
+        report = self._run(lambda c: c.preview_restore(path))
+        if report is _FAILED or report is None:
+            return
+        self._show_restore_report(report)
+        self.statusBar().showMessage(
+            "Preview only — nothing was written to the device.")
+
+    def _do_restore(self) -> None:
+        path = self.restore_path_edit.text().strip() or self._choose_open_path()
+        if not path:
+            return
+        if QMessageBox.question(
+                self, "Restore settings",
+                f"Re-apply the settings from\n{path}\nto the connected device?"
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        report = self._run(lambda c: c.restore_from(path))
+        if report is _FAILED or report is None:
+            return
+        self._show_restore_report(report)
+        applied = len(report["applied"])
+        self.statusBar().showMessage(
+            f"Restored {applied} setting(s); "
+            f"{len(report['not_restored'])} left alone.")
+
+    def _show_restore_report(self, report: dict) -> None:
+        self.restore_table.setRowCount(0)
+        for item in report["applied"]:
+            self._add_row(self.restore_table, item["setting"],
+                          "would apply (dry run)" if item.get("dry_run") else "applied")
+        for item in report["not_restored"]:
+            self._add_row(self.restore_table, item["setting"], item["reason"])
+        if not report["applied"] and not report["not_restored"]:
+            self._add_row(self.restore_table, "(nothing)", "the file carries no settings")
+        self.lbl_restore.setText(
+            f"{len(report['applied'])} restorable, "
+            f"{len(report['not_restored'])} reported as not restorable.")
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming

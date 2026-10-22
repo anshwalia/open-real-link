@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **second slice.** The app is built one feature at a time, and a feature
+Status: **third slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-five things and nothing else:
+six things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -12,9 +12,11 @@ five things and nothing else:
 4. **Equalizer preset get / set** — read `0x010F`, write `0x0406`, read back,
    plus the `0x0122` preset / custom-EQ list.
 5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
+6. **Settings backup / restore** — poll every setting the unit advertises into a
+   JSON snapshot, and re-apply the restorable ones from one.
 
-Everything else the CLI can do (EQ, gestures, events, backup/restore, voice, raw
-console) is deliberately **not** in the UI yet. It is added, wired up and
+Everything else the CLI can do (gestures, events, voice, raw console, the SDP
+service list) is deliberately **not** in the UI yet. It is added, wired up and
 live-tested one item at a time, so the app never carries a control for something
 that is not implemented.
 
@@ -99,12 +101,50 @@ is true for the equalizer: writing outside `0..6` makes the device clamp the
 value, so **Apply** compares the read-back and says so instead of pretending the
 write took.
 
+### Backup
+
+* **Back up now** polls every setting the unit advertises (the same curated plan
+  the vendor app uses, since the protocol has no "read all settings" command)
+  and writes one plain JSON file: device identity, the capability bitmap, the
+  **raw reply** of each poll, and the derived write-back values. Requests the
+  unit refuses or does not answer are recorded as *skipped*, not fatal.
+* The summary under the buttons says which settings are **restorable** and which
+  were *captured but have no recovered writer* — reported, never guessed at.
+* **Preview** reads a file and reports exactly what a restore would do, using the
+  core's own dry run, so a preview and a real restore cannot disagree. Nothing is
+  written to the device.
+* **Restore** asks for confirmation, re-applies the restorable settings, and
+  lists every setting with its outcome. Settings the unit does not support are
+  reported as skipped rather than attempted.
+
+A snapshot is **personal data**: if the unit supports `0x0112`, the file embeds
+this host's paired-device names. The tab says so; redact before sharing.
+
+#### Why plain files, not a database
+
+A snapshot is a **document, not a dataset** — one identity, one bitmap, a dozen
+raw replies and a flat settings dict, a few kilobytes in total. Nothing queries
+or joins it, nothing updates it in place, and the whole point is that a person
+can open it, read the raw hex, redact it and attach it to a bug report. So
+`tlapp/backupfile.py` writes `json.dumps(snapshot, indent=2)` and nothing else,
+which also means a file written here restores from `tlcli restore` and a file
+written by `tlcli backup` restores here. The format tag
+(`open-real-link.backup/1`) *is* the schema version, and a file that does not
+carry it is refused rather than replayed onto a device.
+
+The things a database would have been standing in for are handled directly:
+writes are atomic (temp file + `os.replace`, so a crash cannot leave a
+half-written backup), the file is validated on read, and a backup library is a
+**directory of timestamped files** (`buds-air7-pro-20261020T120000Z.json` under
+the platform data directory) that `ls`, `diff` and `git` already understand.
+
 ## Design
 
 Widgets live in `tlapp/window.py`; every device action goes through
 `tlapp/controller.py`, which is **Qt-free** (`import tlapp` never imports
-PySide6). The single-instance guard is in `tlapp/instance.py`. That split is what
-makes the app testable:
+PySide6). Snapshot file I/O is in `tlapp/backupfile.py`, also Qt-free, so the
+format can be tested without a GUI. The single-instance guard is in
+`tlapp/instance.py`. That split is what makes the app testable:
 
 * `tests/test_app.py` drives the controller against recorded and synthetic
   fixtures — no display, no radio, no hardware;
@@ -131,5 +171,5 @@ The controller opens the device exactly the way the CLI does, by reusing
 ## What is next
 
 The remaining verified features, each added the same way: the gesture table and
-a long-press disable, an event/button-press monitor, settings backup and
-restore, host-side voice, a guarded raw console, and the SDP service list.
+a long-press disable, an event/button-press monitor, host-side voice, a guarded
+raw console, and the SDP service list.

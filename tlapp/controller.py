@@ -14,17 +14,20 @@ Every operation is **synchronous**: one call is a handful of round trips at
 ~10 ms each, so the window runs them on the GUI thread behind a wait cursor.
 
 This file implements the app feature by feature -- connect + capability view,
-device status, noise mode get/set, and the equalizer / high-volume settings.
-Later features (gestures, events, backup, voice, console) are added here as they
-are built, so the app never carries a control for something that is not yet
-wired up.
+device status, noise mode get/set, the equalizer / high-volume settings, and
+settings backup / restore. Later features (gestures, events, voice, console) are
+added here as they are built, so the app never carries a control for something
+that is not yet wired up.
 """
 from __future__ import annotations
 
+import pathlib
 from dataclasses import dataclass
 
 import tlcore as t
 from tlcli.cli import noise_name, open_session
+
+from . import backupfile
 
 #: The **verified** preset range.  ``0x010F``/``0x0406`` accept `0`..`6` and read
 #: back identity; writing `7` or `8` clamps to `6` (Air7 Pro, 2026-10-20).  The
@@ -228,3 +231,43 @@ class DeviceController:
         actual = self._call(session.read_high_volume, timeout=self.options.timeout)
         return {"requested": bool(enabled), "actual": bool(actual),
                 "ok": bool(actual) == bool(enabled)}
+
+    # -- 6. backup / restore -----------------------------------------------
+    def backup(self) -> dict:
+        """Capture the device's settings into a snapshot dict (no file written)."""
+        snapshot = self._call(t.capture, self._require(), timeout=self.options.timeout)
+        # capture negotiates the bitmap itself; keep the gating view in step
+        self._caps = snapshot["capabilities"]
+        return snapshot
+
+    def backup_to(self, path) -> tuple[pathlib.Path, dict]:
+        """Capture and write a snapshot; returns ``(written_path, summary)``."""
+        snapshot = self.backup()
+        written = self._file(backupfile.write_snapshot, path, snapshot)
+        return written, backupfile.snapshot_summary(snapshot)
+
+    def preview_restore(self, path) -> dict:
+        """Report what a restore of ``path`` would do, **without writing**.
+
+        Uses the core's own dry run, so the preview and the real restore cannot
+        disagree about which settings are restorable.
+        """
+        snapshot = self._file(backupfile.read_snapshot, path)
+        return self._call(t.restore, self._require(), snapshot,
+                          timeout=self.options.timeout, dry_run=True)
+
+    def restore_from(self, path) -> dict:
+        """Re-apply the restorable settings from the snapshot at ``path``."""
+        snapshot = self._file(backupfile.read_snapshot, path)
+        return self._call(t.restore, self._require(), snapshot,
+                          timeout=self.options.timeout)
+
+    @staticmethod
+    def _file(fn, *args):
+        """Run a :mod:`tlapp.backupfile` call, phrasing its failure for a person."""
+        try:
+            return fn(*args)
+        except backupfile.BackupFileError as exc:
+            raise ControllerError(str(exc)) from exc
+
+

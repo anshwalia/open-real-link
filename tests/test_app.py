@@ -19,14 +19,20 @@ sys.path.insert(0, str(ROOT))
 
 import tlcore as t  # noqa: E402 - after the sys.path insert above
 from tlapp import (  # noqa: E402
+    BackupFileError,
     ConnectionOptions,
     ControllerError,
     DeviceController,
     EQ_PRESET_MAX,
     EQ_PRESET_MIN,
+    default_backup_dir,
     eq_preset_choices,
     friendly_error,
     noise_choices,
+    read_snapshot,
+    snapshot_summary,
+    suggested_name,
+    write_snapshot,
 )
 
 CHECKS = 0
@@ -247,6 +253,216 @@ def test_high_volume_roundtrip() -> None:
 
 
 # --------------------------------------------------------------------------
+# 6: backup / restore -- plain JSON snapshot files, never a database
+# --------------------------------------------------------------------------
+#: The Air7 Pro's bitmap.  Entries the plan advertises but that have no canned
+#: reply here are recorded under ``skipped``, which is the point: a backup must
+#: survive a device that answers only some of the poll.
+BACKUP_BITMAP = "00bf4f5ae665dc4004"
+BACKUP_CANNED = {
+    (0x0101, b""): "00c008",
+    (0x0103, b""): "00124c06",
+    (0x0104, b""): "00000001",
+    (0x0105, b""): "00" + b"1,1,111,1,2,1.1.0.85".hex(),
+    (0x0107, b""): "00010103",
+    (0x0108, b""): "0002" + "02010100" + "02010201",
+    (0x010B, b""): "0006",
+    (0x010C, b"\x01"): "00010101",
+    (0x010C, b"\x02"): "00020110",
+    (0x010D, b""): "0000",
+    (0x010F, b""): "0004",
+    (0x0110, b""): "0001",
+    (0x0112, b""): "0001ff",
+}
+
+#: The settings the canned replies above derive, in the order ``tlcore.restore``
+#: writes them.
+RESTORED = ["noise_mode", "key_function", "eq_mode", "high_volume"]
+
+#: Read faithfully but with no recovered writer -- reported, never guessed at.
+NOT_RESTORED = ["multi_point", "noise_cycle", "status_0104", "status_0107",
+                "status_010b"]
+
+
+def backup_records() -> list:
+    """A recording a ``tlcore.capture`` poll can walk (uncanned entries skip)."""
+    records = [("tx", wire(0x0100)),
+               ("rx", wire(0x8100, bytes.fromhex(BACKUP_BITMAP)))]
+    for cmd, payload, _key in t.READ_PLAN:
+        body = BACKUP_CANNED.get((cmd, payload))
+        if body is None:
+            continue
+        records.append(("tx", wire(cmd, payload)))
+        records.append(("rx", wire(cmd | 0x8000, bytes.fromhex(body))))
+    return records
+
+
+def restore_records() -> list:
+    """A recording a ``tlcore.restore`` of :func:`backup_records` can walk."""
+    records = [("tx", wire(0x0100)),
+               ("rx", wire(0x8100, bytes.fromhex(BACKUP_BITMAP)))]
+    for cmd, payload in (
+        (0x0404, bytes.fromhex("010101")),               # noise_mode -> 1
+        (0x0401, bytes.fromhex("020201010002010201")),   # key_function
+        (0x0406, bytes.fromhex("04")),                   # eq_mode -> 4
+        (0x0407, bytes.fromhex("01")),                   # high_volume -> on
+    ):
+        records.append(("tx", wire(cmd, payload)))
+        records.append(("rx", wire(cmd | 0x8000, bytes([0]))))
+    return records
+
+
+def _connected(directory: str, records) -> DeviceController:
+    ctrl = DeviceController(ConnectionOptions(replay=fixture(directory, records)))
+    ctrl.connect()
+    return ctrl
+
+
+def test_backup_file_names_and_directory() -> None:
+    snapshot = {"format": t.BACKUP_FORMAT, "created": "2026-10-20T12:00:00+00:00",
+                "device": {"model": "0x064C12"}}
+    check("name from the known-device table", suggested_name(snapshot),
+          "realme-buds-air7-pro-20261020T120000Z.json")
+    check("name falls back to the raw model", suggested_name({**snapshot, "device":
+          {"model": "0x999999"}}), "0x999999-20261020T120000Z.json")
+    check("name falls back to 'device'", suggested_name(
+        {**snapshot, "device": {}, "created": ""}), "device.json")
+    check("default directory is a 'backups' directory",
+          default_backup_dir().name, "backups")
+    check("default directory is per-user",
+          pathlib.Path.home() in default_backup_dir().parents, True)
+
+
+def test_backup_file_refuses_a_foreign_file() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        foreign = pathlib.Path(tmp) / "foreign.json"
+        foreign.write_text('{"hello": "world"}')
+        check_raises("a JSON file that is not a snapshot", BackupFileError,
+                     read_snapshot, foreign)
+        notjson = pathlib.Path(tmp) / "notes.txt"
+        notjson.write_text("this is not json")
+        check_raises("a file that is not JSON at all", BackupFileError,
+                     read_snapshot, notjson)
+        check_raises("a file that is not there", BackupFileError,
+                     read_snapshot, pathlib.Path(tmp) / "nope.json")
+        check_raises("writing a non-snapshot", BackupFileError, write_snapshot,
+                     pathlib.Path(tmp) / "x.json", {"format": "something/else"})
+
+
+def test_backup_writes_an_atomic_plain_json_file() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, backup_records())
+        target = pathlib.Path(tmp) / "nested" / "backup.json"
+        path, summary = ctrl.backup_to(target)
+        check("the directory is created", path.parent.is_dir(), True)
+        check("the file is written", path.is_file(), True)
+        check("no temporary file is left behind",
+              sorted(p.name for p in path.parent.iterdir()), ["backup.json"])
+
+        # it is plain JSON -- readable with nothing but the stdlib
+        reloaded = json.loads(path.read_text())
+        check("the file is a snapshot", reloaded["format"], t.BACKUP_FORMAT)
+        check("reloading it validates", read_snapshot(path)["format"], t.BACKUP_FORMAT)
+
+        check("summary model", summary["model"], "0x064C12")
+        check("summary firmware", summary["firmware"], ["1.1.0.85"])
+        check("summary captured", summary["captured"], len(BACKUP_CANNED))
+        # bass_engine is absent: the Air7 Pro advertises 0x0124 but answers nothing
+        check("summary restorable", summary["restorable"],
+              ["eq_mode", "high_volume", "key_function", "noise_mode",
+               "switch_features"])
+        check("summary captured_only", summary["captured_only"], NOT_RESTORED)
+        check("summary sees the paired-device list",
+              summary["contains_paired_devices"], True)
+        check("summary counts what the device refused", summary["skipped"] > 0, True)
+        ctrl.disconnect()
+
+
+def test_backup_refreshes_the_capability_view() -> None:
+    """A capture negotiates the bitmap itself, so gating must follow it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, backup_records())
+        check("no bitmap before the capture", ctrl.supports(0x0406), False)
+        ctrl.backup()
+        check("bitmap known after the capture", ctrl.supports(0x0406), True)
+        ctrl.disconnect()
+
+
+def test_preview_restore_writes_nothing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        cap_dir = pathlib.Path(tmp) / "cap"
+        cap_dir.mkdir()
+        ctrl = _connected(str(cap_dir), backup_records())
+        path, _summary = ctrl.backup_to(pathlib.Path(tmp) / "backup.json")
+        ctrl.disconnect()
+
+        res_dir = pathlib.Path(tmp) / "res"
+        res_dir.mkdir()
+        ctrl = _connected(str(res_dir), restore_records())
+        report = ctrl.preview_restore(path)
+        check("preview lists the restorable settings",
+              [item["setting"] for item in report["applied"]], RESTORED)
+        check("every preview entry is a dry run",
+              all(item.get("dry_run") for item in report["applied"]), True)
+        check("preview reports the rest",
+              sorted(item["setting"] for item in report["not_restored"]), NOT_RESTORED)
+        # the recording still holds the write exchanges: nothing was consumed
+        check("preview stopped after the capability read", ctrl.transport.idx, 2)
+        ctrl.disconnect()
+
+
+def test_restore_from_a_file_applies_the_settings() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        cap_dir = pathlib.Path(tmp) / "cap"
+        cap_dir.mkdir()
+        ctrl = _connected(str(cap_dir), backup_records())
+        path, _summary = ctrl.backup_to(pathlib.Path(tmp) / "backup.json")
+        ctrl.disconnect()
+
+        res_dir = pathlib.Path(tmp) / "res"
+        res_dir.mkdir()
+        fixture_path = fixture(str(res_dir), restore_records())
+        ctrl = _connected(str(res_dir), restore_records())
+        check("the fixture is the one under test", ctrl.options.replay, fixture_path)
+        report = ctrl.restore_from(path)
+        check("restore lists what it applied",
+              [item["setting"] for item in report["applied"]], RESTORED)
+        check("a real restore is not a dry run",
+              any(item.get("dry_run") for item in report["applied"]), False)
+        check("restore reports the rest",
+              sorted(item["setting"] for item in report["not_restored"]), NOT_RESTORED)
+        ctrl.disconnect()
+
+
+def test_a_bad_backup_path_is_a_friendly_error() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, backup_records())
+        blocker = pathlib.Path(tmp) / "blocker"
+        blocker.write_text("not a directory")
+        check_raises("a path under a file", ControllerError, ctrl.backup_to,
+                     blocker / "backup.json")
+        foreign = pathlib.Path(tmp) / "foreign.json"
+        foreign.write_text("{}")
+        check_raises("restoring a foreign file", ControllerError,
+                     ctrl.restore_from, foreign)
+        check_raises("previewing a foreign file", ControllerError,
+                     ctrl.preview_restore, foreign)
+        ctrl.disconnect()
+
+
+def test_snapshot_summary_of_a_minimal_snapshot() -> None:
+    summary = snapshot_summary({
+        "format": t.BACKUP_FORMAT, "created": "2026-01-01T00:00:00+00:00",
+        "device": {}, "settings": {"eq_mode": 4}, "raw": {"eq_mode": {}, "model": {}},
+        "skipped": [{"key": "ai_status"}]})
+    check("minimal summary restorable", summary["restorable"], ["eq_mode"])
+    check("minimal summary captured_only", summary["captured_only"], [])
+    check("minimal summary skipped", summary["skipped"], 1)
+    check("minimal summary has no paired devices",
+          summary["contains_paired_devices"], False)
+
+
+# --------------------------------------------------------------------------
 # helpers and error paths
 # --------------------------------------------------------------------------
 def test_noise_choices() -> None:
@@ -278,6 +494,15 @@ def test_requires_connection() -> None:
     check_raises("high volume without connect", ControllerError, ctrl.high_volume)
     check_raises("set high volume without connect",
                  ControllerError, ctrl.set_high_volume, True)
+    with tempfile.TemporaryDirectory() as tmp:
+        # a *valid* file, so the refusal is about the connection and not the path
+        path = pathlib.Path(tmp) / "backup.json"
+        write_snapshot(path, {"format": t.BACKUP_FORMAT, "created": "2026-01-01T00:00:00+00:00",
+                              "device": {}, "settings": {}, "raw": {}, "skipped": []})
+        check_raises("backup without connect", ControllerError, ctrl.backup)
+        check_raises("backup_to without connect", ControllerError, ctrl.backup_to, path)
+        check_raises("preview without connect", ControllerError, ctrl.preview_restore, path)
+        check_raises("restore without connect", ControllerError, ctrl.restore_from, path)
 
 
 def test_double_connect_is_safe() -> None:
