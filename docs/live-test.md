@@ -397,8 +397,9 @@ Take the buds out of your ears first.
 (2026-10-23): with the buds out and ringing, closing the window and disconnecting
 each sent `0x0400 00` (ack `00`) *before* the link dropped. The same run
 confirmed the write is **not** wear-gated -- `in_ear` was false before and after
--- which is the point of a find-my-buds command. The audible half was not
-re-confirmed that run; it was verified on 2026-10-20.
+-- which is the point of a find-my-buds command. The ring was audibly confirmed
+by the operator, so the command stands verified end to end again rather than
+ack-only.
 
 ### In-ear (compactness) probe (write, event-observed)
 
