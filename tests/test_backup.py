@@ -39,8 +39,7 @@ def replay(records) -> tuple[ReplayTransport, t.Session]:
     return transport, t.Session(transport, cmd_interval=0.0, read_timeout=0.5)
 
 
-# The Air7 Pro's capability bitmap, plus a non-empty bass-engine reading (the
-# live unit advertises bit 38 but answers ``00 00``).
+# The Air7 Pro's capability bitmap.
 BITMAP = "00bf4f5ae665dc4004"
 
 CANNED = {
@@ -60,7 +59,6 @@ CANNED = {
     (0x0118, b""): "0001012c00",
     (0x011A, b""): "0000",
     (0x0122, b""): "0001010102040000",
-    (0x0124, b""): "00010503",   # status 0, min 1, max 5, current 3
     (0x0131, b""): "000000",
 }
 
@@ -77,6 +75,24 @@ def backup_records(canned=None, bitmap: str = BITMAP) -> list:
     return records
 
 
+def check_removed_symbols() -> None:
+    """The three ids that could not be live-verified must stay gone.
+
+    ``0x0124`` is never answered by the Air7 Pro; ``0x0418`` needs a band table
+    that only the vendor EQ editor can supply; ``0x0403`` is accepted but a
+    provable no-op.  See ``docs/command-coverage.md`` and the live run.
+    """
+    for name in ("parse_bass_engine", "payload_set_eq",
+                 "payload_set_switch_feature"):
+        check(f"{name} is not exported", hasattr(t, name), False)
+        check(f"{name} is not in __all__", name in t.__all__, False)
+    check("0x0124 is not polled", 0x0124 in [c for c, _, _ in t.READ_PLAN], False)
+    check("0x041B builder survives (it is live-verified)",
+          hasattr(t, "payload_set_bass_engine"), True)
+    check("0x0508 decoder survives (it is live-verified)",
+          hasattr(t, "parse_bass_engine_status"), True)
+
+
 def check_payload_builder() -> None:
     check("3-byte form", t.payload_set_bass_engine(1, 5, 3), b"\x01\x05\x03")
     check("4-byte form (type>0)", t.payload_set_bass_engine(1, 5, 3, 2), b"\x01\x05\x03\x02")
@@ -85,41 +101,28 @@ def check_payload_builder() -> None:
     check("bytes are masked", t.payload_set_bass_engine(0x101, 0x05, 0x03), b"\x01\x05\x03")
 
 
-def check_decoder() -> None:
-    check("single", t.parse_bass_engine(bytes.fromhex("00010503")),
-          {"status": 0, "value": {"min": 1, "max": 5, "current": 3, "type": None}})
-    check("with type", t.parse_bass_engine(bytes.fromhex("0001050302")),
-          {"status": 0, "value": {"min": 1, "max": 5, "current": 3, "type": 2}})
-    check("empty reply", t.parse_bass_engine(bytes.fromhex("0000")),
-          {"status": 0, "value": None})
-    check("failure status", t.parse_bass_engine(bytes.fromhex("0e010503")),
-          {"status": 14, "value": None})
-    check("no bytes", t.parse_bass_engine(b""), {"status": 0, "value": None})
-    check("wired into the state table",
-          t.decode_state(0x8124, bytes.fromhex("00010503"))["value"]["current"], 3)
-
-
 def check_capture() -> None:
     transport, session = replay(backup_records())
     snap = t.capture(session)
     check("format", snap["format"], t.BACKUP_FORMAT)
-    check("bass captured raw", snap["raw"]["bass_engine"]["reply"], "00010503")
-    check("bass derived", snap["settings"]["bass_engine"],
-          {"min": 1, "max": 5, "current": 3, "type": None})
-    check("bass is restorable", "bass_engine" in t.backup.RESTORABLE, True)
     check("key function still derived",
           snap["settings"]["key_function"], "02" + "02010100" + "02010201")
     check("eq mode still derived", snap["settings"]["eq_mode"], 4)
     check("high volume derived", snap["settings"]["high_volume"], True)
-    check("high volume is restorable", "high_volume" in t.backup.RESTORABLE, True)
-    # the live unit's empty reply derives nothing
-    empty = {**CANNED, (0x0124, b""): "0000"}
-    _, session = replay(backup_records(empty))
-    check("empty bass reply derives nothing",
-          "bass_engine" in t.capture(session)["settings"], False)
+    check("noise mode derived", snap["settings"]["noise_mode"], 1)
+    # the two settings that lost their restorer are captured but not derived
+    check("switch features captured", "switch_features" in snap["raw"], True)
+    check("switch features not derived",
+          "switch_features" in snap["settings"], False)
+    check("bass engine not captured at all", "bass_engine" in snap["raw"], False)
+    check("restorable is the four symmetric settings",
+          sorted(t.backup.RESTORABLE),
+          ["eq_mode", "high_volume", "key_function", "noise_mode"])
+    check("switch_features is in SETTING_KEYS, so it is still reported",
+          "switch_features" in t.backup.SETTING_KEYS, True)
 
 
-def check_restore_bass() -> None:
+def check_restore() -> None:
     _, session = replay(backup_records())
     snap = t.capture(session)
 
@@ -128,44 +131,50 @@ def check_restore_bass() -> None:
                ("tx", wire(0x0401, bytes.fromhex(snap["settings"]["key_function"]))),
                ("rx", wire(0x8401, bytes([0]))),
                ("tx", wire(0x0406, bytes([4]))), ("rx", wire(0x8406, bytes([0]))),
-               ("tx", wire(0x0407, bytes([1]))), ("rx", wire(0x8407, bytes([0]))),
-               ("tx", wire(0x041B, bytes([1, 5, 3]))), ("rx", wire(0x841B, bytes([0])))]
+               ("tx", wire(0x0407, bytes([1]))), ("rx", wire(0x8407, bytes([0])))]
     transport, session = replay(records)
     report = t.restore(session, snap)
-    check("bass reported applied",
-          any(a["setting"] == "bass_engine" for a in report["applied"]), True)
-    check("high volume reported applied",
-          any(a["setting"] == "high_volume" for a in report["applied"]), True)
-    check("bass frame written", transport.writes[-1], wire(0x041B, bytes([1, 5, 3])))
-    check("bass not listed as not_restored",
-          any(s["setting"] == "bass_engine" for s in report["not_restored"]), False)
-    check("eq_info still captured-but-not-restored",
+    check("all four symmetric settings applied",
+          sorted(a["setting"] for a in report["applied"]),
+          ["eq_mode", "high_volume", "key_function", "noise_mode"])
+    check("no 0x041B frame was written",
+          any(w[5:7] == b"\x1b\x04" for w in transport.writes), False)
+    check("no 0x0403 frame was written",
+          any(w[5:7] == b"\x03\x04" for w in transport.writes), False)
+    check("eq_info is captured-but-not-restored",
           any(s["setting"] == "eq_info" for s in report["not_restored"]), True)
+    check("switch_features is captured-but-not-restored",
+          any(s["setting"] == "switch_features" for s in report["not_restored"]), True)
+    check("bass_engine is not mentioned at all",
+          any("bass" in s["setting"] for s in report["not_restored"]), False)
+    check("four writes went out (0x0404/0x0401/0x0406/0x0407)",
+          len(transport.writes), 5)
 
-    # dry-run must not write the bass frame
+    # dry-run must not write anything past the capability negotiate
     transport, session = replay(records)
     dry = t.restore(session, snap, dry_run=True)
-    check("dry-run reports bass", any(a["setting"] == "bass_engine" for a in dry["applied"]), True)
+    check("dry-run reports every restorable setting",
+          sorted(a["setting"] for a in dry["applied"]),
+          ["eq_mode", "high_volume", "key_function", "noise_mode"])
     check("dry-run wrote nothing past negotiate", len(transport.writes), 1)
 
 
 def check_restore_unsupported() -> None:
-    """A snapshot with a bass value but no bit 38 must not write 0x041B."""
-    # bitmap without bit 38: clear it (bitmap byte 4, 0x65 -> 0x25)
-    bitmap = "00bf4f5ae625dc4004"
+    """A setting whose write the device does not advertise must not be written."""
+    # the Air7 Pro bitmap with bit 8 ([0x010C, 0x0404]) cleared
+    bitmap = "00bf4e5ae665dc4004"
     _, session = replay([("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(bitmap)))])
-    snap = {"format": t.BACKUP_FORMAT, "settings": {"bass_engine":
-            {"min": 1, "max": 5, "current": 3, "type": None}}}
+    snap = {"format": t.BACKUP_FORMAT, "settings": {"noise_mode": 1}}
     report = t.restore(session, snap)
-    check("unsupported bass not applied",
-          any(a["setting"] == "bass_engine" for a in report["applied"]), False)
-    check("unsupported bass reported",
-          any(s["setting"] == "bass_engine" for s in report["not_restored"]), True)
+    check("unsupported noise mode not applied", report["applied"], [])
+    check("unsupported noise mode reported",
+          report["not_restored"],
+          [{"setting": "noise_mode", "reason": "unsupported by device"}])
 
 
 def main() -> int:
-    for fn in (check_payload_builder, check_decoder, check_capture,
-               check_restore_bass, check_restore_unsupported):
+    for fn in (check_removed_symbols, check_payload_builder, check_capture,
+               check_restore, check_restore_unsupported):
         fn()
     if FAILURES:
         print(f"checks run: {CHECKS}")

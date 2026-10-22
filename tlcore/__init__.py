@@ -107,7 +107,6 @@ from .decoders import (
     decode_event,
     decode_state,
     parse_ai_status,
-    parse_bass_engine,
     parse_battery,
     parse_color_id,
     parse_compactness_event,
@@ -167,14 +166,12 @@ from .payloads import (
     payload_compactness_detect,
     payload_set_ai_status,
     payload_set_bass_engine,
-    payload_set_eq,
     payload_set_eq_mode,
     payload_set_find_mode,
     payload_set_high_volume,
     payload_set_key_function,
     payload_set_noise_mode,
     payload_set_noise_reduction,
-    payload_set_switch_feature,
 )
 from .requests import (
     OPERATION_MESSAGES,
@@ -233,13 +230,12 @@ __all__ = [
     "NOISE_MODE_ANC_LIGHT", "NOISE_MODE_ANC_MEDIUM", "NOISE_MODE_ANC_SMART",
     "NOISE_MODE_NAMES", "NOISE_MODE_NORMAL", "NOISE_MODE_TRANSPARENCY",
     # payloads
-    "crc16_ccitt", "payload_compactness_detect", "payload_set_ai_status", "payload_set_bass_engine", "payload_set_eq", "payload_set_eq_mode",
+    "crc16_ccitt", "payload_compactness_detect", "payload_set_ai_status", "payload_set_bass_engine", "payload_set_eq_mode",
     "payload_set_eq_mode", "payload_set_find_mode",
     "payload_set_high_volume", "payload_set_key_function",
-    "payload_set_noise_mode", "payload_set_noise_reduction", "payload_set_switch_feature",
-    # decoders
+    "payload_set_noise_mode", "payload_set_noise_reduction",     # decoders
     "CASE_ID", "DEVICE_NAMES", "EVENT_TYPE_NAMES", "STATE_DECODERS", "WEAR_IN_EAR",
-    "decode_event", "decode_state", "parse_ai_status", "parse_bass_engine", "parse_battery", "parse_color_id", "parse_compactness_event", "parse_device_version",
+    "decode_event", "decode_state", "parse_ai_status", "parse_battery", "parse_color_id", "parse_compactness_event", "parse_device_version",
     "parse_earbud_status",
     "parse_eq_info", "parse_eq_mode", "parse_high_volume",
     "parse_key_function", "parse_model_id", "parse_multi_connect",

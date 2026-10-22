@@ -15,15 +15,18 @@ noise mode       ``0x010C`` sel ``1``        ``0x0404`` action ``1``
 key function     ``0x0108``                  ``0x0401`` (same records)
 EQ mode          ``0x010F``                  ``0x0406`` (identity)
 high volume      ``0x0110``                  ``0x0407`` (boolean)
-switch features  ``0x010D``                  ``0x0403`` (per feature)
-bass engine      ``0x0124``                  ``0x041B`` (same value)
 ===============  ==========================  ==========================
 
 Everything else is stored faithfully but reported as *not restorable* rather
 than guessed at, because its payload value semantics were not recovered (see
-``docs/command-coverage.md``).  The bass-engine layout is recovered from the
-decompiler but is **not** live-verified (the Air7 Pro does not answer
-``0x0124``), and is captured only when the reply carries a reading.
+``docs/command-coverage.md``).
+
+Two settings used to be restorable and are not any more, both live-tested:
+``switch_features`` (``0x0403``) because the Air7 Pro accepts the write and
+changes nothing -- there is no observable effect to verify it against -- and
+``bass_engine`` because there is no working *read* to capture a value with
+(``0x0124`` is never answered).  Both stay captured where their read is
+verified, and are reported ``captured, no restorer``.
 
 This module is pure: it talks only to a
 :class:`~tlcore.session.Session`, never to a file or a platform API.
@@ -34,23 +37,18 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .commands import (
-    CMD_SET_BASS_ENGINE,
     CMD_SET_EQ_MODE,
     CMD_SET_HIGH_VOLUME,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
-    CMD_SET_SWITCH_FEATURE,
 )
 from .decoders import (
-    parse_bass_engine,
     parse_device_version,
     parse_eq_mode,
     parse_key_function,
     parse_model_id,
-    parse_switch_features,
 )
 from .errors import TLError
-from .payloads import payload_set_bass_engine, payload_set_switch_feature
 
 #: Format tag written into (and required by) every backup file.
 BACKUP_FORMAT = "open-real-link.backup/1"
@@ -74,21 +72,19 @@ READ_PLAN: tuple[tuple[int, bytes, str], ...] = (
     (0x0118, b"", "ear_restore"),
     (0x011A, b"", "personalized_anc"),
     (0x0122, b"", "eq_info"),
-    (0x0124, b"", "bass_engine"),
     (0x0131, b"", "ai_status"),
 )
 
 #: Raw capture keys that are user *settings* (as opposed to identity/status).
 SETTING_KEYS = frozenset({
     "noise_mode", "noise_cycle", "key_function", "switch_features",
-    "eq_info", "bass_engine", "multi_point", "ear_restore",
+    "eq_info", "multi_point", "ear_restore",
     "personalized_anc", "ai_status", "status_0104", "status_0107",
     "status_010b", "high_volume",
 })
 
 #: Settings this module knows how to write back.
-RESTORABLE = frozenset({"noise_mode", "key_function", "eq_mode", "high_volume",
-                        "switch_features", "bass_engine"})
+RESTORABLE = frozenset({"noise_mode", "key_function", "eq_mode", "high_volume"})
 
 
 def _model_string(reply_hex: str) -> Optional[str]:
@@ -118,10 +114,6 @@ def _derive_settings(raw: dict) -> dict:
         # [count][records...] is exactly the 0x0401 body; count 0 is not writable
         if table["count"]:
             out["key_function"] = f"{table['count']:02x}" + "".join(table["records"])
-    sw = raw.get("switch_features")
-    if sw:
-        out["switch_features"] = parse_switch_features(
-            bytes.fromhex(sw["reply"]))["entries"]
     em = raw.get("eq_mode")
     if em and em["status"] == 0:
         mode = parse_eq_mode(bytes.fromhex(em["reply"]))["mode"]
@@ -130,11 +122,6 @@ def _derive_settings(raw: dict) -> dict:
     hv = raw.get("high_volume")
     if hv and hv["status"] == 0 and len(hv["reply"]) >= 2:
         out["high_volume"] = bool(int(hv["reply"][-2:], 16))
-    be = raw.get("bass_engine")
-    if be:
-        value = parse_bass_engine(bytes.fromhex(be["reply"]))["value"]
-        if value is not None:
-            out["bass_engine"] = value
     return out
 
 
@@ -224,28 +211,6 @@ def restore(session, snapshot: dict, *, timeout: Optional[float] = None,
     if high_volume is not None:
         _apply("high_volume", session.supports(CMD_SET_HIGH_VOLUME),
                lambda: session.set_high_volume(high_volume, timeout=timeout))
-
-    bass_engine = settings.get("bass_engine")
-    if bass_engine:
-        def _write_bass_engine() -> None:
-            reply = session.request(
-                CMD_SET_BASS_ENGINE,
-                payload_set_bass_engine(
-                    bass_engine["min"], bass_engine["max"], bass_engine["current"],
-                    bass_engine.get("type")),
-                timeout=timeout)
-            session.check_status(reply)
-        _apply("bass_engine", session.supports(CMD_SET_BASS_ENGINE), _write_bass_engine)
-
-    for entry in settings.get("switch_features", []):
-        def _write_switch(entry=entry) -> None:
-            reply = session.request(
-                CMD_SET_SWITCH_FEATURE,
-                payload_set_switch_feature(entry["feature"], entry["enabled"]),
-                timeout=timeout)
-            session.check_status(reply)
-        _apply(f"switch_feature[0x{entry['feature']:02X}]",
-               session.supports(CMD_SET_SWITCH_FEATURE), _write_switch)
 
     for key in (snapshot.get("raw") or {}):
         if key in SETTING_KEYS and key not in RESTORABLE:

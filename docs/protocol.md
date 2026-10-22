@@ -175,11 +175,32 @@ This is the set `tlcore` implements. A builder (`payload_*`) constructs a
 request; a decoder (`parse_*`) interprets a reply or push. Commands with neither
 are “known only” and are listed for identification only.
 
-Four device→app requests — `0x0502`, `0x0503`, `0x050E`, `0x0516` — and the
-`0x812A` feature reply are **documented, not implemented**. `0x0503`
-(feature-switch sync) and `0x0516` (oneshot audio) can only be observed while
-the official realme Link app is running (a feature toggle, an AI conversation),
-so their trigger is not host-reachable at all. `0x0502` (operation request) and
+Four device→app requests — `0x0502`, `0x0503`, `0x050E`, `0x0516` — the
+`0x812A` feature reply, and three command IDs that were driven on hardware but
+could not be live-verified are **documented, not implemented**. Each was taken
+to a live Buds Air7 Pro and *failed to verify for a reason the protocol itself
+gives*, so the gap is recorded rather than shipped as a guess:
+
+* `0x0418` setEqInfo — the APK's own `SetCommandManager.p` refuses to send
+  unless the frequency and dB arrays are both present and equal in length, and
+  those come from the device's reply (`CommandUtil.parseAllEqData`). This unit
+  reports `freqCount 0` for every entry, so **no write can be constructed from
+  host-observable data** — the band table is supplied by the vendor EQ editor.
+  The `[05]` query form is verified and `0x0506` remains decoded.
+* `0x0403` setSwitchFeature — a Buds Air7 Pro **accepts** `[feature][enabled]`
+  (`0x8403 00`) even for a feature id that is not a real `SWITCH_FEATURE` code,
+  but reports no switch features (`0x010D 00 00`), changes nothing and never
+  pushes `0x0503`. There is no observable effect, so the write cannot be
+  verified end to end. The `0x010D` **read** is verified and stays.
+* `0x0124` bass-engine read — the unit advertises capability bit 38 and is
+  **never** answering this: empty body, `00`, `01`, `0000`, and still nothing
+  after a `0x041B` write. The bass value is read via the `0x0508` push instead
+  (verified), and `0x041B` is itself verified.
+
+Of the request family, `0x0503` (feature-switch sync) and `0x0516` (oneshot
+audio) can only be observed while the official realme Link app is running (a
+feature toggle, an AI conversation), so their trigger is not host-reachable at
+all. `0x0502` (operation request) and
 `0x050E` (use-time list) *are* host-reachable but were never observed: the
 device neither emits `0x0502` for its own gestures nor when a gesture is bound
 to an app-side function, and it never pushes `0x050E`. No live test can confirm
@@ -193,8 +214,8 @@ static-only recovery as supported. Their bodies are documented below, in
 | --- | --- | --- | --- | --- |
 | `0x0404` | setNoiseReduction | `payload_set_noise_reduction`, `payload_set_noise_mode` | — | verified |
 | `0x0401` | setKeyFunction (write the gesture table) | `payload_set_key_function` | — | verified |
-| `0x0403` | setSwitchFeature | `payload_set_switch_feature` | — | integrated |
-| `0x0418` | setEqInfo / getEqInfo | `payload_set_eq` | — | integrated |
+| `0x0403` | setSwitchFeature | — | — | documented only (accepted, provable no-op) |
+| `0x0418` | setEqInfo / getEqInfo | — | — | documented only (needs the vendor EQ editor) |
 | `0x0108` | getKeyFunction (read the gesture table) | — | `parse_key_function`, `parse_key_function_table` | verified |
 | `0x0102` | getRemoteVendorId (remote vendor id) | — | `parse_remote_vendor_id` | verified |
 | `0x0104` | getRemoteProtocolVersion (protocol-version exchange) | — | `parse_protocol_version` | verified |
@@ -210,8 +231,8 @@ static-only recovery as supported. Their bodies are documented below, in
 | `0x0405` | setCompactnessDetect (in-ear detect trigger; result on the `0x0204` event `0x04`) | `payload_compactness_detect` | `parse_compactness_event` | verified |
 | `0x0131` | getAIStatus (read the AI / translation status) | — | `parse_ai_status` | verified |
 | `0x0428` | setAIStatus / setTranslationAppStatus | `payload_set_ai_status` | — | verified |
-| `0x0124` | bass engine (read) | — | `parse_bass_engine` | inferred |
-| `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | inferred |
+| `0x0124` | bass engine (read) | — | — | documented only (the unit never answers it) |
+| `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | verified |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | — | documented only (the unit never answers `0x012A`) |
 | `0x0204` | notification event (incl. button press `0xF1`) | — | `parse_notification_event`, `parse_public_event`, `parse_user_interaction`, `parse_multi_connect_event` | verified |

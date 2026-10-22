@@ -36,9 +36,17 @@ CMD_NOTIFICATION_CAPS = 0x0200   # NotificationCommandManager.b
 CMD_REGISTER_NOTIFICATION = 0x0202   # NotificationCommandManager.c
 CMD_CANCEL_REGISTER_NOTIFICATION = 0x0203  # NotificationCommandManager.a
 CMD_SET_KEY_FUNCTION = 0x0401    # SetCommandManager.s
-CMD_SET_SWITCH_FEATURE = 0x0403  # SetCommandManager.y -> setSwitchFeature
+#: `SetCommandManager.y`.  The id is named for identification only -- no builder
+#: is shipped.  A live Air7 Pro *accepts* `[feature][enabled]` (`0x8403 00`)
+#: but reports no switch features (`0x010D 00 00`), changes nothing and never
+#: pushes `0x0503`, so the write has no observable effect to verify against.
+CMD_SET_SWITCH_FEATURE = 0x0403
 CMD_SET_NOISE_REDUCTION = 0x0404  # SetCommandManager.a
-CMD_EQ_INFO = 0x0418             # SetCommandManager.p (mode 5 == query)
+#: `SetCommandManager.p`; mode `5` is the verified query form.  No builder is
+#: shipped: `p` refuses to send unless the frequency and dB arrays are both
+#: present and equal in length, and those come from the device's reply, which
+#: this unit leaves empty (`freqCount 0`).  The band table is vendor-editor data.
+CMD_EQ_INFO = 0x0418
 CMD_GET_EQ_MODE = 0x010F         # PollCommandManager.j -> read the sound-effect/EQ mode
 CMD_GET_ALL_EQ_INFO = 0x0122     # PollCommandManager.d -> read the EQ preset/custom list
 CMD_SET_EQ_MODE = 0x0406         # SetCommandManager.n/.o -> write the sound-effect/EQ mode
@@ -53,8 +61,15 @@ CMD_GET_NOISE_REDUCTION = 0x010C  # PollCommandManager.h/.y/z -> read a NoiseRed
 CMD_GET_KEY_FUNCTION = 0x0108    # PollCommandManager.h0 -> the gesture/key-function table
 CMD_GET_MULTI_CONNECT = 0x0112   # PollCommandManager -> the paired-device / multipoint list
 CMD_GET_PERSONALIZED_ANC = 0x011A  # PollCommandManager.A -> personalized-noise result exists flag
-CMD_GET_BASS_ENGINE = 0x0124     # PollCommandManager.Q -> single bass-engine {min,max,current(,type)}
-CMD_SET_BASS_ENGINE = 0x041B     # SetCommandManager.l/.m -> set the bass-engine value
+#: `PollCommandManager.Q`.  Named for identification only -- the id is dead on
+#: this firmware: a Buds Air7 Pro advertises capability bit 38 and never answers
+#: `0x0124`, with any body, even after a `0x041B` write.  The bass value is read
+#: off the `0x0508` push (`CMD_BASS_ENGINE_STATUS`) instead.
+CMD_GET_BASS_ENGINE = 0x0124
+#: `SetCommandManager.l`/`.m` -> set the bass-engine value.  Live-verified:
+#: both the 3-byte and the 4-byte (`type`) forms are accepted and echoed back on
+#: `0x0508`.
+CMD_SET_BASS_ENGINE = 0x041B
 CMD_SET_HIGH_VOLUME = 0x0407     # SetCommandManager.r -> setHighVolume (bool)
 CMD_SET_FIND_MODE = 0x0400       # SetCommandManager.q -> setFindMode (bool; rings the buds)
 CMD_GET_HIGH_VOLUME = 0x0110     # PollCommandManager.s -> high-volume status

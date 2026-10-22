@@ -251,10 +251,18 @@ def check_custom_eq() -> None:
     check("empty", t.parse_custom_eq(b"")["count"], 0)
 
 
-def check_switch_feature_builder() -> None:
-    check("switch on", t.payload_set_switch_feature(3, True), b"\x03\x01")
-    check("switch off", t.payload_set_switch_feature(3, False), b"\x03\x00")
-    check("switch int", t.payload_set_switch_feature(0x12, 1), b"\x12\x01")
+def check_removed_builders() -> None:
+    """``0x0403`` and ``0x0418`` are deliberately not shipped.
+
+    ``0x0403 [feature][enabled]`` is accepted by the Air7 Pro but changes
+    nothing (``0x010D`` still ``00 00``, no ``0x0503`` push), so it cannot be
+    verified; ``0x0418`` cannot even be built without the vendor EQ editor's
+    band table.  See ``docs/command-coverage.md``.
+    """
+    check("no 0x0403 builder", hasattr(t, "payload_set_switch_feature"), False)
+    check("no 0x0418 builder", hasattr(t, "payload_set_eq"), False)
+    check("the 0x810D read is still decoded",
+          t.parse_switch_features(bytes.fromhex("0000"))["entries"], [])
 
 
 def main() -> int:
@@ -265,7 +273,7 @@ def main() -> int:
                check_host_time_request,
                check_operation_request,
                check_eq_mode_and_bass, check_use_time_list,
-               check_request_dispatch, check_custom_eq, check_switch_feature_builder):
+               check_request_dispatch, check_custom_eq, check_removed_builders):
         fn()
     if FAILURES:
         print(f"checks run: {CHECKS}")

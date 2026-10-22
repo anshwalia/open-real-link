@@ -286,7 +286,7 @@ RESTORED = ["noise_mode", "key_function", "eq_mode", "high_volume"]
 
 #: Read faithfully but with no recovered writer -- reported, never guessed at.
 NOT_RESTORED = ["multi_point", "noise_cycle", "status_0104", "status_0107",
-                "status_010b"]
+                "status_010b", "switch_features"]
 
 
 def backup_records() -> list:
@@ -372,10 +372,10 @@ def test_backup_writes_an_atomic_plain_json_file() -> None:
         check("summary model", summary["model"], "0x064C12")
         check("summary firmware", summary["firmware"], ["1.1.0.85"])
         check("summary captured", summary["captured"], len(BACKUP_CANNED))
-        # bass_engine is absent: the Air7 Pro advertises 0x0124 but answers nothing
+        # switch_features and bass_engine are captured-only now: 0x0403 is a
+        # provable no-op and 0x0124 is never answered, so neither has a restorer
         check("summary restorable", summary["restorable"],
-              ["eq_mode", "high_volume", "key_function", "noise_mode",
-               "switch_features"])
+              ["eq_mode", "high_volume", "key_function", "noise_mode"])
         check("summary captured_only", summary["captured_only"], NOT_RESTORED)
         check("summary sees the paired-device list",
               summary["contains_paired_devices"], True)

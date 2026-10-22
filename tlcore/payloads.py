@@ -5,8 +5,6 @@ built by callers as raw bytes.
 """
 from __future__ import annotations
 
-import struct
-
 
 def crc16_ccitt(data: bytes, init: int = 0xFFFF) -> int:
     crc = init
@@ -55,14 +53,6 @@ def payload_set_noise_mode(value: int) -> bytes:
 def payload_set_key_function(entries: list[bytes]) -> bytes:
     """SetCommandManager.s() / cmd 0x0401: [count][ (4-byte entry) x count ]."""
     return bytes([len(entries) & 0xFF]) + b"".join(e[:4].ljust(4, b"\x00") for e in entries)
-
-
-def payload_set_switch_feature(feature: int, enabled: bool | int) -> bytes:
-    """SetCommandManager.y() / cmd 0x0403: ``[featureId][enabled ? 1 : 0]``.
-
-    The read half is ``0x010D`` (:func:`tlcore.decoders.parse_switch_features`).
-    """
-    return bytes([feature & 0xFF, 1 if enabled else 0])
 
 
 def payload_set_high_volume(enabled: bool | int) -> bytes:
@@ -121,28 +111,13 @@ def payload_set_ai_status(state: int, ai_type: int) -> bytes:
     return bytes([state & 0xFF, ai_type & 0xFF])
 
 
-def payload_set_eq(mode: int, min_value: int, max_value: int, eq_id: int,
-                   name: str = "", points: list[tuple[int, int]] | None = None) -> bytes:
-    """SetCommandManager.p() / cmd 0x0418.
-
-    [mode][minValue][maxValue][eqId][nameLen][name utf8]
-    [freqCount][ (freq uint16 LITTLE endian)(db int8) x freqCount ]
-
-    The frequency is written with `ProtocolUtil.c(..., true)` (little-endian).
-    mode == 5 means "query current EQ" and carries no further payload.
-    """
-    if mode == 5:
-        return bytes([5])
-    name_bytes = name.encode("utf-8")
-    out = bytearray([mode & 0xFF, min_value & 0xFF, max_value & 0xFF, eq_id & 0xFF,
-                     len(name_bytes)])
-    out += name_bytes
-    points = points or []
-    out.append(len(points) & 0xFF)
-    for freq, db in points:
-        out += struct.pack("<H", freq & 0xFFFF)
-        out.append(db & 0xFF)
-    return bytes(out)
+# ``payload_set_eq`` (``0x0418``) is deliberately **not** provided.  The APK's
+# ``SetCommandManager.p`` returns false *without sending* unless the frequency
+# and dB arrays are both present and equal in length, and those come from the
+# device's own reply (``CommandUtil.parseAllEqData``).  The Air7 Pro reports
+# ``freqCount 0`` for every entry, so no write can be constructed from
+# host-observable data -- it needs the vendor EQ editor.  Documented in
+# ``docs/protocol.md`` section 7; not implemented.
 
 
 def payload_set_eq_mode(mode: int) -> bytes:
@@ -161,8 +136,17 @@ def payload_set_bass_engine(min_value: int, max_value: int, current_value: int,
 
     ``[minValue][maxValue][currentValue]`` -- 3 bytes; a ``type`` byte is
     appended only when ``type > 0`` (``SetCommandManager.m`` passes ``-1`` for
-    the plain 3-byte form).  The matching read is ``0x0124``
-    (:func:`tlcore.decoders.parse_bass_engine`).
+    the plain 3-byte form).
+
+    **Verified live** on the Air7 Pro: the device accepts both forms and echoes
+    the value back on the ``0x0508`` push -- ``0x041B fb 05 00`` ->
+    ``0x0508 fb 05 00 00``, and ``0x041B fb 05 00 01`` -> ``0x0508 fb 05 00 01``
+    (so ``type`` really is a band selector).  The device keeps its own fixed
+    ``min=-5``/``max=+5`` and echoes only ``current`` and ``type``.
+
+    The matching **read** is ``0x0508``
+    (:func:`tlcore.requests.parse_bass_engine_status`).  ``0x0124`` is not it:
+    the Air7 Pro never answers ``0x0124``, so no ``0x8124`` decoder is provided.
     """
     body = bytes([min_value & 0xFF, max_value & 0xFF, current_value & 0xFF])
     if type is not None and type > 0:

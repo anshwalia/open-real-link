@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **37 implemented** in `open-real-link`,
-**42 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **34 implemented** in `open-real-link`,
+**45 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 21 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 20 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
-| `SetCommandManager` | `0x0400` | 22 | 10 | 18 | 22 cap-bit |
+| `SetCommandManager` | `0x0400` | 22 | 8 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 4 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **37** | **49** | |
+| **total** | | **79** | **34** | **49** | |
 
 ## Full catalogue
 
@@ -65,7 +65,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x011f` | 287 | poll | cap-bit 30 | — | live | getEarScanFilterData |
 | `0x0120` | 288 | poll | cap-bit 32 | — | live | getEarLanguageData |
 | `0x0122` | 290 | poll | cap-bit 34 | send + decode | live | getAllEqInfo |
-| `0x0124` | 292 | poll | cap-bit 38 | send + decode | live | — |
+| `0x0124` | 292 | poll | cap-bit 38 | — | live | — |
 | `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
 | `0x012a` | 298 | poll | ungated | — | — | detectFeature |
@@ -89,7 +89,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0400` | 1024 | set | cap-bit 5 | build + send | live | setFindMode |
 | `0x0401` | 1025 | set | cap-bit 3 | build | live | setKeyFunction |
 | `0x0402` | 1026 | set | cap-bit 6 | — | — | — |
-| `0x0403` | 1027 | set | cap-bit 7 | build + send | live | setSwitchFeature |
+| `0x0403` | 1027 | set | cap-bit 7 | — | live | setSwitchFeature |
 | `0x0404` | 1028 | set | cap-bit 8 | build + send | live | SetNoiseReduction |
 | `0x0405` | 1029 | set | cap-bit 9 | build + send + decode | live | setCompactnessDetect |
 | `0x0406` | 1030 | set | cap-bit 10 | build + send | live | setEQStatus |
@@ -103,7 +103,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0411` | 1041 | set | cap-bit 25 | — | live | setRestoreData |
 | `0x0412` | 1042 | set | cap-bit 26 | — | live | setPersonalizedNoiseReduction |
 | `0x0415` | 1045 | set | cap-bit 30 | — | live | sendProcessEarScanData |
-| `0x0418` | 1048 | set | cap-bit 34 | build | live | getDbValue, getFrequency, setEqInfo |
+| `0x0418` | 1048 | set | cap-bit 34 | — | live | getDbValue, getFrequency, setEqInfo |
 | `0x041b` | 1051 | set | cap-bit 38 | build + send | live | setBassEngineValue |
 | `0x041e` | 1054 | set | cap-bit 43 | — | live | setSpatialAudioType |
 | `0x0428` | 1064 | set | cap-bit 58 | build + send | live | setAIStatus / setTranslationAppStatus |
@@ -148,18 +148,22 @@ only**; the matching writes drive loud test tones and are never sent.
 
 ## Implemented but not live-verified
 
-The project rule is **implement only what is verified on hardware and live-tested**
-(`AGENTS.md`). The `Air7 Pro: live` column only means the ID is *advertised*; it
-is not proof that this project exercised it. The rows below are implemented from
-static recovery alone and are **kept and tracked**, not extended — this ledger
-may only shrink. Each must be either live-verified (and struck from the list) or
-removed **before a release**. Their obstacle is named.
+**Empty.** The project rule is **implement only what is verified on hardware and
+live-tested** (`AGENTS.md`), and the ledger that tracked the exceptions has been
+retired: every row was taken to a live Buds Air7 Pro, none could be verified, and
+all three implementations were **removed** rather than shipped as guesses. There
+is now nothing in `tlcore` that has not been exercised on hardware.
 
-| What | Symbol | Obstacle |
+The three rows, and why each failed to verify:
+
+| What | Was | Outcome |
 | --- | --- | --- |
-| bass-engine read `0x0124` | `parse_bass_engine` | cap-bit 38 is set, but the unit answers an empty `0x0124` with `00 00` — no reading to decode |
-| EQ write `0x0418` | `payload_set_eq` | the read (`0x0122`) and write are asymmetric (`isSelected` vs `action`) and the encoder refuses a zero-band record; only the `[05]` query form has been driven |
-| switch-feature write `0x0403` | `payload_set_switch_feature`, `restore` | the unit advertises the bit but reports **no** features (`0x010D count 0`) — nothing to switch |
+| bass-engine read `0x0124` | `parse_bass_engine` | the unit answers **nothing** — not `00 00` as this table used to claim, but no `0x8124` frame at all, for an empty body, `00`, `01`, `0000`, and still after a `0x041B` write. The bass value arrives on the verified `0x0508` push instead. **Removed.** |
+| EQ write `0x0418` | `payload_set_eq` | `SetCommandManager.p` returns false *without sending* unless the frequency and dB arrays are present and equal in length, and those come from the device's own reply (`CommandUtil.parseAllEqData`); this unit reports `freqCount 0` for every entry, so the band table is unobtainable without the vendor EQ editor. **Removed.** |
+| switch-feature write `0x0403` | `payload_set_switch_feature`, the `restore` entry | the device **accepts** any `[feature][enabled]` (`0x8403 00`, even for `00`, which is not a `SWITCH_FEATURE` code) but reports no features (`0x010D 00 00`), changes nothing and never pushes `0x0503` — no observable effect, so no end-to-end verification is possible. **Removed**; the verified `0x010D` read stays. |
+
+The `0x0124` row's own obstacle text was also wrong, and the correction is worth
+keeping: it never answered `00 00` — it never answered at all.
 
 ### Documented but deliberately not implemented
 
@@ -180,19 +184,25 @@ implement them, and all four stay documented here and in `docs/protocol.md`:
 `0x012A` is the same kind of entry: the unit does not advertise it and never
 answers it, so its `0x812A` reply is not decoded either.
 
-Implementing any of them would put a static-only guess behind a supported label.
-That is why the implemented count is now **37** (it fell by three here, and
-before that from 42 to 40 for `0x0503`/`0x0516`): the per-manager table and the
-total row above are the authority, not any prose figure.
+`0x0418`, `0x0403` and `0x0124` join this list, each for a reason the live run
+established rather than assumed (see the table above and
+[`protocol.md`](protocol.md) §7). Implementing any of them would put a
+static-only guess behind a supported label. That is why the implemented count is
+now **34** (it fell by three here, and before that from 42 to 40 for
+`0x0503`/`0x0516`): the per-manager table and the total row above are the
+authority, not any prose figure.
 
 Live-verified device→app requests (Air7 Pro, 2026-10-20): `0x0500` (time),
 `0x0504` (pushed on every `0x0406`), `0x0506` (pushed on the `0x0418 [05]`
 query), and `0x0508` (pushed on `0x041B`). The `0x0508` decoder was corrected
 to read its range as **signed** (`fb 05` = `-5..+5`, not `251..5`).
 
-The bass-engine write `0x041B` (`payload_set_bass_engine`) is now live-tested:
+The bass-engine write `0x041B` (`payload_set_bass_engine`) is live-tested:
 `0x041B [min][max][current]` is accepted and the device answers with `0x0508`;
-the device keeps its own fixed `-5..+5` range and only echoes `current`.
+the device keeps its own fixed `-5..+5` range and only echoes `current`. Both
+forms were driven on 2026-10-21 — `0x041B fb 05 00` → `0x0508 fb 05 00 00` and
+`0x041B fb 05 00 01` → `0x0508 fb 05 00 01` — which also shows the optional
+4th byte really is a band selector.
 
 Everything else implemented — the `0x01xx` reads, the noise / EQ-mode /
 key-function / high-volume / compactness / AI-status writes, `0x0204`, `0x0500` — has been

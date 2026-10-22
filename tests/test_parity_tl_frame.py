@@ -493,9 +493,10 @@ def parity_payloads(ref, core) -> None:
     for entries in ([], [b"\x01\x02\x03\x04"], [b"\x01", b"\x02"]):
         check(f"payload_set_key_function({entries!r})",
               core.payload_set_key_function(entries), ref.payload_set_key_function(entries))
-    for args in [(0, 0, 0, 0), (5, 0, 0, 0), (1, 1, 2, 3)]:
-        check(f"payload_set_eq({args})", core.payload_set_eq(*args),
-              ref.payload_set_eq(*args))
+    # payload_set_eq (0x0418) is deliberately not shipped -- the APK refuses to
+    # send a zero-band record and the band table only the vendor editor has is
+    # unobtainable -- so it is not compared.  The reference keeps its copy: that
+    # file is the frozen static reconstruction, not the shipped surface.
 
     # crc16 is unused on the OPPOv1 path but ported, so keep it honest
     for data in (b"", b"\x00", b"123456789", bytes(range(256))):

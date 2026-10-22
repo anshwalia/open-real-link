@@ -172,7 +172,10 @@ def test_backup_restore() -> None:
     check("backup noise mode", snapshot["settings"]["noise_mode"], 1)
     check("backup key-function payload", snapshot["settings"]["key_function"],
           "02" + "02010100" + "02010201")
-    check("backup switch features", snapshot["settings"]["switch_features"], [])
+    # switch_features is captured raw but no longer derived: its write (0x0403)
+    # is accepted yet a provable no-op, so it has no restorer
+    check("backup switch features not derived",
+          "switch_features" in snapshot["settings"], False)
     check("backup eq mode", snapshot["settings"]["eq_mode"], 4)
     check("backup raw captured 0x0108", snapshot["raw"]["key_function"]["reply"],
           "0002" + "02010100" + "02010201")
