@@ -53,8 +53,9 @@ Verified on hardware (realme Buds Air7 Pro):
 | Read/write high volume (loudness boost) | Verified end to end |
 | Read battery, wear state, firmware, model, and use time | Verified |
 | Read capability bitmap → supported-command set | Verified |
-| Write the bass-engine value (both `0x041B` forms) | Verified (write only — there is no working read; see below) |
-| Encode/decode parity with the reference codec | Verified (23,243 checks) |
+| Read the multi-band bass engine (`0x012C`) | Verified end to end |
+| Write the bass-engine value (both `0x041B` forms) | Verified end to end |
+| Encode/decode parity with the reference codec | Verified (23,246 checks) |
 
 Noise-mode values, confirmed by listening on the target device:
 
@@ -76,7 +77,7 @@ A few command IDs are deliberately **not** implemented, because a live Air7 Pro
 showed they cannot be verified rather than because they were hard: `0x0418`
 (the APK refuses to send a zero-band EQ record, and the band table comes from
 the vendor editor), `0x0403` (accepted by the device but a provable no-op) and
-`0x0124` (never answered — the bass value arrives on the `0x0508` push). They
+`0x0124` (never answered — the bass value comes from `0x012C` instead). They
 are documented in [`docs/protocol.md`](docs/protocol.md) §7 and
 [`docs/command-coverage.md`](docs/command-coverage.md), and no builder is
 shipped for them.

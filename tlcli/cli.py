@@ -352,6 +352,26 @@ def cmd_multipoint(args) -> int:
         transport.close()
 
 
+def cmd_bass(args) -> int:
+    """Read the multi-band bass engine (``0x012C``)."""
+    transport, session = open_session(args)
+    try:
+        session.negotiate_capabilities()
+        result = session.read_multi_bass_engine()
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"bass engine: {result['count']} band(s)")
+            for entry in result["entries"]:
+                band_type = entry["type"]
+                label = f"type {band_type}" if band_type is not None else "no type"
+                print(f"  {label:9} range {entry['min']:+d}..{entry['max']:+d} "
+                      f"current {entry['current']:+d}")
+        return 0
+    finally:
+        transport.close()
+
+
 def cmd_personalized_anc(args) -> int:
     """Read the personalized-noise calibration result *exists* flag (``0x011A``)."""
     transport, session = open_session(args)
@@ -1174,6 +1194,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("personalized-noise", parents=[common],
                        help="read the personalized-noise result exists flag (0x011A)")
     p.set_defaults(func=cmd_personalized_anc)
+
+    p = sub.add_parser("bass", parents=[common],
+                       help="read the multi-band bass engine (0x012C)")
+    p.set_defaults(func=cmd_bass)
 
     p = sub.add_parser("notification-caps", parents=[common],
                        help="read the push-event types the device supports (0x0200)")

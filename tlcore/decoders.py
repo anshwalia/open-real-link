@@ -465,6 +465,46 @@ def parse_multi_connect_event(body: bytes) -> dict:
     return {"count": parsed["count"], "entries": parsed["entries"]}
 
 
+def parse_multi_bass_engine(payload: bytes) -> dict:
+    """``0x812C``: ``[status][count]`` + ``count`` x ``[min][max][current][type]``.
+
+    The multi-band bass-engine read, pairing with ``0x012C``
+    (:data:`tlcore.commands.CMD_GET_MULTI_BASS_ENGINE`).  ``PollCommandManager.S``
+    (log string ``handleReceiveMultiBassEngineResult``) reads a status byte and
+    then ``CommandUtil.l(1, body)``, which takes a count and walks ``count``
+    records of ``BassEngineInfo.FULL_LENGTH`` (= 4) bytes, each parsed by
+    ``CommandUtil.c`` as ``[min][max][current]`` + an optional ``[type]``.
+
+    All three values are **signed** (``CommandUtil.c`` promotes the Java
+    ``byte``), so ``fb`` is ``-5``.  ``entries`` stops early on a short payload
+    rather than raising, and ``type`` is ``None`` for a truncated record.
+
+    **Verified live** on a Buds Air7 Pro (2026-10-22): ``0x012C`` answered
+    ``00 03 fb 05 00 01 fb 05 00 02 fb 05 00 03`` -> three bands, each
+    ``min=-5, max=5, current=0``, with types ``1``, ``2``, ``3``.
+    """
+    status = payload[0] if payload else 0
+    if len(payload) < 2:
+        return {"status": status, "count": 0, "entries": []}
+    count = payload[1]
+    entries: list[dict] = []
+    off = 2
+    for _ in range(count):
+        if off + 3 > len(payload):
+            break
+        entry = {
+            "min": struct.unpack_from("<b", payload, off)[0],
+            "max": struct.unpack_from("<b", payload, off + 1)[0],
+            "current": struct.unpack_from("<b", payload, off + 2)[0],
+            "type": None,
+        }
+        if off + 4 <= len(payload):
+            entry["type"] = struct.unpack_from("<b", payload, off + 3)[0]
+        entries.append(entry)
+        off += 4
+    return {"status": status, "count": count, "entries": entries}
+
+
 def parse_key_function(payload: bytes) -> dict:
     """``0x8108``: ``[status][count] + 4 bytes per entry`` -- the gesture table.
 
@@ -508,6 +548,7 @@ STATE_DECODERS = {
     0x8103: parse_model_id,
     0x8105: parse_device_version,
     0x8122: parse_eq_info,
+    0x812C: parse_multi_bass_engine,
     0x810F: parse_eq_mode,
     0x8110: parse_high_volume,
     0x8112: parse_multi_connect,

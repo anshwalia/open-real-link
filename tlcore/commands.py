@@ -64,8 +64,16 @@ CMD_GET_PERSONALIZED_ANC = 0x011A  # PollCommandManager.A -> personalized-noise 
 #: `PollCommandManager.Q`.  Named for identification only -- the id is dead on
 #: this firmware: a Buds Air7 Pro advertises capability bit 38 and never answers
 #: `0x0124`, with any body, even after a `0x041B` write.  The bass value is read
-#: off the `0x0508` push (`CMD_BASS_ENGINE_STATUS`) instead.
+#: with `0x012C` (`CMD_GET_MULTI_BASS_ENGINE`) instead.
 CMD_GET_BASS_ENGINE = 0x0124
+
+#: `PollCommandManager.v` -> ``0x012C``, empty payload, gated on capability bit
+#: 54.  The reply is ``0x812C`` (:func:`tlcore.decoders.parse_multi_bass_engine`).
+#: **Verified live** on a Buds Air7 Pro (2026-10-22):
+#: ``00 03 fb 05 00 01 fb 05 00 02 fb 05 00 03`` = status 0, three bands of
+#: ``min -5, max +5, current 0`` with types ``1/2/3``.  This is the bass engine's
+#: working **read**; ``0x0124`` never answers.
+CMD_GET_MULTI_BASS_ENGINE = 0x012C
 #: `SetCommandManager.l`/`.m` -> set the bass-engine value.  Live-verified:
 #: both the 3-byte and the 4-byte (`type`) forms are accepted and echoed back on
 #: `0x0508`.
@@ -133,7 +141,7 @@ CMD_NAMES = {
     0x0122: "getAllEqInfo",
     0x0129: "getStatusFeature",
     0x012A: "detectFeature",
-    0x012C: "startSocketConnect",
+    0x012C: "getMultiBassEngineValue",
     0x0200: "getNotificationCapabilities",
     0x0202: "registerNotification",
     0x0203: "cancelRegisterNotification",
@@ -227,7 +235,7 @@ ALL_COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(0x0128, "poll", "cap-bit 46", ""),
     CommandSpec(0x0129, "poll", "ungated", "getStatusFeature"),
     CommandSpec(0x012A, "poll", "ungated", "detectFeature"),
-    CommandSpec(0x012C, "poll", "cap-bit 54", "startSocketConnect"),
+    CommandSpec(0x012C, "poll", "cap-bit 54", "getMultiBassEngineValue"),
     CommandSpec(0x0131, "poll", "cap-bit 58", ""),
     CommandSpec(0x0200, "notify", "ungated", "getNotificationCapabilities"),
     CommandSpec(0x0201, "notify", "ungated", ""),

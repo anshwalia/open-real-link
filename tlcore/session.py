@@ -23,6 +23,7 @@ from .commands import (
     CMD_GET_KEY_FUNCTION,
     CMD_GET_MULTI_CONNECT,
     CMD_GET_NOISE_REDUCTION,
+    CMD_GET_MULTI_BASS_ENGINE,
     CMD_GET_PERSONALIZED_ANC,
     CMD_GET_PROTOCOL_VERSION,
     CMD_GET_REMOTE_CAPABILITY,
@@ -324,6 +325,24 @@ class Session:
         return {"state": payload[1], "type": payload[2]}
 
     # -- personalized-noise result / notification capabilities -------------
+    def read_multi_bass_engine(self, *, timeout: Optional[float] = None) -> dict:
+        """Read the multi-band bass engine (``0x012C`` -> ``0x812C``).
+
+        Empty payload, gated on capability bit 54.  Returns
+        ``{"status", "count", "entries"}`` where each entry is
+        ``{"min", "max", "current", "type"}`` (all signed).
+
+        **Verified live** on the Air7 Pro (2026-10-22):
+        ``00 03 fb 05 00 01 fb 05 00 02 fb 05 00 03`` -> three bands of
+        ``min -5, max +5, current 0``, types ``1/2/3``.  This is the bass
+        engine's working **read** -- ``0x0124`` is never answered on this unit.
+        """
+        from .decoders import parse_multi_bass_engine
+
+        reply = self.request(CMD_GET_MULTI_BASS_ENGINE, b"", timeout=timeout)
+        self.check_status(reply)
+        return parse_multi_bass_engine(reply["payload"])
+
     def read_personalized_anc(self, *, timeout: Optional[float] = None) -> dict:
         """Read the personalized-noise calibration result *exists* flag (``0x011A``).
 

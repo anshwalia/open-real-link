@@ -8,8 +8,8 @@ The command catalogue was recovered by static analysis of the realme Link Androi
 app and confirmed against a real Buds Air7 Pro. **`tlcore` is the authority** for
 what is implemented; `docs/protocol.md` describes that surface.
 
-**79 request command IDs**, **34 implemented** in `open-real-link`,
-**45 not implemented**; an Air7 Pro advertises **49** of them
+**79 request command IDs**, **35 implemented** in `open-real-link`,
+**44 not implemented**; an Air7 Pro advertises **49** of them
 (capability bitmap `00bf4f5ae665dc4004`).
 
 ## Legend
@@ -28,13 +28,13 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 
 | Manager class | Mask | Commands | Implemented | Advertised (Air7 Pro) | Gating |
 | --- | --- | ---: | ---: | ---: | --- |
-| `PollCommandManager` | `0x0100` | 31 | 20 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
+| `PollCommandManager` | `0x0100` | 31 | 21 | 28 | 6 always-on, 23 cap-bit, 2 ungated |
 | `NotificationCommandManager` | `0x0200` | 6 | 2 | 1 | 1 cap-bit, 5 ungated |
 | `UpgradeManager` (OTA) | `0x0300` | 9 | 0 | 0 | 9 ungated |
 | `SetCommandManager` | `0x0400` | 22 | 8 | 18 | 22 cap-bit |
 | `RequestCommandManager` | `0x0500` | 8 | 4 | 1 | 1 cap-bit, 7 ungated |
 | `DebugCommandManager` | `0x0F00` | 3 | 0 | 1 | 1 always-on, 2 ungated |
-| **total** | | **79** | **34** | **49** | |
+| **total** | | **79** | **35** | **49** | |
 
 ## Full catalogue
 
@@ -69,7 +69,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0128` | 296 | poll | cap-bit 46 | send + decode | live | — |
 | `0x0129` | 297 | poll | ungated | — | — | getStatusFeature |
 | `0x012a` | 298 | poll | ungated | — | — | detectFeature |
-| `0x012c` | 300 | poll | cap-bit 54 | — | live | startSocketConnect |
+| `0x012c` | 300 | poll | cap-bit 54 | send + decode | live | getMultiBassEngineValue |
 | `0x0131` | 305 | poll | cap-bit 58 | send + decode | live | — |
 | `0x0200` | 512 | notify | ungated | send + decode | — | getNotificationCapabilities |
 | `0x0201` | 513 | notify | ungated | — | — | — |
@@ -158,7 +158,7 @@ The three rows, and why each failed to verify:
 
 | What | Was | Outcome |
 | --- | --- | --- |
-| bass-engine read `0x0124` | `parse_bass_engine` | the unit answers **nothing** — not `00 00` as this table used to claim, but no `0x8124` frame at all, for an empty body, `00`, `01`, `0000`, and still after a `0x041B` write. The bass value arrives on the verified `0x0508` push instead. **Removed.** |
+| bass-engine read `0x0124` | `parse_bass_engine` | the unit answers **nothing** — not `00 00` as this table used to claim, but no `0x8124` frame at all, for an empty body, `00`, `01`, `0000`, and still after a `0x041B` write. The bass value arrives on the verified `0x0508` push, and `0x012C` reads the multi-band table. **Removed.** |
 | EQ write `0x0418` | `payload_set_eq` | `SetCommandManager.p` returns false *without sending* unless the frequency and dB arrays are present and equal in length, and those come from the device's own reply (`CommandUtil.parseAllEqData`); this unit reports `freqCount 0` for every entry, so the band table is unobtainable without the vendor EQ editor. **Removed.** |
 | switch-feature write `0x0403` | `payload_set_switch_feature`, the `restore` entry | the device **accepts** any `[feature][enabled]` (`0x8403 00`, even for `00`, which is not a `SWITCH_FEATURE` code) but reports no features (`0x010D 00 00`), changes nothing and never pushes `0x0503` — no observable effect, so no end-to-end verification is possible. **Removed**; the verified `0x010D` read stays. |
 
@@ -188,7 +188,8 @@ answers it, so its `0x812A` reply is not decoded either.
 established rather than assumed (see the table above and
 [`protocol.md`](protocol.md) §7). Implementing any of them would put a
 static-only guess behind a supported label. That is why the implemented count is
-now **34** (it fell by three here, and before that from 42 to 40 for
+now **35** (it rose by one for the newly-verified `0x012C`, and fell by three
+here; before that from 42 to 40 for
 `0x0503`/`0x0516`): the per-manager table and the total row above are the
 authority, not any prose figure.
 

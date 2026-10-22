@@ -231,7 +231,8 @@ static-only recovery as supported. Their bodies are documented below, in
 | `0x0405` | setCompactnessDetect (in-ear detect trigger; result on the `0x0204` event `0x04`) | `payload_compactness_detect` | `parse_compactness_event` | verified |
 | `0x0131` | getAIStatus (read the AI / translation status) | — | `parse_ai_status` | verified |
 | `0x0428` | setAIStatus / setTranslationAppStatus | `payload_set_ai_status` | — | verified |
-| `0x0124` | bass engine (read) | — | — | documented only (the unit never answers it) |
+| `0x0124` | bass engine, single-band read | — | — | documented only (the unit never answers it) |
+| `0x012C` | getMultiBassEngineValue (multi-band bass read) | — | `parse_multi_bass_engine` | verified |
 | `0x041B` | setBassEngineValue (write) | `payload_set_bass_engine` | — | verified |
 | `0x8100` | capability report | — | `parse_capabilities` | verified |
 | `0x812A` | detectFeature reply | — | — | documented only (the unit never answers `0x012A`) |
@@ -643,14 +644,18 @@ snapshot = tlcore.capture(session)          # reads; safe
 report = tlcore.restore(session, snapshot)  # writes only what it can
 ```
 
-Restore re-applies only the settings whose read and write forms are recovered
-and symmetric -- **noise mode** (`0x010C`/`0x0404`), **key function**
-(`0x0108`/`0x0401`), **EQ mode** (`0x010F`/`0x0406`), **high volume**
-(`0x0110`/`0x0407`), **switch features** (`0x010D`/`0x0403`) and
-**bass engine** (`0x0124`/`0x041B`, captured only when the reply carries a
-reading) -- and reports the rest as `not_restored` rather than guessing at
-payloads it does not know. `tlcore.backup.RESTORABLE` is the authority;
-`restore` skips anything the connected unit does not advertise.
+Restore re-applies only the settings whose read and write forms are recovered,
+symmetric **and live-verified** -- **noise mode** (`0x010C`/`0x0404`), **key
+function** (`0x0108`/`0x0401`), **EQ mode** (`0x010F`/`0x0406`) and **high
+volume** (`0x0110`/`0x0407`) -- and reports the rest as `not_restored` rather
+than guessing at payloads it does not know. `tlcore.backup.RESTORABLE` is the
+authority; `restore` skips anything the connected unit does not advertise.
+
+Two settings were restorable and are not any more, because live testing showed
+they cannot be verified: `switch_features` (`0x0403` is accepted by the device
+but a provable no-op) and `bass_engine` (`0x041B` is verified, but the single
+read `0x0124` is never answered and the multi read `0x012C` is a *different*
+command, so a snapshot cannot capture a value to write back).
 
 ```console
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json

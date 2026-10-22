@@ -113,6 +113,54 @@ def test_read_status_fixture() -> None:
     check("use time L", status["use_time"]["devices"]["L"], 57551)
 
 
+def test_multi_bass_engine() -> None:
+    """``0x012C`` -> ``0x812C``: the multi-band bass read, on the live reply.
+
+    The body is the one a real Buds Air7 Pro answered on 2026-10-22.  Note the
+    values are **signed**: ``fb`` is ``-5``, not ``251``.
+    """
+    live = bytes.fromhex("0003fb050001fb050002fb050003")
+    transport, session = replay([
+        ("tx", wire(0x0100)),
+        ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+        ("tx", wire(0x012C)),
+        ("rx", wire(0x812C, live)),
+    ])
+    session.negotiate_capabilities()
+    result = session.read_multi_bass_engine()
+    check("status", result["status"], 0)
+    check("count", result["count"], 3)
+    check("entries", result["entries"], [
+        {"min": -5, "max": 5, "current": 0, "type": 1},
+        {"min": -5, "max": 5, "current": 0, "type": 2},
+        {"min": -5, "max": 5, "current": 0, "type": 3},
+    ])
+    check("the request carries no payload", transport.writes[-1], wire(0x012C))
+    check("the decoder is wired into the state table",
+          t.decode_state(0x812C, live)["entries"][0]["min"], -5)
+
+
+def test_multi_bass_engine_edges() -> None:
+    """Short and truncated bodies must not raise -- ``CommandUtil.l`` returns
+    null on a bad length, so the decoder degrades instead."""
+    check("empty", t.parse_multi_bass_engine(b""),
+          {"status": 0, "count": 0, "entries": []})
+    check("status only", t.parse_multi_bass_engine(b"\x00"),
+          {"status": 0, "count": 0, "entries": []})
+    check("count with no records", t.parse_multi_bass_engine(b"\x00\x03"),
+          {"status": 0, "count": 3, "entries": []})
+    check("a failure status is reported, not hidden",
+          t.parse_multi_bass_engine(bytes.fromhex("0e03"))["status"], 14)
+    # a record with only three bytes leaves `type` unknown rather than inventing one
+    check("truncated type", t.parse_multi_bass_engine(bytes.fromhex("0001fb0500")),
+          {"status": 0, "count": 1,
+           "entries": [{"min": -5, "max": 5, "current": 0, "type": None}]})
+    # count says 3 but only two records are present: stop, do not pad
+    check("count overruns the body",
+          len(t.parse_multi_bass_engine(
+              bytes.fromhex("0003fb050001fb050002"))["entries"]), 2)
+
+
 def test_mode_cycle_fixture() -> None:
     transport = ReplayTransport.from_fixture("mode-cycle.jsonl")
     transport.open("replay", 12)
@@ -728,6 +776,41 @@ def test_not_worn_and_rejection() -> None:
 def test_timeout() -> None:
     transport, session = replay([("tx", wire(0x0100))])
     check_raises("no reply times out", Timeout, session.request, 0x0100, timeout=0.05)
+
+
+def test_cli_bass() -> None:
+    """``tlcli bass`` over a replay of the live ``0x012C`` exchange."""
+    from tlcli.cli import main
+
+    records = [
+        ("tx", wire(0x0100)),
+        ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
+        ("tx", wire(0x012C)),
+        ("rx", wire(0x812C, bytes.fromhex("0003fb050001fb050002fb050003"))),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "bass.jsonl"
+        path.write_text("\n".join(
+            json.dumps({"ts": 0.0, "dir": d, "hex": h.hex()}) for d, h in records) + "\n")
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--replay", str(path), "bass"])
+        out = buf.getvalue()
+        check("exit code", rc, 0)
+        check("band count", "3 band(s)" in out, True)
+        # signed values, and a label per band type
+        check("signed range", "range -5..+5" in out, True)
+        check("band type 1", "type 1" in out, True)
+        check("band type 3", "type 3" in out, True)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--replay", str(path), "--json", "bass"])
+        parsed = json.loads(buf.getvalue())
+        check("json count", parsed["count"], 3)
+        check("json entries", parsed["entries"][2],
+              {"min": -5, "max": 5, "current": 0, "type": 3})
 
 
 def test_cli_replay() -> None:

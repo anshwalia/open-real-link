@@ -416,6 +416,16 @@ def parity_decoders(ref, core) -> None:
               {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone-B", "state": 0, "flag": 0}]})
     check("parse_multi_connect short", core.parse_multi_connect(b"\x00"),
           {"status": 0, "count": 0, "entries": []})
+    # the live 0x812C body from a Buds Air7 Pro (2026-10-22); values are signed
+    check("parse_multi_bass_engine Air7 Pro",
+          core.parse_multi_bass_engine(bytes.fromhex("0003fb050001fb050002fb050003")),
+          {"status": 0, "count": 3, "entries": [
+              {"min": -5, "max": 5, "current": 0, "type": 1},
+              {"min": -5, "max": 5, "current": 0, "type": 2},
+              {"min": -5, "max": 5, "current": 0, "type": 3}]})
+    check("parse_multi_bass_engine short",
+          core.parse_multi_bass_engine(b"\x00\x03"),
+          {"status": 0, "count": 3, "entries": []})
     multi_event_body = bytes.fromhex(
         "026655443322110c0201094c6170746f702d4100"
         "ffeeddccbbaa0b00000850686f6e652d4200")
