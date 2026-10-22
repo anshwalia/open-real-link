@@ -301,6 +301,24 @@ boolean toggles therefore go through the dedicated set commands, not `0x0403`.
 The same read also pulls the multi-point paired-device list over a `0x0204`
 push (not shown).
 
+The write was driven on 2026-10-21 to settle it, and the answer is why `0x0403`
+is **not** implemented:
+
+```console
+$ python -m tlcli --address <device> send 0x0403 0101 --read 3
+   tx 0x0403 SetCommandManager        [01 01]  (1 frame(s))
+     0x8403  SetCommandManager        len=1    [00]      # accepted!
+$ python -m tlcli --address <device> send 0x0403 0000 --read 2
+   tx 0x0403 SetCommandManager        [00 00]  (1 frame(s))
+     0x8403  SetCommandManager        len=1    [00]      # accepted too
+```
+
+The device accepts **any** `[feature][enabled]` -- `01` is a real
+`SWITCH_FEATURE` code and `00` is not one at all -- and changes nothing either
+time (`0x010D` still `00 00`, no `0x0503` push). It does not even validate the
+feature id, so there is no observable effect to verify a write against.
+**Documented, not implemented** (see `command-coverage.md`).
+
 ### EQ / sound-effect probe (write, reversible)
 
 The sound-effect preset is a plain mode value: `0x010F` reads it, `0x0406`
@@ -522,12 +540,14 @@ $ python -m tlcli --address <device> --reset restore --dry-run settings.json
   [SKIP]    eq_info (captured, no restorer)
 ```
 
-Of the six restorable settings, the **noise-mode, EQ-mode, key-function and
-high-volume writes have been verified live end to end** (above, and the
-long-press disable in `docs/protocol.md` §8); the switch-feature write is
-covered offline by `tests/test_transport_and_session.py` (the Air7 Pro exposes
-no switch features), and the bass-engine write is inferred. As always, a
-settings write requires the buds to be **worn** (§2).
+There are now **four** restorable settings, and all four -- **noise mode, EQ
+mode, key function and high volume** -- have been verified live end to end
+(above, and the long-press disable in `docs/protocol.md` §8). Two settings used
+to be restorable and were dropped after live testing on 2026-10-21: the
+switch-feature write (`0x0403`, accepted but a provable no-op) and the
+bass-engine write (`0x041B`, which *is* verified but has no working **read** to
+capture a value with, since `0x0124` is never answered). As always, a settings
+write requires the buds to be **worn** (§2).
 
 ## 6. What to record
 

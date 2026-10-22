@@ -34,8 +34,8 @@ A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits o
 top of the read-side decoders. Because the protocol has no "read all settings"
 command, it polls the supported status commands and stores each raw reply;
 restore re-applies only the settings whose read and write forms are both
-recovered (noise mode, key function, EQ mode, high volume, switch features), and
-reports the rest as unrestorable rather than guessing. A snapshot is one small
+recovered *and* live-verified (noise mode, key function, EQ mode, high volume),
+and reports the rest as unrestorable rather than guessing. A snapshot is one small
 JSON document, never a database, so it stays inspectable and diffable. It is
 exercised offline against fixtures.
 
@@ -53,7 +53,8 @@ Verified on hardware (realme Buds Air7 Pro):
 | Read/write high volume (loudness boost) | Verified end to end |
 | Read battery, wear state, firmware, model, and use time | Verified |
 | Read capability bitmap → supported-command set | Verified |
-| Encode/decode parity with the reference codec | Verified (23,185 checks) |
+| Write the bass-engine value (both `0x041B` forms) | Verified (write only — there is no working read; see below) |
+| Encode/decode parity with the reference codec | Verified (23,243 checks) |
 
 Noise-mode values, confirmed by listening on the target device:
 
@@ -70,6 +71,15 @@ Noise-mode values, confirmed by listening on the target device:
 > device rejects it. Always read the mode back to confirm the change; the
 > asynchronous status push can arrive out of order and should be treated as a
 > hint, not the source of truth.
+
+A few command IDs are deliberately **not** implemented, because a live Air7 Pro
+showed they cannot be verified rather than because they were hard: `0x0418`
+(the APK refuses to send a zero-band EQ record, and the band table comes from
+the vendor editor), `0x0403` (accepted by the device but a provable no-op) and
+`0x0124` (never answered — the bass value arrives on the `0x0508` push). They
+are documented in [`docs/protocol.md`](docs/protocol.md) §7 and
+[`docs/command-coverage.md`](docs/command-coverage.md), and no builder is
+shipped for them.
 
 ## Compatibility
 
