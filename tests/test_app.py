@@ -306,6 +306,97 @@ def test_bass_engine_disconnected() -> None:
 
 
 # --------------------------------------------------------------------------
+# 6: find my buds (0x0400) -- the one write with no read pair
+# --------------------------------------------------------------------------
+def _find_records() -> list:
+    """Ring then stop; both answer a bare ``0x8400 00``."""
+    return [
+        ("tx", wire(0x0400, bytes([1]))),
+        ("rx", wire(0x8400, bytes([0]))),
+        ("tx", wire(0x0400, bytes([0]))),
+        ("rx", wire(0x8400, bytes([0]))),
+    ]
+
+
+def test_find_buds_roundtrip() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = fixture(tmp, _find_records())
+        ctrl = DeviceController(ConnectionOptions(replay=path))
+        ctrl.connect()
+        ringing = ctrl.find_buds(True)
+        check("find on requested", ringing["requested"], True)
+        check("find on status", ringing["status"], 0)
+        check("find on ok", ringing["ok"], True)
+        stopped = ctrl.find_buds(False)
+        check("find off requested", stopped["requested"], False)
+        check("find off ok", stopped["ok"], True)
+        check("the ring frame carried 01", ctrl.transport.writes[0],
+              wire(0x0400, bytes([1])))
+        check("the stop frame carried 00", ctrl.transport.writes[1],
+              wire(0x0400, bytes([0])))
+        ctrl.disconnect()
+
+
+def test_find_buds_a_bad_ack_is_an_error() -> None:
+    """There is no read-back, so a non-zero ack must not pass as success.
+
+    The real unit answers ``00`` for both values; this pins what happens if one
+    ever does not.  Note the write itself is **not** wear-gated -- the live run
+    that verified it deliberately took the buds out first, which is the whole
+    point of a find-my-buds command.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = fixture(tmp, [("tx", wire(0x0400, bytes([1]))),
+                             ("rx", wire(0x8400, bytes([0x0E])))])
+        ctrl = DeviceController(ConnectionOptions(replay=path))
+        ctrl.connect()
+        check_raises("bad find ack", ControllerError, ctrl.find_buds, True)
+        ctrl.disconnect()
+
+
+def test_find_buds_disconnected() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    check_raises("find without connect", ControllerError, ctrl.find_buds, True)
+
+
+# --------------------------------------------------------------------------
+# 7: paired devices (0x0112) -- a read whose names are the host's own
+# --------------------------------------------------------------------------
+#: One record: status 0, count 1, MAC `aa:bb:cc:dd:ee:ff` (wire order is
+#: least-significant byte first), state 2, flag 1, name "Phone" + NUL.
+PAIRED_BODY = "0001ffeeddccbbaa0902010650686f6e6500"
+
+
+def test_paired_devices() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = fixture(tmp, [("tx", wire(0x0112)),
+                             ("rx", wire(0x8112, bytes.fromhex(PAIRED_BODY)))])
+        ctrl = DeviceController(ConnectionOptions(replay=path))
+        ctrl.connect()
+        info = ctrl.paired_devices()
+        check("paired count", info["count"], 1)
+        check("paired entry", info["entries"][0],
+              {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone",
+               "state": 2, "flag": 1})
+        check("paired request carried no payload", ctrl.transport.writes[0],
+              wire(0x0112))
+        ctrl.disconnect()
+
+
+def test_paired_devices_is_read_only() -> None:
+    """Nothing may write this list; it is the host's own identity."""
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    for name in dir(ctrl):
+        if "paired" in name.lower() or "multi_connect" in name.lower():
+            check(f"{name} is a read", "set" not in name.lower(), True)
+
+
+def test_paired_devices_disconnected() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    check_raises("paired without connect", ControllerError, ctrl.paired_devices)
+
+
+# --------------------------------------------------------------------------
 # 6: backup / restore -- plain JSON snapshot files, never a database
 # --------------------------------------------------------------------------
 #: The Air7 Pro's bitmap.  Entries the plan advertises but that have no canned

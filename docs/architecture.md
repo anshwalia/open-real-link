@@ -253,9 +253,9 @@ discoverability by project name for discoverability by protocol name.
    (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
 4. **PySide6 app** — **started, in progress.** `tlapp/` exists with seven
    slices: connect, capability view, device status, the noise selector, the EQ
-   preset and its `0x0122` list, high volume, the bass-engine read, the gesture
-   table, settings backup / restore, the push-event monitor, and a guarded raw
-   console. The controller and the snapshot file I/O are Qt-free and
+   preset and its `0x0122` list, high volume, the bass-engine read, find my
+   buds, the paired-device list, the gesture table, settings backup / restore,
+   the push-event monitor, and a guarded raw console. The controller and the snapshot file I/O are Qt-free and
    fixture-tested; the SDP service list is the one item left, and it is
    macOS-only. See [`app.md`](app.md).
 

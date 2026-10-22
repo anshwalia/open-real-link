@@ -631,3 +631,176 @@ def test_window_disconnected_state() -> None:
         assert not window.tabs.isTabEnabled(TAB_RAW)
     finally:
         window.close()
+
+
+def _stub_find(window, *, ok: bool = True):
+    """Record find_buds calls instead of putting them on the wire.
+
+    The wire for 0x0400 is covered exactly in tests/test_app.py; what matters
+    here is the window's own logic -- the confirmation, the button state, and
+    the stop on exit -- so the controller is stubbed rather than replayed.
+    """
+    calls: list[bool] = []
+
+    def find_buds(on: bool) -> dict:
+        calls.append(bool(on))
+        return {"requested": bool(on), "status": 0 if ok else 0x0E, "ok": ok}
+
+    window.controller.find_buds = find_buds
+    return calls
+
+
+def test_find_buds_rings_confirms_and_stops() -> None:
+    """Ring is confirmed (it is loud); Stop deliberately is not."""
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        calls = _stub_find(window)
+        assert window.find_btn.isEnabled()           # capture advertises 0x0400
+        assert not window.find_stop_btn.isEnabled()  # nothing is ringing yet
+
+        # declining the confirmation must not send anything
+        with _Modal(answer=False) as modal:
+            window._ring_buds()
+        assert len(modal.questions) == 1
+        assert "loud" in modal.questions[0][1]
+        assert calls == []
+        assert window.find_btn.isEnabled()
+
+        # confirming sends 0x0400 01 and flips the buttons
+        with _Modal() as modal:
+            window._ring_buds()
+        assert modal.warnings == []
+        assert calls == [True]
+        assert window._ringing
+        assert not window.find_btn.isEnabled()
+        assert window.find_stop_btn.isEnabled()
+
+        # Stop is one click: no question, just the write
+        with _Modal() as modal:
+            window._stop_ringing()
+        assert modal.questions == []
+        assert calls == [True, False]
+        assert not window._ringing
+        assert window.find_btn.isEnabled()
+        assert not window.find_stop_btn.isEnabled()
+    finally:
+        window.close()
+
+
+def test_disconnect_and_close_send_the_stop() -> None:
+    """A ringing headset must not be left ringing by an exit.
+
+    The live run that verified 0x0400 sent the stop from a ``finally``; the
+    app's two exits are disconnect and close, so both do the same.
+    """
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    window.connect_device()
+    app.processEvents()
+    calls = _stub_find(window)
+    with _Modal():
+        window._ring_buds()
+    assert window._ringing
+
+    window._toggle_connection()          # disconnect while ringing
+    app.processEvents()
+    assert not window._ringing
+    assert calls == [True, False]        # the stop went out before the link went down
+    assert not window.controller.connected
+    assert window.find_btn.isEnabled() is False   # disconnected now
+
+    # and the close path, from a fresh ringing state
+    window2 = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    window2.connect_device()
+    app.processEvents()
+    calls2 = _stub_find(window2)
+    with _Modal():
+        window2._ring_buds()
+    assert window2._ringing
+    window2.close()
+    assert calls2 == [True, False]
+
+
+def test_a_failed_ring_does_not_claim_to_be_ringing() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        calls = _stub_find(window, ok=False)
+        with _Modal() as modal:
+            window._ring_buds()
+        assert calls == [True]
+        assert modal.warnings and modal.warnings[0][0] == "Ring refused"
+        assert "0x0E" in modal.warnings[0][1]
+        assert not window._ringing
+        assert window.find_btn.isEnabled()
+    finally:
+        window.close()
+
+
+def test_paired_devices_render() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        assert window.pair_read_btn.isEnabled()      # capture advertises 0x0112
+        assert window.pair_table.rowCount() == 0     # not read until asked
+
+        window._show_paired({"status": 0, "count": 2, "entries": [
+            {"mac": "aa:bb:cc:dd:ee:ff", "name": "Phone", "state": 2, "flag": 1},
+            {"mac": "11:22:33:44:55:66", "name": "", "state": 0, "flag": 0},
+        ]})
+        assert window.pair_table.rowCount() == 2
+        assert window.pair_table.item(0, 0).text() == "Phone"
+        assert window.pair_table.item(0, 1).text() == "aa:bb:cc:dd:ee:ff"
+        assert window.pair_table.item(0, 2).text() == "2"
+        assert window.pair_table.item(1, 0).text() == "—"   # unnamed entry
+        assert "2 paired device(s), 1 active" in window.lbl_paired.text()
+        assert "host's own Bluetooth names" in window.lbl_paired.text()
+
+        # re-reading replaces rather than appends
+        window._show_paired({"status": 0, "count": 0, "entries": []})
+        assert window.pair_table.rowCount() == 0
+        assert "0 paired device(s)" in window.lbl_paired.text()
+    finally:
+        window.close()
+
+
+def test_find_and_paired_controls_are_capability_gated() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        assert window.pair_read_btn.isEnabled()
+
+        window.controller.supports = lambda cmd: False
+        window._apply_capability_gating()
+        assert not window.find_btn.isEnabled()
+        assert not window.find_stop_btn.isEnabled()
+        assert not window.pair_read_btn.isEnabled()
+
+        window.controller.supports = lambda cmd: True
+        window._apply_capability_gating()
+        assert window.find_btn.isEnabled()       # not ringing, so Ring is live
+        assert not window.find_stop_btn.isEnabled()
+        assert window.pair_read_btn.isEnabled()
+    finally:
+        window.close()
+
+
+def test_find_buttons_are_disabled_while_disconnected() -> None:
+    """Unlike the rest of the Device tab: Ring is loud, so it waits for a link."""
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        assert not window.controller.connected
+        assert not window.find_btn.isEnabled()
+        assert not window.find_stop_btn.isEnabled()
+    finally:
+        window.close()

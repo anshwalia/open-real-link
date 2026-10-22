@@ -338,6 +338,32 @@ class DeviceController:
         return {"requested": bool(enabled), "actual": bool(actual),
                 "ok": bool(actual) == bool(enabled)}
 
+    # -- find my buds ------------------------------------------------------
+    def find_buds(self, on: bool) -> dict:
+        """Ring the buds (``0x0400 01``) or stop ringing (``0x0400 00``).
+
+        **There is no read pair** for this command, so there is nothing to read
+        back -- the ack is all the device gives.  What comes back is therefore
+        what was *requested*, not a confirmed state; the caller owns the
+        "ringing" flag.  ``on=True`` rings loudly.
+        """
+        status = self._call(self._require().set_find_mode, bool(on),
+                            timeout=self.options.timeout)
+        return {"requested": bool(on), "status": status, "ok": status == 0}
+
+    # -- paired devices ----------------------------------------------------
+    def paired_devices(self) -> dict:
+        """Read the multipoint / paired-device list (``0x0112``).
+
+        The names in it are the **host's own Bluetooth names** for the machines
+        this headset has been paired with -- real, user-identifying strings.
+        Showing them to the user is the point; persisting them is not, which is
+        why the backup file flags ``multi_point`` as containing paired-device
+        names and why this is never written into a promoted fixture.
+        """
+        return self._call(self._require().read_multi_connect,
+                          timeout=self.options.timeout)
+
     # -- bass engine -------------------------------------------------------
     def bass_engine(self) -> dict:
         """Read the multi-band bass engine (``0x012C``).

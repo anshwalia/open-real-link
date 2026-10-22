@@ -163,6 +163,39 @@ class MainWindow(QMainWindow):
         buttons.addStretch(1)
         outer.addLayout(buttons)
 
+        # -- find my buds --------------------------------------------------
+        find_box = QGroupBox("Find my buds")
+        find_row = QHBoxLayout(find_box)
+        self._ringing = False
+        self.find_btn = QPushButton("Ring")
+        self.find_btn.clicked.connect(self._ring_buds)
+        self.find_stop_btn = QPushButton("Stop")
+        self.find_stop_btn.clicked.connect(self._stop_ringing)
+        self.find_stop_btn.setEnabled(False)
+        find_row.addWidget(self.find_btn)
+        find_row.addWidget(self.find_stop_btn)
+        find_row.addWidget(QLabel(
+            "Rings loudly. There is no read-back for <code>0x0400</code>, so the "
+            "buttons show what was last sent."), 1)
+        outer.addWidget(find_box)
+
+        # -- paired devices ------------------------------------------------
+        pair_box = QGroupBox("Connected devices")
+        pair_outer = QVBoxLayout(pair_box)
+        pair_row = QHBoxLayout()
+        self.pair_read_btn = QPushButton("Read")
+        self.pair_read_btn.clicked.connect(
+            lambda: self._run(lambda c: c.paired_devices(), self._show_paired))
+        pair_row.addWidget(self.pair_read_btn)
+        self.lbl_paired = QLabel("Not read yet.")
+        self.lbl_paired.setWordWrap(True)
+        pair_row.addWidget(self.lbl_paired, 1)
+        pair_outer.addLayout(pair_row)
+        self.pair_table = self._table(["Name", "Address", "State", "Flag"])
+        self.pair_table.setMaximumHeight(130)
+        pair_outer.addWidget(self.pair_table)
+        outer.addWidget(pair_box)
+
         outer.addWidget(QLabel("Capability bitmap (0x8100) — every known command"))
         self.caps_table = self._table(["Command", "Manager", "Name", "Advertised"])
         self.caps_table.setColumnWidth(0, 80)
@@ -482,6 +515,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_connection(self) -> None:
         if self.controller.connected:
+            self._stop_ringing_quietly()
             self.controller.disconnect()
             self._set_connected(False)
             self.statusBar().showMessage("Disconnected.")
@@ -517,6 +551,7 @@ class MainWindow(QMainWindow):
         if not state:
             self._stop_listening()
             self._wear = None
+            self._set_ringing(False)
 
     def _apply_capability_gating(self) -> None:
         """Gray out controls the unit says it does not take."""
@@ -529,6 +564,9 @@ class MainWindow(QMainWindow):
         self._gestures_writable = self.controller.supports(t.CMD_SET_KEY_FUNCTION)
         self.gestures_read_btn.setEnabled(self._gestures_readable)
         self.long_press_btn.setEnabled(self._gestures_writable)
+        self.pair_read_btn.setEnabled(
+            self.controller.supports(t.CMD_GET_MULTI_CONNECT))
+        self._set_ringing(self._ringing)
         self._gesture_edited()
 
     # ----------------------------------------------------------------- runner
@@ -583,6 +621,84 @@ class MainWindow(QMainWindow):
             if spec.cmd in advertised:
                 mark = "always-on" if spec.cmd in t.ALWAYS_ON else "yes"
             self.caps_table.setItem(row, 3, QTableWidgetItem(mark))
+
+    # ------------------------------------------------------- find my buds
+    def _ring_buds(self) -> None:
+        if QMessageBox.question(
+                self, "Ring the buds",
+                "Ring the buds to find them?\n\nThis plays a loud tone until you "
+                "press Stop or the headset gives up."
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        result = self._run(lambda c: c.find_buds(True))
+        if result is _FAILED or result is None:
+            return
+        if not result["ok"]:
+            # There is no read pair for 0x0400, so the ack is the only signal
+            # there is.  Do not claim the buds are ringing on a bad one.
+            self._set_ringing(False)
+            self._warn("Ring refused",
+                       f"The device answered status 0x{result['status']:02X}, so "
+                       "the buds are probably not ringing. 0x0400 has no read "
+                       "back, so this ack is all the device gives.")
+            return
+        self._set_ringing(True)
+        self.statusBar().showMessage("Ringing. Press Stop when you have them.")
+
+    def _stop_ringing(self) -> None:
+        # Deliberately unconfirmed.  If the buds are ringing in a bag, the one
+        # moment you want this to be instant is now.
+        result = self._run(lambda c: c.find_buds(False))
+        if result is _FAILED or result is None:
+            return
+        self._set_ringing(False)
+        if result["ok"]:
+            self.statusBar().showMessage("Stop sent.")
+        else:
+            self.statusBar().showMessage(
+                f"Stop sent, but the device answered 0x{result['status']:02X}.")
+
+    def _stop_ringing_quietly(self) -> None:
+        """Send ``0x0400 00`` if we believe the buds are ringing, ignoring errors.
+
+        The live run that verified this command sent the stop from a ``finally``
+        for exactly this reason: a lost ack or a crash must not leave the buds
+        ringing in a drawer.  Disconnect and close are the app's two exits, so
+        both call this.
+        """
+        if not getattr(self, "_ringing", False) or not self.controller.connected:
+            return
+        try:
+            self.controller.find_buds(False)
+        except ControllerError:
+            pass  # best effort: the link may already be gone
+        self._set_ringing(False)
+
+    def _set_ringing(self, ringing: bool) -> None:
+        """Reflect what was last *sent* -- ``0x0400`` has no read pair to ask.
+
+        Also gated on the live connection, unlike the rest of the Device tab: a
+        Ring button that stays clickable while disconnected invites a confusing
+        warning for the one control here that makes a noise.
+        """
+        self._ringing = bool(ringing)
+        usable = self.controller.connected and self.controller.supports(
+            t.CMD_SET_FIND_MODE)
+        self.find_btn.setEnabled(usable and not self._ringing)
+        self.find_stop_btn.setEnabled(usable and self._ringing)
+
+    # ------------------------------------------------------ paired devices
+    def _show_paired(self, info: dict) -> None:
+        self.pair_table.setRowCount(0)
+        for entry in info["entries"]:
+            self._add_row(self.pair_table, entry["name"] or "—", entry["mac"],
+                          str(entry["state"]), str(entry["flag"]))
+        active = sum(1 for entry in info["entries"] if entry["state"])
+        self.lbl_paired.setText(
+            f"{info['count']} paired device(s), {active} active. "
+            "The names are this host's own Bluetooth names.")
+        self.statusBar().showMessage(
+            f"{info['count']} paired device(s) reported by the headset.")
 
     def _show_status(self, status: dict) -> None:
         model = status["model"]["model_id"]
@@ -1062,6 +1178,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ close
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
         self.events_timer.stop()
+        self._stop_ringing_quietly()
         self.controller.disconnect()
         super().closeEvent(event)
 

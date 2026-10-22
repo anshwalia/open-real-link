@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **seventh slice.** The app is built one feature at a time, and a feature
+Status: **eighth slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-ten things and nothing else:
+twelve things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -13,14 +13,17 @@ ten things and nothing else:
    plus the `0x0122` preset / custom-EQ list.
 5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
 6. **Bass-engine read** — the multi-band table from `0x012C`, display only.
-7. **Settings backup / restore** — poll every setting the unit advertises into a
+7. **Find my buds** — ring `0x0400 01` / stop `0x0400 00`, with the stop sent
+   from every exit path.
+8. **Connected devices** — the multipoint / paired-device list from `0x0112`.
+9. **Settings backup / restore** — poll every setting the unit advertises into a
    JSON snapshot, and re-apply the restorable ones from one.
-8. **Gesture table get / set** — read `0x0108`, edit the function bound to each
-   gesture, write the whole table back with `0x0401` and read it again.
-9. **Push-event monitor** — listen for the device's own notifications (button
-   presses, battery, wear, noise, multi-connect) and decode them live.
-10. **Guarded raw console** — send one command the app has no control for, with
-   the tone / OTA / debug families refused.
+10. **Gesture table get / set** — read `0x0108`, edit the function bound to each
+    gesture, write the whole table back with `0x0401` and read it again.
+11. **Push-event monitor** — listen for the device's own notifications (button
+    presses, battery, wear, noise, multi-connect) and decode them live.
+12. **Guarded raw console** — send one command the app has no control for, with
+    the tone / OTA / debug families refused.
 
 Everything else the CLI can do (voice, the SDP service list) is deliberately
 **not** in the UI yet. It is added, wired up and live-tested one item at a time,
@@ -82,9 +85,39 @@ path can be overridden with `OPEN_REAL_LINK_LOCK` to run two builds side by side
 * **Read capabilities** shows the `0x8100` capability bitmap: every known
   command, its manager class, and whether this unit advertises it (`yes`,
   `always-on`, or blank).
+* **Find my buds** — Ring / Stop, and **Connected devices** — the `0x0112`
+  paired-device list. Both have their own notes below.
 
 On connect the app reads capabilities and status once, so the window is already
 populated.
+
+#### Find my buds
+
+**Ring** writes `0x0400 01`, **Stop** writes `0x0400 00`. Two things make this
+different from every other control here:
+
+* **There is no read pair**, so there is nothing to read back — the ack is the
+  only signal the device gives. The buttons therefore show what was last *sent*,
+  and a non-zero ack is reported rather than treated as success.
+* **The stop is not optional.** The live run that verified this command sent it
+  from a `finally`, and the app does the same: disconnect and window close both
+  send `0x0400 00` if the buds are believed to be ringing, ignoring any error.
+  A headset left ringing in a drawer is the one failure this control must not
+  have.
+
+Ring is confirmed because it is loud. Stop is deliberately **not** confirmed —
+if the buds are ringing in a bag, the one moment you want it to be instant is
+now. Unlike the rest of the Device tab, both buttons wait for a live connection.
+
+#### Connected devices
+
+**Read** fills a table from `0x0112`: *name*, *address*, *state*, *flag*. The
+names are **this host's own Bluetooth names** for the machines the headset has
+been paired with, so they are real user-identifying strings. Showing them to the
+user is the point; persisting them is not. The backup file already flags
+`multi_point` as containing paired-device names, and nothing here is ever
+written into a promoted fixture. There is no write: the list is the host's
+identity, not a setting.
 
 ### Sound
 
