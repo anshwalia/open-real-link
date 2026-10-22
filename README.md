@@ -93,6 +93,12 @@ them; it cannot work on iOS or in a web browser, which do not expose SPP. The
 macOS transport is implemented; Linux, Windows, and Android transports are still
 to be written.
 
+Until one is, `--transport auto` (the default) **refuses to guess**: off macOS it
+raises `TransportUnavailable` naming the platform and suggesting `--replay FILE`,
+rather than quietly opening a recording. `replay` works on every platform and is
+reached only by asking for it. `tlcli services` and `tlcli say` are macOS-only
+host utilities, not protocol features.
+
 ## Safety
 
 Three recovered command families — and two vendor-app-only requests — are

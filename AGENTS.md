@@ -32,7 +32,7 @@ The protocol work is done; what remains is a UI and two transport shims.
 | layer | state | read |
 | --- | --- | --- |
 | `tlcore` | done, parity-verified | [`protocol.md`](docs/protocol.md), [`command-coverage.md`](docs/command-coverage.md) |
-| `tltransport` | macOS + replay done; Linux/Windows to write | [`architecture.md`](docs/architecture.md) §3 |
+| `tltransport` | macOS live transport + portable replay done; Linux/Windows/Android still to write — until then `--transport auto` off macOS raises `TransportUnavailable` naming the platform rather than falling back to replay | [`architecture.md`](docs/architecture.md) §3, §4 |
 | `tlcli` | done (the hardware test harness) | [`live-test.md`](docs/live-test.md) |
 | `tlapp` | **in progress** — connect, status, noise mode, EQ preset + list, high volume, find my buds, paired-device list, gesture table, backup/restore, event monitor, Expert tab (diagnostics, bitmap, bass read, guarded raw console) | [`app.md`](docs/app.md) |
 
@@ -65,11 +65,13 @@ One narrow exception: a guard whose only job is to **prevent** traffic — the
 `send` refusal for the tone / OTA / debug families — is not an implementation of
 the blocked feature, and is allowed even though the feature is not.
 
-**Tracked exceptions.** A handful of symbols were implemented before this rule
-existed. They are **kept and tracked, not hidden**: the ledger in
-[`docs/command-coverage.md`](docs/command-coverage.md) names each one and its
-obstacle. Do not add a new exception, and do not extend an existing one — the
-ledger may only shrink. Resolve them as described under "Before releasing".
+**Tracked exceptions.** None are open. A handful of symbols were implemented
+before this rule existed; each was taken to live hardware, none could be
+verified, and all three were **removed** rather than shipped as guesses. The
+ledger in [`docs/command-coverage.md`](docs/command-coverage.md) records the
+three and why each failed, and is **empty**. Do not add a new exception — the
+ledger may only shrink, and it has nowhere left to shrink from. Resolve any
+future one as described under "Before releasing".
 
 ## Dev environment
 
@@ -121,6 +123,12 @@ globally.
 - `TL_REFERENCE=… python tests/test_parity_tl_frame.py` prints `PARITY: OK`
   (or skips cleanly when the reference is unavailable).
 - Nothing from the "Do not add here" list is staged.
+- `python tests/test_app.py` covers the Qt-free controller, and
+  `tests/test_parity_tl_frame.py::test_core_purity` is the check that keeps
+  `tlcore` platform-free. It asserts, deliberately: a test built only from the
+  harness's `check()` helper records failures and returns, so it can never turn
+  red under pytest. If you add a rule of this kind, break it once on purpose and
+  watch the test fail before you trust it.
 
 ## Before releasing
 

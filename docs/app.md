@@ -345,6 +345,11 @@ The remaining verified feature is the SDP service list, and it is macOS-only:
 the platform-neutral controller has no way to reach. `tlcli say` is not a
 protocol feature at all -- it speaks through the host's audio output.
 
+The app inherits that platform limit: there is **one** live transport
+(IOBluetooth), so on Linux or Windows **Connect** reports that no live transport
+exists on this platform and names the way out. Offline replay
+(`--replay fixtures/...`) works everywhere, which is how the GUI tests run.
+
 Otherwise the verified surface is fully exposed. What is **not** here is
 deliberately not here: `0x041E` spatial audio, `0x0412` personalized-ANC write
 and `0x040A` auto power-off are all features a user would want and none of them
