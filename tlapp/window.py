@@ -4,10 +4,11 @@ Widgets only: every device action is delegated to
 :class:`tlapp.controller.DeviceController`, and every failure becomes a message
 box. The widgets never touch the wire, and the controller never imports Qt.
 
-This is the **first slice** of the app: connect + capability view, device
-status, and noise mode. The tone / OTA / debug families have no control here at
-all, and neither does any operation that has not been verified on hardware --
-those are added one at a time as they are built and live-tested.
+The app is built feature by feature: connect + capability view, device status,
+noise mode get/set, and the equalizer / high-volume settings. The tone / OTA /
+debug families have no control here at all, and neither does any operation that
+has not been verified on hardware -- those are added one at a time as they are
+built and live-tested.
 """
 from __future__ import annotations
 
@@ -35,7 +36,13 @@ from PySide6.QtWidgets import (
 
 import tlcore as t
 
-from .controller import ConnectionOptions, ControllerError, DeviceController, noise_choices
+from .controller import (
+    ConnectionOptions,
+    ControllerError,
+    DeviceController,
+    eq_preset_choices,
+    noise_choices,
+)
 
 #: Sentinel so ``_run`` can tell "returned None" from "failed".
 _FAILED = object()
@@ -166,6 +173,50 @@ class MainWindow(QMainWindow):
         row.addWidget(read_btn)
         row.addWidget(self.noise_apply_btn)
         outer.addWidget(box)
+
+        # -- equalizer -----------------------------------------------------
+        eq_box = QGroupBox("Equalizer (sound-effect preset)")
+        eq_outer = QVBoxLayout(eq_box)
+        eq_row = QHBoxLayout()
+        self.eq_combo = QComboBox()
+        for value, label in eq_preset_choices():
+            self.eq_combo.addItem(f"{label}  (0x{value:02X})", value)
+        eq_read = QPushButton("Read")
+        eq_read.clicked.connect(lambda: self._run(lambda c: c.eq_mode(), self._show_eq))
+        self.eq_apply_btn = QPushButton("Apply")
+        self.eq_apply_btn.clicked.connect(self._apply_eq)
+        eq_row.addWidget(self.eq_combo, 1)
+        eq_row.addWidget(eq_read)
+        eq_row.addWidget(self.eq_apply_btn)
+        eq_outer.addLayout(eq_row)
+        self.lbl_eq = QLabel("—")
+        eq_outer.addWidget(self.lbl_eq)
+        presets_row = QHBoxLayout()
+        presets_btn = QPushButton("Read presets")
+        presets_btn.clicked.connect(
+            lambda: self._run(lambda c: c.eq_presets(), self._show_eq_presets))
+        presets_row.addWidget(presets_btn)
+        presets_row.addWidget(QLabel("the device's own 0x0122 preset / custom-EQ list"), 1)
+        eq_outer.addLayout(presets_row)
+        self.eq_table = self._table(["Selected", "eqId", "min", "max", "bands", "name"])
+        self.eq_table.setMaximumHeight(120)
+        eq_outer.addWidget(self.eq_table)
+        outer.addWidget(eq_box)
+
+        # -- high volume ---------------------------------------------------
+        vol_box = QGroupBox("High volume (loudness boost)")
+        vol_row = QHBoxLayout(vol_box)
+        self.volume_check = QCheckBox("enabled")
+        vol_read = QPushButton("Read")
+        vol_read.clicked.connect(
+            lambda: self._run(lambda c: c.high_volume(), self._show_high_volume))
+        self.volume_apply_btn = QPushButton("Apply")
+        self.volume_apply_btn.clicked.connect(self._apply_high_volume)
+        vol_row.addWidget(self.volume_check)
+        vol_row.addWidget(vol_read)
+        vol_row.addWidget(self.volume_apply_btn)
+        vol_row.addStretch(1)
+        outer.addWidget(vol_box)
         outer.addStretch(1)
         return page
 
@@ -209,6 +260,8 @@ class MainWindow(QMainWindow):
     def _apply_capability_gating(self) -> None:
         """Gray out controls the unit says it does not take."""
         self.noise_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_NOISE_REDUCTION))
+        self.eq_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_EQ_MODE))
+        self.volume_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_HIGH_VOLUME))
 
     # ----------------------------------------------------------------- runner
     def _run(self, work, done=None, *, require: bool = True, busy: bool = True):
@@ -285,6 +338,30 @@ class MainWindow(QMainWindow):
         if index >= 0:
             self.noise_combo.setCurrentIndex(index)
 
+    def _show_eq(self, mode: int) -> None:
+        self.lbl_eq.setText(f"active preset {mode}  (0x{mode:02X})")
+        index = self.eq_combo.findData(mode)
+        if index >= 0:
+            self.eq_combo.setCurrentIndex(index)
+
+    def _show_eq_presets(self, info: dict) -> None:
+        self.eq_table.setRowCount(0)
+        for entry in info["entries"]:
+            row = self.eq_table.rowCount()
+            self.eq_table.insertRow(row)
+            self.eq_table.setItem(
+                row, 0, QTableWidgetItem("yes" if entry["is_selected"] else ""))
+            self.eq_table.setItem(row, 1, QTableWidgetItem(str(entry["eq_id"])))
+            self.eq_table.setItem(row, 2, QTableWidgetItem(str(entry["min"])))
+            self.eq_table.setItem(row, 3, QTableWidgetItem(str(entry["max"])))
+            self.eq_table.setItem(row, 4, QTableWidgetItem(str(len(entry["points"]))))
+            self.eq_table.setItem(row, 5, QTableWidgetItem(entry["name"] or "—"))
+        self.statusBar().showMessage(
+            f"{info['count']} preset record(s) reported by the device.")
+
+    def _show_high_volume(self, enabled: bool) -> None:
+        self.volume_check.setChecked(bool(enabled))
+
     # ------------------------------------------------------------ noise write
     def _apply_noise(self) -> None:
         value = self.noise_combo.currentData()
@@ -298,6 +375,36 @@ class MainWindow(QMainWindow):
             self._warn("Mode mismatch",
                        f"Wrote 0x{value:02X} but read back 0x{result['actual']:02X}. "
                        "The asynchronous push can reorder; the read is authoritative.")
+
+    # -------------------------------------------------------------- eq write
+    def _apply_eq(self) -> None:
+        value = self.eq_combo.currentData()
+        result = self._run(lambda c: c.set_eq_mode(value))
+        if result is _FAILED or result is None:
+            return
+        self._show_eq(result["actual"])
+        if result["ok"]:
+            self.statusBar().showMessage(f"Equalizer set to preset {value}.")
+        else:
+            self._warn("Preset mismatch",
+                       f"Wrote preset {value} but read back {result['actual']}. "
+                       "The device clamps anything outside 0..6; the read is "
+                       "authoritative.")
+
+    def _apply_high_volume(self) -> None:
+        wanted = self.volume_check.isChecked()
+        result = self._run(lambda c: c.set_high_volume(wanted))
+        if result is _FAILED or result is None:
+            return
+        self._show_high_volume(result["actual"])
+        if result["ok"]:
+            self.statusBar().showMessage(
+                f"High volume {'on' if wanted else 'off'}.")
+        else:
+            self._warn("Setting mismatch",
+                       f"Wrote high volume {'on' if wanted else 'off'} but read "
+                       f"back {'on' if result['actual'] else 'off'}; the read is "
+                       "authoritative.")
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming

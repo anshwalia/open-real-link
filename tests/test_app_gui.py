@@ -50,6 +50,41 @@ def test_window_builds_and_connects() -> None:
         # the capture advertises setNoiseReduction, so Apply must be enabled
         assert window.noise_apply_btn.isEnabled()
         assert "Normal" in window.lbl_noise.text()
+
+        # the Sound tab carries the equalizer and high-volume controls too
+        assert window.eq_combo.count() == 7           # verified presets 0..6
+        assert window.eq_combo.currentData() == 0
+        assert window.eq_table.columnCount() == 6
+        assert window.eq_table.rowCount() == 0        # not read until asked
+        assert window.eq_apply_btn.isEnabled()        # capture advertises 0x0406
+        assert window.volume_apply_btn.isEnabled()    # capture advertises 0x0407
+        assert not window.volume_check.isChecked()
+    finally:
+        window.close()
+
+
+def test_sound_apply_buttons_are_capability_gated() -> None:
+    """A unit that does not advertise a write must have its Apply disabled."""
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        # connect first: isEnabled() is false for anything under a disabled tab,
+        # so the Sound tab must be live before the gating itself can be read
+        window.connect_device()
+        app.processEvents()
+        assert window.eq_apply_btn.isEnabled()
+
+        window.controller.supports = lambda cmd: False
+        window._apply_capability_gating()
+        assert not window.noise_apply_btn.isEnabled()
+        assert not window.eq_apply_btn.isEnabled()
+        assert not window.volume_apply_btn.isEnabled()
+
+        window.controller.supports = lambda cmd: True
+        window._apply_capability_gating()
+        assert window.noise_apply_btn.isEnabled()
+        assert window.eq_apply_btn.isEnabled()
+        assert window.volume_apply_btn.isEnabled()
     finally:
         window.close()
 

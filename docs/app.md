@@ -1,14 +1,17 @@
 # OpenRealLink — the desktop app
 
-Status: **first slice.** The app is built one feature at a time, and a feature
-reaches the UI only once it is implemented *and* verified. This slice exposes
-three things and nothing else:
+Status: **second slice.** The app is built one feature at a time, and a feature
+reaches the UI only once it is implemented *and* verified. These slices expose
+five things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
 2. **Device status** — model, firmware, version, battery, wear, active noise
    mode, and use time.
 3. **Noise mode get / set** — read `0x010C`, write `0x0404`, read back.
+4. **Equalizer preset get / set** — read `0x010F`, write `0x0406`, read back,
+   plus the `0x0122` preset / custom-EQ list.
+5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
 
 Everything else the CLI can do (EQ, gestures, events, backup/restore, voice, raw
 console) is deliberately **not** in the UI yet. It is added, wired up and
@@ -77,15 +80,24 @@ populated.
 
 ### Sound
 
-* The six noise modes (`Normal`, `Transparency`, `ANC light`, `ANC deep`,
-  `ANC medium`, `ANC smart`).
-* **Read** shows the current mode; **Apply** writes the selected mode and reads
-  it back.
+* **Active noise mode** — the six modes (`Normal`, `Transparency`, `ANC light`,
+  `ANC deep`, `ANC medium`, `ANC smart`). **Read** shows the current mode;
+  **Apply** writes the selected mode and reads it back.
+* **Equalizer** — the preset selector offers the verified `0..6` range only.
+  **Read** shows the active preset, **Apply** writes it and reads it back, and
+  **Read presets** fills a table from the device's own `0x0122` list
+  (*selected*, *eqId*, *min*, *max*, *bands*, *name*) rather than a shipped
+  table, because no preset names were recovered.
+* **High volume** — the loudness-boost flag. **Read** sets the checkbox to the
+  device's answer; **Apply** writes it and reads it back.
 
-A noise-mode write is accepted only while the buds are **worn**; otherwise the
-device answers `0x8404 0e` and the app says so instead of looking broken. Apply
-reads the mode back because the asynchronous push can arrive out of order — the
-read is authoritative.
+A noise-mode or high-volume write is accepted only while the buds are **worn**;
+otherwise the device answers `0x8404 0e` / `0x8407 0e` and the app says so
+instead of looking broken. Apply reads each setting back because the
+asynchronous push can arrive out of order — the read is authoritative. The same
+is true for the equalizer: writing outside `0..6` makes the device clamp the
+value, so **Apply** compares the read-back and says so instead of pretending the
+write took.
 
 ## Design
 
@@ -118,7 +130,6 @@ The controller opens the device exactly the way the CLI does, by reusing
 
 ## What is next
 
-The remaining verified features, each added the same way: EQ mode and preset
-list, high volume, the gesture table and a long-press disable, an
-event/button-press monitor, settings backup and restore, host-side voice, a
-guarded raw console, and the SDP service list.
+The remaining verified features, each added the same way: the gesture table and
+a long-press disable, an event/button-press monitor, settings backup and
+restore, host-side voice, a guarded raw console, and the SDP service list.

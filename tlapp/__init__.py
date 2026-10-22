@@ -16,6 +16,9 @@ from .controller import (
     ConnectionOptions,
     ControllerError,
     DeviceController,
+    EQ_PRESET_MAX,
+    EQ_PRESET_MIN,
+    eq_preset_choices,
     friendly_error,
     noise_choices,
 )
@@ -24,6 +27,9 @@ __all__ = [
     "ConnectionOptions",
     "ControllerError",
     "DeviceController",
+    "EQ_PRESET_MAX",
+    "EQ_PRESET_MIN",
+    "eq_preset_choices",
     "friendly_error",
     "noise_choices",
 ]

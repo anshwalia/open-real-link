@@ -22,10 +22,10 @@ see [Status](#status) below.
 ## Status
 
 The recovered protocol core, `tlcore`, is byte-for-byte verified. The macOS
-transport, an offline replay transport, a command-line front end and the first
-slice of a PySide6 desktop app are implemented. The app opens a device, reads
-its capability bitmap and status, and gets/sets the noise mode; see
-[`docs/app.md`](docs/app.md). It is built one verified feature at a time.
+transport, an offline replay transport, a command-line front end and a PySide6
+desktop app are implemented. The app opens a device, reads its capability bitmap
+and status, and gets/sets the noise mode, the equalizer preset and high volume;
+see [`docs/app.md`](docs/app.md). It is built one verified feature at a time.
 
 A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits on
 top of the read-side decoders. Because the protocol has no "read all settings"

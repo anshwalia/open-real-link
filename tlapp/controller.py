@@ -13,10 +13,11 @@ with no display and no hardware, and ``import tlapp`` never needs PySide6.
 Every operation is **synchronous**: one call is a handful of round trips at
 ~10 ms each, so the window runs them on the GUI thread behind a wait cursor.
 
-This file implements the first slice of the app only -- connect + capability
-view, device status, and noise mode get/set. Later features (EQ, gestures,
-events, backup, voice, console) are added here as they are built, so the app
-never carries a control for something that is not yet wired up.
+This file implements the app feature by feature -- connect + capability view,
+device status, noise mode get/set, and the equalizer / high-volume settings.
+Later features (gestures, events, backup, voice, console) are added here as they
+are built, so the app never carries a control for something that is not yet
+wired up.
 """
 from __future__ import annotations
 
@@ -25,10 +26,20 @@ from dataclasses import dataclass
 import tlcore as t
 from tlcli.cli import noise_name, open_session
 
+#: The **verified** preset range.  ``0x010F``/``0x0406`` accept `0`..`6` and read
+#: back identity; writing `7` or `8` clamps to `6` (Air7 Pro, 2026-10-20).  The
+#: app offers only the distinct presets, so it never writes a value the device
+#: would silently change.
+EQ_PRESET_MIN = 0
+EQ_PRESET_MAX = 6
+
 __all__ = [
     "ConnectionOptions",
     "ControllerError",
     "DeviceController",
+    "EQ_PRESET_MAX",
+    "EQ_PRESET_MIN",
+    "eq_preset_choices",
     "friendly_error",
     "noise_choices",
 ]
@@ -85,6 +96,17 @@ def noise_choices() -> list[tuple[int, str]]:
         t.NOISE_MODE_ANC_SMART,
     )
     return [(value, noise_name(value)) for value in order]
+
+
+def eq_preset_choices() -> list[tuple[int, str]]:
+    """The selectable sound-effect presets, in wire-value order.
+
+    No preset *names* were recovered: the device reports the active preset as a
+    plain number and the ``0x0122`` list carries whatever names it chooses, so
+    the combo stays neutral and the table shows the device's own labels.
+    """
+    return [(value, f"Preset {value}")
+            for value in range(EQ_PRESET_MIN, EQ_PRESET_MAX + 1)]
 
 
 class DeviceController:
@@ -170,3 +192,39 @@ class DeviceController:
         self._call(session.set_noise_mode, value, timeout=self.options.timeout)
         actual = self._call(session.read_noise_mode, timeout=self.options.timeout)
         return {"requested": value, "actual": actual, "ok": actual == value}
+
+    # -- 4. equalizer ------------------------------------------------------
+    def eq_mode(self) -> int:
+        """Read the active sound-effect preset (``0x010F``)."""
+        return self._call(self._require().read_eq_mode, timeout=self.options.timeout)
+
+    def eq_presets(self) -> dict:
+        """Read the preset / custom-EQ list (``0x0122``)."""
+        return self._call(self._require().read_eq_info, timeout=self.options.timeout)
+
+    def set_eq_mode(self, mode: int) -> dict:
+        """Write the preset, then read it back (the ``0x0504`` push is racy).
+
+        The write is read back identity for `0`..`6`; the caller should not pass
+        anything else, or the device clamps it and the check reports a mismatch.
+        """
+        session = self._require()
+        self._call(session.set_eq_mode, mode, timeout=self.options.timeout)
+        actual = self._call(session.read_eq_mode, timeout=self.options.timeout)
+        return {"requested": mode, "actual": actual, "ok": actual == mode}
+
+    # -- 5. high volume ----------------------------------------------------
+    def high_volume(self) -> bool:
+        """Read the loudness-boost flag (``0x0110``)."""
+        return self._call(self._require().read_high_volume, timeout=self.options.timeout)
+
+    def set_high_volume(self, enabled: bool) -> dict:
+        """Write the loudness boost, then read it back.
+
+        Accepted only while the buds are worn, like the noise-mode write.
+        """
+        session = self._require()
+        self._call(session.set_high_volume, enabled, timeout=self.options.timeout)
+        actual = self._call(session.read_high_volume, timeout=self.options.timeout)
+        return {"requested": bool(enabled), "actual": bool(actual),
+                "ok": bool(actual) == bool(enabled)}
