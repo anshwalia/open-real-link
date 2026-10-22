@@ -213,6 +213,8 @@ static-only recovery as supported. Their bodies are documented below, in
 | Command | Purpose | Builder | Decoder | Status |
 | --- | --- | --- | --- | --- |
 | `0x0404` | setNoiseReduction | `payload_set_noise_reduction`, `payload_set_noise_mode` | — | verified |
+| `0x0101` | getDeviceVersion / getProperty (read; body exposed raw, not decoded) | — | — | verified |
+| `0x010C` | getNoiseReduction (read the active noise mode; selector `01`) | — | — | verified |
 | `0x0401` | setKeyFunction (write the gesture table) | `payload_set_key_function` | — | verified |
 | `0x0403` | setSwitchFeature | — | — | documented only (accepted, provable no-op) |
 | `0x0418` | setEqInfo / getEqInfo | — | — | documented only (needs the vendor EQ editor) |
@@ -243,14 +245,14 @@ static-only recovery as supported. Their bodies are documented below, in
 | `0x8103` | model id | — | `parse_model_id` | verified |
 | `0x8105` | firmware / component versions | — | `parse_device_version` | verified |
 | `0x8122` | EQ info | — | `parse_eq_info` | verified |
-| `0x810D` | switch / feature status | — | `parse_switch_features` | integrated |
+| `0x810D` | switch / feature status | — | `parse_switch_features` | verified |
 | `0x8200` | getNotificationCapabilities (push-event types) | — | `parse_notification_capabilities` | verified |
-| `0x0500` | device asks for the host time | `payload_host_time_reply` | `parse_host_time_request` | integrated |
+| `0x0500` | device asks for the host time | `payload_host_time_reply` | `parse_host_time_request` | verified |
 | `0x0502` | device operation request | — | — | documented only (never emitted) |
 | `0x0503` | feature-switch status sync | — | — | documented only (needs the vendor app) |
-| `0x0504` | device changed EQ mode | — | `parse_eq_mode_request` | integrated |
-| `0x0506` | custom-EQ list | — | `parse_custom_eq` | integrated |
-| `0x0508` | bass-engine status | — | `parse_bass_engine_status` | integrated |
+| `0x0504` | device changed EQ mode | — | `parse_eq_mode_request` | verified |
+| `0x0506` | custom-EQ list | — | `parse_custom_eq` | verified |
+| `0x0508` | bass-engine status | — | `parse_bass_engine_status` | verified |
 | `0x050E` | per-device use time | — | — | documented only (never emitted; the `0x0128` reply is used) |
 | `0x0516` | framed audio data from the device | — | — | documented only (needs the vendor app) |
 
