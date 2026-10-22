@@ -15,9 +15,9 @@ Every operation is **synchronous**: one call is a handful of round trips at
 
 This file implements the app feature by feature -- connect + capability view,
 device status, noise mode get/set, the equalizer / high-volume settings,
-settings backup / restore, and the push-event monitor. Later features (gestures,
-voice, console) are added here as they are built, so the app never carries a
-control for something that is not yet wired up.
+settings backup / restore, the push-event monitor, and the gesture table. Later
+features (voice, console) are added here as they are built, so the app never
+carries a control for something that is not yet wired up.
 """
 from __future__ import annotations
 
@@ -50,6 +50,7 @@ __all__ = [
     "eq_preset_choices",
     "event_phrase",
     "friendly_error",
+    "function_choices",
     "noise_choices",
 ]
 
@@ -105,6 +106,18 @@ def noise_choices() -> list[tuple[int, str]]:
         t.NOISE_MODE_ANC_SMART,
     )
     return [(value, noise_name(value)) for value in order]
+
+
+def function_choices() -> list[tuple[int, str]]:
+    """The selectable key functions, in wire-value order.
+
+    The labels are the app's own enum (recovered from ``KeyTextUtils.a``), and
+    the read side proves the encoding: a unit reports exactly these bytes in its
+    ``0x0108`` table.  A value the unit will not *take* is not filtered out
+    here -- the write is read back and compared, so the device has the last
+    word instead of a shipped guess.
+    """
+    return sorted(t.FUNCTION_NAMES.items())
 
 
 def event_phrase(row: dict) -> str:
@@ -307,7 +320,63 @@ class DeviceController:
         return self._call(t.restore, self._require(), snapshot,
                           timeout=self.options.timeout)
 
-    # -- 7. push-event monitor ---------------------------------------------
+    # -- 7. gesture / key-function table -----------------------------------
+    def gestures(self) -> dict:
+        """Read the key-function/gesture table (``0x0108``)."""
+        return self._call(self._require().read_key_function,
+                          timeout=self.options.timeout)
+
+    def set_gestures(self, updates: dict) -> dict:
+        """Patch the gesture table with ``{(device, button, action): function}``.
+
+        ``0x0401`` replaces the **whole** table, so this reads it, patches only
+        the named rows, writes every row back, and reads it again.  Refuses to
+        write when the device returned no table, or when a named gesture is not
+        in it -- a partial edit must never silently drop the other rows.
+
+        Returns ``{"changed", "status", "verified", "table"}``; ``verified`` is
+        whether the read-back matches what was written.
+        """
+        entries = self._gesture_entries()
+        present = {(e.device_type, e.button, e.action) for e in entries}
+        missing = [key for key in updates if key not in present]
+        if missing:
+            raise ControllerError("no such gesture in the device's table: " + ", ".join(
+                f"{device}:{button}:{action}" for device, button, action in missing))
+        return self._write_gestures(entries, t.patch_key_functions(entries, updates))
+
+    def disable_long_press(self) -> dict:
+        """Turn every long-press gesture off (``function`` ``0``).
+
+        Same shape as :meth:`set_gestures`.  **Verified live**: the Air7 Pro
+        accepted the whole-table write, read the change back, and the original
+        table restored cleanly.
+        """
+        entries = self._gesture_entries()
+        return self._write_gestures(entries, t.disable_long_press(entries))
+
+    def _gesture_entries(self) -> list:
+        table = self.gestures()
+        if not table["entries"]:
+            raise ControllerError(
+                "the device returned an empty gesture table; refusing to write it back")
+        return table["entries"]
+
+    def _write_gestures(self, before: list, entries: list) -> dict:
+        session = self._require()
+        changed = [{"device_type": old.device_type, "button": old.button,
+                    "action": old.action, "from": old.function, "to": new.function}
+                   for old, new in zip(before, entries) if old != new]
+        if not changed:
+            return {"changed": [], "status": None, "verified": None,
+                    "table": {"status": 0, "count": len(before), "entries": before}}
+        status = self._call(session.set_key_function, entries,
+                            timeout=self.options.timeout)
+        after = self._call(session.read_key_function, timeout=self.options.timeout)
+        return {"changed": changed, "status": status,
+                "verified": list(after["entries"]) == list(entries), "table": after}
+
+    # -- 8. push-event monitor ---------------------------------------------
     def poll_events(self, seconds: float = EVENT_POLL_SECONDS) -> list[dict]:
         """Read device pushes for up to ``seconds`` and decode them.
 

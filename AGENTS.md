@@ -34,7 +34,7 @@ The protocol work is done; what remains is a UI and two transport shims.
 | `tlcore` | done, parity-verified | [`protocol.md`](docs/protocol.md), [`command-coverage.md`](docs/command-coverage.md) |
 | `tltransport` | macOS + replay done; Linux/Windows to write | [`architecture.md`](docs/architecture.md) §3 |
 | `tlcli` | done (the hardware test harness) | [`live-test.md`](docs/live-test.md) |
-| `tlapp` | **in progress** — connect, status, noise mode, EQ preset + list, high volume, backup/restore, event monitor | [`app.md`](docs/app.md) |
+| `tlapp` | **in progress** — connect, status, noise mode, EQ preset + list, high volume, gesture table, backup/restore, event monitor | [`app.md`](docs/app.md) |
 
 The app is built **one verified feature at a time**; `docs/app.md` lists what is
 in it and what is deliberately not yet. The build order is in

@@ -26,7 +26,24 @@ sys.path.insert(0, str(ROOT))
 
 import tlcore as t  # noqa: E402
 from tlapp import ConnectionOptions  # noqa: E402
-from tlapp.window import TAB_BACKUP, TAB_EVENTS, TAB_SOUND, MainWindow  # noqa: E402
+from tlapp.window import (  # noqa: E402
+    TAB_BACKUP,
+    TAB_EVENTS,
+    TAB_GESTURES,
+    TAB_SOUND,
+    MainWindow,
+)
+
+#: The Air7 Pro's 0x8108 body: 5 gestures x left/right, long press bound to 8.
+GESTURE_BODY = ("000a0201010002010201020103060201040802010600"
+                "0101010001010201010103050101040801010600")
+
+
+def _gesture_table(entries=None) -> dict:
+    if entries is None:
+        entries = t.parse_key_function_table(bytes.fromhex(GESTURE_BODY))["entries"]
+    entries = list(entries)
+    return {"status": 0, "count": len(entries), "entries": entries}
 
 
 def _app():
@@ -71,6 +88,99 @@ def test_window_builds_and_connects() -> None:
         assert not window.events_timer.isActive()
         assert window.listen_btn.text() == "Start listening"
         assert window.events_table.columnCount() == 3
+
+        # the gesture table is readable and writable on this unit, but empty
+        # until read -- and nothing can be applied before that
+        assert window.tabs.isTabEnabled(TAB_GESTURES)
+        assert window.gestures_read_btn.isEnabled()      # 0x0108 advertised
+        assert window.long_press_btn.isEnabled()         # 0x0401 advertised
+        assert not window.gestures_apply_btn.isEnabled()
+        assert window.gestures_table.rowCount() == 0
+        assert window.lbl_gestures.text() == "No table read yet."
+    finally:
+        window.close()
+
+
+def test_gestures_tab_stages_edits_and_reverts() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+
+        window._show_gestures(_gesture_table())
+        assert window.gestures_table.rowCount() == 10
+        assert window.gestures_table.columnCount() == 5
+        assert window.gestures_table.item(0, 0).text() == "right"
+        assert window.gestures_table.item(0, 2).text() == "single-click"
+        assert window.gestures_table.item(3, 2).text() == "long-press"
+        assert window.gestures_table.item(3, 4).text() == "noise-control"
+
+        combo = window.gestures_table.cellWidget(3, 3)   # right long-press
+        assert combo.currentData() == 8
+        assert combo.currentText() == "noise-control"
+
+        # nothing edited yet, so there is nothing to apply
+        assert not window.gestures_apply_btn.isEnabled()
+        assert "no unsaved changes" in window.lbl_gestures.text()
+
+        # stage one edit; the row stays in the table, only the combo moves
+        combo.setCurrentIndex(combo.findData(0))
+        assert window.gestures_apply_btn.isEnabled()
+        assert "1 unsaved change" in window.lbl_gestures.text()
+        assert "right long-press" in window.lbl_gestures.text()
+
+        # 'disable long press' only stages: the right row is already staged, so
+        # it moves the left one and the pending count goes to two
+        window._stage_long_press_off()
+        assert "Staged long press off for 1 gesture" in window.statusBar().currentMessage()
+        assert "2 unsaved change" in window.lbl_gestures.text()
+        assert window.gestures_table.cellWidget(8, 3).currentData() == 0  # left
+
+        # revert puts every combo back to what the device reported
+        window._revert_gestures()
+        assert not window.gestures_apply_btn.isEnabled()
+        assert window.gestures_table.cellWidget(3, 3).currentData() == 8
+        assert "no unsaved changes" in window.lbl_gestures.text()
+    finally:
+        window.close()
+
+
+def test_gestures_tab_keeps_a_function_it_has_no_name_for() -> None:
+    """An unknown function byte must stay selectable, not be rewritten to off."""
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_gestures(_gesture_table([t.KeyFunctionInfo(1, 1, 1, 0x42)]))
+        assert window.gestures_table.rowCount() == 1
+        combo = window.gestures_table.cellWidget(0, 3)
+        assert combo.currentData() == 0x42
+        assert "unnamed" in combo.currentText()
+        assert window._gesture_updates() == {}
+    finally:
+        window.close()
+
+
+def test_gesture_controls_are_capability_gated() -> None:
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window.connect_device()
+        app.processEvents()
+        assert window.gestures_read_btn.isEnabled()
+
+        window.controller.supports = lambda cmd: False
+        window._apply_capability_gating()
+        assert not window.gestures_read_btn.isEnabled()
+        assert not window.long_press_btn.isEnabled()
+        assert not window.gestures_apply_btn.isEnabled()
+
+        window.controller.supports = lambda cmd: True
+        window._apply_capability_gating()
+        assert window.gestures_read_btn.isEnabled()
+        assert window.long_press_btn.isEnabled()
+        # still nothing staged, so Apply stays off even when the write is supported
+        assert not window.gestures_apply_btn.isEnabled()
     finally:
         window.close()
 
@@ -324,9 +434,10 @@ def test_window_disconnected_state() -> None:
     _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
-        # Sound, Backup and Events are disabled until a device is connected
+        # Sound, Gestures, Backup and Events are disabled until a device is connected
         assert window.connect_btn.text() == "Connect"
         assert not window.tabs.isTabEnabled(TAB_SOUND)
+        assert not window.tabs.isTabEnabled(TAB_GESTURES)
         assert not window.tabs.isTabEnabled(TAB_BACKUP)
         assert not window.tabs.isTabEnabled(TAB_EVENTS)
     finally:

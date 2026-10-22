@@ -32,6 +32,7 @@ from .controller import (
     eq_preset_choices,
     event_phrase,
     friendly_error,
+    function_choices,
     noise_choices,
 )
 
@@ -47,6 +48,7 @@ __all__ = [
     "eq_preset_choices",
     "event_phrase",
     "friendly_error",
+    "function_choices",
     "noise_choices",
     "read_snapshot",
     "snapshot_summary",

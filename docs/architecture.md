@@ -251,12 +251,12 @@ discoverability by project name for discoverability by protocol name.
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`
    (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
-4. **PySide6 app** — **started, in progress.** `tlapp/` exists with four
+4. **PySide6 app** — **started, in progress.** `tlapp/` exists with five
    slices: connect, capability view, device status, the noise selector, the EQ
-   preset and its `0x0122` list, high volume, settings backup / restore, and the
-   push-event monitor. The controller and the snapshot file I/O are Qt-free and
-   fixture-tested; the rest (gestures, voice, raw console) is added one verified
-   feature at a time. See [`app.md`](app.md).
+   preset and its `0x0122` list, high volume, the gesture table, settings
+   backup / restore, and the push-event monitor. The controller and the snapshot
+   file I/O are Qt-free and fixture-tested; the rest (voice, raw console) is
+   added one verified feature at a time. See [`app.md`](app.md).
 
 Steps 1–3 are the protocol being made usable. Step 4 is a shell over them, and it
 is the only step that gets thrown away if the stack ever changes.

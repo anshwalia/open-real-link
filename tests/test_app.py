@@ -30,6 +30,7 @@ from tlapp import (  # noqa: E402
     eq_preset_choices,
     event_phrase,
     friendly_error,
+    function_choices,
     noise_choices,
     read_snapshot,
     snapshot_summary,
@@ -465,7 +466,139 @@ def test_snapshot_summary_of_a_minimal_snapshot() -> None:
 
 
 # --------------------------------------------------------------------------
-# 7: push-event monitor
+# 7: gesture / key-function table
+# --------------------------------------------------------------------------
+#: The Air7 Pro's 0x8108 body: 10 rows, 5 gestures x left/right.  Long press is
+#: bound to function 8 (noise-control) on both buds.
+GESTURE_BODY = ("000a0201010002010201020103060201040802010600"
+                "0101010001010201010103050101040801010600")
+
+
+def gesture_payload(entries) -> bytes:
+    """``0x0401``'s payload: ``[count] + records``."""
+    return t.payload_set_key_function([entry.to_bytes() for entry in entries])
+
+
+def gesture_body(entries) -> bytes:
+    """``0x8108``'s body: the same bytes with a status byte in front."""
+    return b"\x00" + gesture_payload(entries)
+
+
+def gesture_entries(body: str = GESTURE_BODY) -> list:
+    return t.parse_key_function_table(bytes.fromhex(body))["entries"]
+
+
+def gesture_records(updates=None, read_back_body: str | None = None) -> list:
+    """A full read -> whole-table write -> read-back conversation."""
+    patched = t.patch_key_functions(gesture_entries(), updates or {})
+    return [
+        ("tx", wire(0x0108)),
+        ("rx", wire(0x8108, bytes.fromhex(GESTURE_BODY))),
+        ("tx", wire(0x0401, gesture_payload(patched))),
+        ("rx", wire(0x8401, bytes([0]))),
+        ("tx", wire(0x0108)),
+        ("rx", wire(0x8108, bytes.fromhex(read_back_body or gesture_body(patched).hex()))),
+    ]
+
+
+def read_only_records(body: str = GESTURE_BODY) -> list:
+    return [("tx", wire(0x0108)), ("rx", wire(0x8108, bytes.fromhex(body)))]
+
+
+def test_read_the_gesture_table() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, read_only_records())
+        table = ctrl.gestures()
+        check("row count", table["count"], 10)
+        check("status", table["status"], 0)
+        check("first row", table["entries"][0], t.KeyFunctionInfo(2, 1, 1, 0))
+        check("long press is bound",
+              [(e.device_type, e.function) for e in table["entries"] if e.action == 4],
+              [(2, 8), (1, 8)])
+        check("labels resolve", table["entries"][3].describe(),
+              "right long-press -> noise-control")
+        ctrl.disconnect()
+
+
+def test_set_gestures_writes_the_whole_table_back() -> None:
+    """The replay is strict, so this fails unless all 10 rows are written."""
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, gesture_records({(1, 1, 4): 0}))
+        result = ctrl.set_gestures({(1, 1, 4): 0})
+        check("exactly one row changed", result["changed"],
+              [{"device_type": 1, "button": 1, "action": 4, "from": 8, "to": 0}])
+        check("write status", result["status"], 0)
+        check("read back and matched", result["verified"], True)
+        check("every row came back", len(result["table"]["entries"]), 10)
+        check("the untouched right long press is intact",
+              [e.function for e in result["table"]["entries"]
+               if (e.device_type, e.action) == (2, 4)], [8])
+        ctrl.disconnect()
+
+
+def test_disable_long_press_changes_only_the_long_press_rows() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, gesture_records({(1, 1, 4): 0, (2, 1, 4): 0}))
+        result = ctrl.disable_long_press()
+        check("both long presses changed",
+              sorted(c["action"] for c in result["changed"]), [4, 4])
+        check("and nothing else did",
+              {c["device_type"] for c in result["changed"]}, {1, 2})
+        check("verified", result["verified"], True)
+        check("the table still has 10 rows", len(result["table"]["entries"]), 10)
+        ctrl.disconnect()
+
+
+def test_set_gestures_refuses_a_gesture_the_device_does_not_have() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, read_only_records())
+        check_raises("unknown gesture", ControllerError, ctrl.set_gestures, {(9, 9, 9): 1})
+        # the refusal must happen before anything is sent
+        check("only the read was sent", len(ctrl.transport.writes), 1)
+        ctrl.disconnect()
+
+
+def test_set_gestures_refuses_an_empty_table() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, read_only_records("0000"))
+        check_raises("empty table", ControllerError, ctrl.set_gestures, {(1, 1, 4): 0})
+        check_raises("empty table, disable", ControllerError, ctrl.disable_long_press)
+        check("nothing was written", len(ctrl.transport.writes), 1)
+        ctrl.disconnect()
+
+
+def test_set_gestures_with_nothing_to_change_does_not_write() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctrl = _connected(tmp, read_only_records())
+        result = ctrl.set_gestures({(1, 1, 4): 8})   # already 8
+        check("no change", result["changed"], [])
+        check("no read-back either", result["verified"], None)
+        check("only the read was sent", len(ctrl.transport.writes), 1)
+        ctrl.disconnect()
+
+
+def test_a_read_back_that_does_not_match_is_reported() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        # the device answers 0x8401 00 but still reports the old table
+        ctrl = _connected(tmp, gesture_records({(1, 1, 4): 0},
+                                               read_back_body=GESTURE_BODY))
+        result = ctrl.set_gestures({(1, 1, 4): 0})
+        check("the change was sent", len(result["changed"]), 1)
+        check("but it did not stick", result["verified"], False)
+        ctrl.disconnect()
+
+
+def test_function_choices() -> None:
+    choices = function_choices()
+    check("off is the first choice", choices[0], (0, "off"))
+    check("it is the core's map, in order", choices, sorted(t.FUNCTION_NAMES.items()))
+    check("every value is distinct", len({v for v, _ in choices}), len(choices))
+    check("off really is 0", t.FUNCTION_NAMES[0], "off")
+    check("long press is actions 4 and 5", tuple(t.LONG_PRESS_ACTIONS), (4, 5))
+
+
+# --------------------------------------------------------------------------
+# 8: push-event monitor
 # --------------------------------------------------------------------------
 def test_poll_events_decodes_a_recorded_capture() -> None:
     """fixtures/user-interaction.jsonl is nine unprompted 0x0204 pushes."""
@@ -590,6 +723,10 @@ def test_requires_connection() -> None:
         check_raises("restore without connect", ControllerError, ctrl.restore_from, path)
     check_raises("poll events without connect", ControllerError, ctrl.poll_events)
     check_raises("event types without connect", ControllerError, ctrl.event_types)
+    check_raises("gestures without connect", ControllerError, ctrl.gestures)
+    check_raises("set gestures without connect", ControllerError, ctrl.set_gestures, {})
+    check_raises("disable long press without connect",
+                 ControllerError, ctrl.disable_long_press)
 
 
 def test_double_connect_is_safe() -> None:

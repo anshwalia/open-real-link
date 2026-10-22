@@ -6,10 +6,10 @@ box. The widgets never touch the wire, and the controller never imports Qt.
 
 The app is built feature by feature: connect + capability view, device status,
 noise mode get/set, the equalizer / high-volume settings, settings
-backup / restore, and the push-event monitor. The tone / OTA / debug families
-have no control here at all, and neither does any operation that has not been
-verified on hardware -- those are added one at a time as they are built and
-live-tested.
+backup / restore, the push-event monitor, and the gesture table. The tone / OTA /
+debug families have no control here at all, and neither does any operation that
+has not been verified on hardware -- those are added one at a time as they are
+built and live-tested.
 """
 from __future__ import annotations
 
@@ -46,6 +46,7 @@ from .controller import (
     DeviceController,
     eq_preset_choices,
     event_phrase,
+    function_choices,
     noise_choices,
 )
 
@@ -54,8 +55,9 @@ _FAILED = object()
 
 TAB_DEVICE = 0
 TAB_SOUND = 1
-TAB_BACKUP = 2
-TAB_EVENTS = 3
+TAB_GESTURES = 2
+TAB_BACKUP = 3
+TAB_EVENTS = 4
 
 #: How often the event monitor reads the link, in milliseconds.  Slightly
 #: longer than the read budget so the GUI thread always gets a turn.
@@ -63,7 +65,7 @@ EVENT_POLL_MS = 60
 
 
 class MainWindow(QMainWindow):
-    """The application window: a connection bar and four tabs."""
+    """The application window: a connection bar and five tabs."""
 
     def __init__(self, options: ConnectionOptions):
         super().__init__()
@@ -106,6 +108,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_device_tab(), "Device")
         self.tabs.addTab(self._build_sound_tab(), "Sound")
+        self.tabs.addTab(self._build_gestures_tab(), "Gestures")
         self.tabs.addTab(self._build_backup_tab(), "Backup")
         self.tabs.addTab(self._build_events_tab(), "Events")
         self.setCentralWidget(self.tabs)
@@ -231,6 +234,51 @@ class MainWindow(QMainWindow):
         vol_row.addStretch(1)
         outer.addWidget(vol_box)
         outer.addStretch(1)
+        return page
+
+    # ----------------------------------------------------------- gestures tab
+    def _build_gestures_tab(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+
+        note = QLabel(
+            "Each row binds one gesture on one earbud to a function. The write "
+            "(<code>0x0401</code>) replaces the <b>whole</b> table, so the app "
+            "reads it, applies only the rows you changed, writes every row back "
+            "and reads it again. <b>Off</b> (function 0) disables a gesture. "
+            "Function names are the app's own enum — the unit's table proves the "
+            "encoding — and the read-back is the last word on whether it stuck.")
+        note.setWordWrap(True)
+        outer.addWidget(note)
+
+        row = QHBoxLayout()
+        self.gestures_read_btn = QPushButton("Read table")
+        self.gestures_read_btn.clicked.connect(
+            lambda: self._run(lambda c: c.gestures(), self._show_gestures))
+        self.long_press_btn = QPushButton("Disable long press")
+        self.long_press_btn.clicked.connect(self._stage_long_press_off)
+        self.gestures_revert_btn = QPushButton("Revert")
+        self.gestures_revert_btn.clicked.connect(self._revert_gestures)
+        self.gestures_apply_btn = QPushButton("Apply changes")
+        self.gestures_apply_btn.clicked.connect(self._apply_gestures)
+        for widget in (self.gestures_read_btn, self.long_press_btn,
+                       self.gestures_revert_btn, self.gestures_apply_btn):
+            row.addWidget(widget)
+        row.addStretch(1)
+        outer.addLayout(row)
+
+        self.lbl_gestures = QLabel("No table read yet.")
+        self.lbl_gestures.setWordWrap(True)
+        outer.addWidget(self.lbl_gestures)
+
+        self.gestures_table = self._table(
+            ["Device", "Button", "Gesture", "Function", "Was"])
+        outer.addWidget(self.gestures_table, 1)
+        #: The table exactly as the device last reported it -- the baseline every
+        #: edit is diffed against, so Apply can never write a half-built table.
+        self._gesture_entries: list = []
+        self._gestures_writable = False
+        self._gestures_readable = False
         return page
 
     # ------------------------------------------------------------- backup tab
@@ -377,6 +425,7 @@ class MainWindow(QMainWindow):
         self.conn_label.setStyleSheet(
             "color: #080; font-weight: 600;" if state else "color: #a00; font-weight: 600;")
         self.tabs.setTabEnabled(TAB_SOUND, state)
+        self.tabs.setTabEnabled(TAB_GESTURES, state)
         self.tabs.setTabEnabled(TAB_BACKUP, state)
         self.tabs.setTabEnabled(TAB_EVENTS, state)
         if not state:
@@ -387,6 +436,11 @@ class MainWindow(QMainWindow):
         self.noise_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_NOISE_REDUCTION))
         self.eq_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_EQ_MODE))
         self.volume_apply_btn.setEnabled(self.controller.supports(t.CMD_SET_HIGH_VOLUME))
+        self._gestures_readable = self.controller.supports(t.CMD_GET_KEY_FUNCTION)
+        self._gestures_writable = self.controller.supports(t.CMD_SET_KEY_FUNCTION)
+        self.gestures_read_btn.setEnabled(self._gestures_readable)
+        self.long_press_btn.setEnabled(self._gestures_writable)
+        self._gesture_edited()
 
     # ----------------------------------------------------------------- runner
     def _run(self, work, done=None, *, require: bool = True, busy: bool = True):
@@ -537,6 +591,119 @@ class MainWindow(QMainWindow):
                        f"Wrote high volume {'on' if wanted else 'off'} but read "
                        f"back {'on' if result['actual'] else 'off'}; the read is "
                        "authoritative.")
+
+    # ------------------------------------------------------ gesture table
+    def _show_gestures(self, table: dict) -> None:
+        """Fill the table from a ``0x0108`` read; this is the write baseline."""
+        self._gesture_entries = list(table["entries"])
+        self.gestures_table.setRowCount(0)
+        for entry in self._gesture_entries:
+            row = self.gestures_table.rowCount()
+            self.gestures_table.insertRow(row)
+            self.gestures_table.setItem(row, 0, QTableWidgetItem(
+                t.DEVICE_TYPE_NAMES.get(entry.device_type, str(entry.device_type))))
+            self.gestures_table.setItem(row, 1, QTableWidgetItem(str(entry.button)))
+            self.gestures_table.setItem(row, 2, QTableWidgetItem(
+                t.ACTION_NAMES.get(entry.action, f"0x{entry.action:02X}")))
+
+            combo = QComboBox()
+            for value, label in function_choices():
+                combo.addItem(label, value)
+            index = combo.findData(entry.function)
+            if index < 0:
+                # A function this build has no name for must stay selectable and
+                # unchanged -- silently rewriting it to `off` would be a bug that
+                # disables the user's gesture the moment they touched anything.
+                combo.addItem(f"0x{entry.function:02X} (unnamed)", entry.function)
+                index = combo.count() - 1
+            combo.setCurrentIndex(index)
+            combo.currentIndexChanged.connect(self._gesture_edited)
+            self.gestures_table.setCellWidget(row, 3, combo)
+
+            self.gestures_table.setItem(row, 4, QTableWidgetItem(
+                t.FUNCTION_NAMES.get(entry.function, f"0x{entry.function:02X}")))
+        self._gesture_edited()
+        if not self._gesture_entries:
+            self.lbl_gestures.setText("The device reported an empty gesture table.")
+
+    def _gesture_updates(self) -> dict:
+        """``{(device, button, action): function}`` for the rows that changed."""
+        updates = {}
+        for row, entry in enumerate(self._gesture_entries):
+            combo = self.gestures_table.cellWidget(row, 3)
+            if combo is None:
+                continue
+            value = combo.currentData()
+            if value != entry.function:
+                updates[(entry.device_type, entry.button, entry.action)] = value
+        return updates
+
+    def _gesture_edited(self) -> None:
+        updates = self._gesture_updates()
+        self.gestures_apply_btn.setEnabled(self._gestures_writable and bool(updates))
+        if not updates:
+            if self._gesture_entries:
+                self.lbl_gestures.setText(
+                    f"{len(self._gesture_entries)} gesture(s); no unsaved changes.")
+            return
+        self.lbl_gestures.setText(f"{len(updates)} unsaved change(s): " + ", ".join(
+            f"{t.DEVICE_TYPE_NAMES.get(device, device)} "
+            f"{t.ACTION_NAMES.get(action, action)} → "
+            f"{t.FUNCTION_NAMES.get(value, f'0x{value:02X}')}"
+            for (device, _button, action), value in sorted(updates.items())))
+
+    def _stage_long_press_off(self) -> None:
+        """Stage — not write — every long-press row at ``off``.
+
+        Staging keeps one write path and one confirmation: the user reviews the
+        whole table and clicks Apply.
+        """
+        if not self._gesture_entries:
+            self._warn("No table", "Read the gesture table first.")
+            return
+        staged = 0
+        for row, entry in enumerate(self._gesture_entries):
+            if entry.action not in t.LONG_PRESS_ACTIONS:
+                continue
+            combo = self.gestures_table.cellWidget(row, 3)
+            index = combo.findData(0)
+            if index >= 0 and combo.currentIndex() != index:
+                combo.setCurrentIndex(index)
+                staged += 1
+        self.statusBar().showMessage(
+            f"Staged long press off for {staged} gesture(s); click Apply to write.")
+
+    def _revert_gestures(self) -> None:
+        """Put the combos back to the table last read from the device."""
+        if not self._gesture_entries:
+            return
+        self._show_gestures({"entries": self._gesture_entries})
+        self.statusBar().showMessage("Reverted to the table last read from the device.")
+
+    def _apply_gestures(self) -> None:
+        updates = self._gesture_updates()
+        if not updates:
+            return
+        if QMessageBox.question(
+                self, "Write the gesture table",
+                f"Write {len(updates)} change(s) to the headset?\n\n"
+                "0x0401 replaces the whole table, so the app re-reads it, applies "
+                "these rows, and writes every row back."
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        result = self._run(lambda c: c.set_gestures(updates))
+        if result is _FAILED or result is None:
+            return
+        self._show_gestures(result["table"])
+        if not result["changed"]:
+            self.statusBar().showMessage("No change needed; the table already matched.")
+        elif result["verified"]:
+            self.statusBar().showMessage(
+                f"Wrote {len(result['changed'])} change(s) and read them back.")
+        else:
+            self._warn("Read-back mismatch",
+                       "The device accepted the write but read back a different "
+                       "table. Re-read it before making more changes.")
 
     # --------------------------------------------------------- event monitor
     def _toggle_listening(self) -> None:

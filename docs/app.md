@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **fourth slice.** The app is built one feature at a time, and a feature
+Status: **fifth slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-seven things and nothing else:
+eight things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -14,13 +14,15 @@ seven things and nothing else:
 5. **High volume get / set** — read `0x0110`, write `0x0407`, read back.
 6. **Settings backup / restore** — poll every setting the unit advertises into a
    JSON snapshot, and re-apply the restorable ones from one.
-7. **Push-event monitor** — listen for the device's own notifications (button
+7. **Gesture table get / set** — read `0x0108`, edit the function bound to each
+   gesture, write the whole table back with `0x0401` and read it again.
+8. **Push-event monitor** — listen for the device's own notifications (button
    presses, battery, wear, noise, multi-connect) and decode them live.
 
-Everything else the CLI can do (gestures, voice, raw console, the SDP service
-list) is deliberately **not** in the UI yet. It is added, wired up and
-live-tested one item at a time, so the app never carries a control for something
-that is not implemented.
+Everything else the CLI can do (voice, raw console, the SDP service list) is
+deliberately **not** in the UI yet. It is added, wired up and live-tested one
+item at a time, so the app never carries a control for something that is not
+implemented.
 
 ## Running it
 
@@ -102,6 +104,38 @@ asynchronous push can arrive out of order — the read is authoritative. The sam
 is true for the equalizer: writing outside `0..6` makes the device clamp the
 value, so **Apply** compares the read-back and says so instead of pretending the
 write took.
+
+### Gestures
+
+Each row binds one gesture on one earbud to one function; the unit's own table is
+the starting point, never a shipped guess.
+
+* **Read table** fills the rows: device, button, gesture, the function as a
+  dropdown, and what it was.
+* **Disable long press** stages `off` on every long-press row. It **stages**,
+  it does not write — the user reviews the whole table and clicks Apply, so there
+  is one write path and one confirmation.
+* **Revert** puts every dropdown back to what the device last reported.
+* **Apply changes** confirms, then writes. `0x0401` replaces the **whole**
+  table, so the app re-reads it, patches only the rows you changed, writes every
+  row back, and reads it again. A read-back that does not match what was written
+  is reported as a mismatch rather than assumed to have worked.
+* Rows with nothing changed are never sent, and if the whole table is unchanged
+  the app does not write at all.
+
+Two safety properties are deliberate:
+
+* A gesture the device did not report is refused, and the refusal happens
+  **before** anything is sent — a partial edit must never silently drop the rows
+  it did not name.
+* A function byte this build has no name for stays selectable and unchanged
+  (shown as `0x42 (unnamed)`). Rewriting it to `off` because the dropdown could
+  not represent it would disable the user's gesture the moment they touched
+  anything else.
+
+Function names are the app's own enum; the unit's table proves the encoding on
+**read**. Whether the unit will *take* a given value is decided by the read-back,
+not by the dropdown.
 
 ### Backup
 
@@ -196,6 +230,8 @@ The controller opens the device exactly the way the CLI does, by reusing
   ([`protocol.md`](protocol.md) §7).
 * Controls are gated by the unit's own capability bitmap: **Apply** is disabled
   when the device does not advertise the write.
+* A whole-table write (`0x0401`) is only ever built from a table the device just
+  reported, is confirmed first, and is read back afterwards.
 * A noise write that the device rejects is reported in plain words, not as a
   raw status code.
 * Only one instance runs at a time, so two copies cannot fight over the headset's
@@ -203,6 +239,5 @@ The controller opens the device exactly the way the CLI does, by reusing
 
 ## What is next
 
-The remaining verified features, each added the same way: the gesture table and
-a long-press disable, host-side voice, a guarded raw console, and the SDP
-service list.
+The remaining verified features, each added the same way: host-side voice, a
+guarded raw console, and the SDP service list.
