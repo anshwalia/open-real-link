@@ -534,7 +534,15 @@ def test_core_purity() -> None:
     """`tlcore` must import nothing platform-specific.
 
     Run in a clean subprocess rather than in-process, because this harness has
-    already imported the reference module and a pile of stdlib.
+    already imported the reference module and a pile of stdlib -- and because a
+    leak inside a *submodule* only shows up once something imports it.
+
+    The ``check()`` calls feed the aggregate report that ``main()`` prints; the
+    ``assert`` statements are what pytest sees.  Both are needed: ``check()``
+    records a failure and **returns**, so a test built only from ``check()`` can never
+    turn red under pytest -- it passes whatever the core imports.  That is the
+    one test in this file pytest collects, and it is the one guarding the
+    architecture rule, so it has to be able to fail.
     """
     probe = (
         "import json, sys"
@@ -546,10 +554,14 @@ def test_core_purity() -> None:
         env={**os.environ, "PYTHONPATH": str(ROOT)},
     )
     check("tlcore imports cleanly in a bare interpreter", proc.returncode, 0)
-    if proc.returncode != 0:
-        print(proc.stderr)
-        return
-    check("tlcore pulls in no platform binding", json.loads(proc.stdout), [])
+    assert proc.returncode == 0, f"tlcore does not import cleanly:\n{proc.stderr}"
+    leaked = json.loads(proc.stdout)
+    check("tlcore pulls in no platform binding", leaked, [])
+    assert not leaked, (
+        "tlcore pulled in platform/UI modules: " + ", ".join(leaked)
+        + " -- keep the core pure; put platform bindings behind"
+          " tltransport.Transport"
+    )
 
 
 # --------------------------------------------------------------------------
@@ -594,7 +606,12 @@ def main() -> int:
     parity_stream_decoder(ref, wire)
     parity_decoders(ref, tlcore)
     parity_payloads(ref, payloads)
-    test_core_purity()
+    try:
+        test_core_purity()
+    except AssertionError as exc:
+        # test_core_purity also records into FAILURES via check(); this keeps
+        # the aggregate report complete when only the assert fires.
+        FAILURES.append(str(exc))
     parity_golden_write(ref, tlcore)
 
     print(f"checks run: {CHECKS}")

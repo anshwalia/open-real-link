@@ -62,6 +62,18 @@ platform binding ends up in `sys.modules`. The rule is easy to break by accident
 — one convenient `import serial` deep inside a decoder — and impossible to notice
 by reading.
 
+The check is `tests/test_parity_tl_frame.py::test_core_purity`, and it is worth
+knowing how it nearly failed to be a check at all. That file's `check()` helper
+**records** a failure and returns; only `main()` ever looks at the record. So a
+test built purely from `check()` passes under pytest no matter what it observes
+— a green light that cannot turn red, guarding the one rule the whole layout
+depends on. It now `assert`s, and the injection is exercised in both directions:
+appending `import socket` to a `tlcore` submodule fails the test, and removing it
+passes.
+
+**Enforcement that cannot fail is not enforcement.** If you add a rule of this
+kind, break it once on purpose and watch the test go red before you trust it.
+
 ---
 
 ## 3. The transport contract
