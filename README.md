@@ -1,66 +1,53 @@
-# open-real-link
+# OpenRealLink
 
-App-free control of **realme / OPPO Bluetooth headsets** over the "TL" protocol,
-recovered by reverse engineering the realme Link Android app.
+**Control your realme / OPPO Bluetooth earbuds from your own computer — no
+phone, no vendor app, no account.**
+
+`open-real-link` talks to TL-series headsets (the ones the realme Link app
+manages) directly over Bluetooth Classic, using the same channel the official
+app uses. The protocol was recovered by reverse engineering the realme Link
+Android app, and the recovered core is verified byte-for-byte against a
+reference implementation that was validated on real hardware.
 
 > **Not affiliated with, endorsed by, or supported by realme or OPPO.**
 > "realme", "OPPO" and "realme Link" are trademarks of their respective owners
 > and are used here only to describe what this software interoperates with. No
 > vendor code, binary, or asset is redistributed.
 
-## Overview
+---
 
-`open-real-link` talks to realme/OPPO TL-series earbuds directly over Bluetooth
-Classic RFCOMM/SPP — the same channel the official app uses — so the headset can
-be controlled without the vendor app, an account, or a phone.
+## What is this?
 
-The protocol core, `tlcore`, is byte-for-byte verified: it produces and parses
-the same bytes as a reference implementation that was validated on real
-hardware. It is wrapped by platform transports and a command-line front end;
-see [Status](#status) below.
+Most earbud settings — noise cancelling, the equalizer, the loudness boost,
+what each tap does — live behind the vendor's phone app. This project replaces
+that app with an open protocol implementation you can drive from a laptop:
 
-## Status
+- a **pure protocol library** (`tlcore`) that builds and parses the headset's
+  own packets, with no I/O and no platform dependencies;
+- **transports** that carry those packets over Bluetooth Classic RFCOMM/SPP;
+- a **command-line tool** (`tlcli`) and a **desktop app** (`tlapp`) built on top.
 
-The recovered protocol core, `tlcore`, is byte-for-byte verified. The macOS
-transport, an offline replay transport, a command-line front end and a PySide6
-desktop app are implemented. The app opens a device, reads its capability bitmap
-and status, gets/sets the noise mode, the equalizer preset, high volume and the
-gesture table, rings the buds to find them, lists the paired devices, backs the
-settings up to (and restores them from) a plain JSON file, and shows the
-device's own push events live. An **Expert** tab collects what needs protocol
-knowledge to read -- the diagnostic reads, the capability bitmap, the
-multi-band bass engine -- alongside a raw console that refuses the tone / OTA /
-debug families; see [`docs/app.md`](docs/app.md). It is built one verified
-feature at a time.
+Because the library is separated from the UI, the recovered protocol is reusable
+on its own — in a script, in another language's port, or in a future app — and
+the UI can be rewritten without touching it.
 
-A settings **backup and restore** path (`tlcli backup` / `tlcli restore`) sits on
-top of the read-side decoders. Because the protocol has no "read all settings"
-command, it polls the supported status commands and stores each raw reply;
-restore re-applies only the settings whose read and write forms are both
-recovered *and* live-verified (noise mode, key function, EQ mode, high volume),
-and reports the rest as unrestorable rather than guessing. A snapshot is one small
-JSON document, never a database, so it stays inspectable and diffable. It is
-exercised offline against fixtures.
+## What it can do
 
-The transport and session layers are exercised offline against recorded fixtures
-(`tests/test_transport_and_session.py`), and the macOS transport has been run
-end to end against a real Buds Air7 Pro (`python -m tlcli smoke`, 2026-10-18).
-
-Verified on hardware (realme Buds Air7 Pro):
+Everything below was confirmed on a real **realme Buds Air7 Pro**, end to end:
 
 | Capability | Status |
 | --- | --- |
-| Read active noise mode | Verified |
-| Set active noise mode | Verified end to end |
-| Read/write sound-effect (EQ) mode | Verified end to end |
-| Read/write high volume (loudness boost) | Verified end to end |
+| Read the active noise mode | Verified |
+| Set the active noise mode | Verified end to end |
+| Read / write the sound-effect (EQ) mode | Verified end to end |
+| Read / write high volume (loudness boost) | Verified end to end |
 | Read battery, wear state, firmware, model, and use time | Verified |
-| Read capability bitmap → supported-command set | Verified |
+| Read the capability bitmap → supported-command set | Verified |
 | Read the multi-band bass engine (`0x012C`) | Verified end to end |
 | Write the bass-engine value (both `0x041B` forms) | Verified end to end |
-| Encode/decode parity with the reference codec | Verified (23,246 checks) |
+| Byte-for-byte parity with the reference codec | Verified (23,247 checks) |
 
-Noise-mode values, confirmed by listening on the target device:
+The noise modes, confirmed by listening on the target device:
 
 | Value | Mode |
 | --- | --- |
@@ -71,102 +58,169 @@ Noise-mode values, confirmed by listening on the target device:
 | `0x10` | ANC medium |
 | `0x20` | ANC smart (adaptive) |
 
-> A mode change is accepted only while the earbuds are worn. Otherwise the
-> device rejects it. Always read the mode back to confirm the change; the
+On top of these reads and writes, the command-line tool and the desktop app also
+back up and restore the settings a device advertises, list paired devices, read
+the gesture table, ring the buds to find them, and show the device's own push
+events live.
+
+> **A mode change is accepted only while the earbuds are worn.** Otherwise the
+> device rejects it. Always read the mode back to confirm the change — the
 > asynchronous status push can arrive out of order and should be treated as a
 > hint, not the source of truth.
 
-A few command IDs are deliberately **not** implemented, because a live Air7 Pro
-showed they cannot be verified rather than because they were hard: `0x0418`
-(the APK refuses to send a zero-band EQ record, and the band table comes from
-the vendor editor), `0x0403` (accepted by the device but a provable no-op) and
-`0x0124` (never answered — the bass value comes from `0x012C` instead). They
-are documented in [`docs/protocol.md`](docs/protocol.md) §7 and
-[`docs/command-coverage.md`](docs/command-coverage.md), and no builder is
-shipped for them.
+### Deliberately not implemented
 
-## Compatibility
+A few command IDs are missing on purpose, because a live Air7 Pro showed they
+cannot be verified — not because they were hard:
 
-The TL protocol runs over Bluetooth Classic RFCOMM/SPP. Because SPP is available
-on **macOS, Windows, Linux, and Android**, the protocol can be driven on any of
-them; it cannot work on iOS or in a web browser, which do not expose SPP. The
-macOS transport is implemented; Linux, Windows, and Android transports are still
-to be written.
+- `0x0418` — the vendor app refuses to send a zero-band EQ record, and the band
+  table comes from its editor;
+- `0x0403` — accepted by the device, but a provable no-op;
+- `0x0124` — never answered; the bass value comes from `0x012C` instead.
 
-Until one is, `--transport auto` (the default) **refuses to guess**: off macOS it
-raises `TransportUnavailable` naming the platform and suggesting `--replay FILE`,
-rather than quietly opening a recording. `replay` works on every platform and is
-reached only by asking for it. `tlcli services` and `tlcli say` are macOS-only
-host utilities, not protocol features.
+They are documented in [`docs/protocol.md`](docs/protocol.md) §7 and
+[`docs/command-coverage.md`](docs/command-coverage.md), and no builder ships for
+them.
+
+## Is my headset supported?
+
+The protocol runs over **Bluetooth Classic RFCOMM/SPP**. That channel is
+available on macOS, Windows, Linux, and Android, so the protocol can be driven
+on any of them — it **cannot** work on iOS or in a web browser, which do not
+expose SPP.
+
+Only the **macOS** transport is implemented today; the Linux, Windows, and
+Android transports are still to be written. Until then `--transport auto` (the
+default) **refuses to guess**: off macOS it raises `TransportUnavailable`, naming
+the platform and suggesting `--replay FILE`, rather than quietly opening a
+recording.
+
+This is a reverse-engineered project, so support is empirical rather than
+promised. The verified model is the Buds Air7 Pro; the static candidate list in
+[`docs/device-compatibility.md`](docs/device-compatibility.md) names other TL
+models by protocol shape, but only the Air7 Pro has been driven on hardware.
 
 ## Safety
 
-Three recovered command families — and two vendor-app-only requests — are
-**documented but not implemented**: no builder, decoder, or CLI command is
-provided for any of them, and their IDs are recorded only so their traffic can be
-identified:
+Three recovered command families are **documented but not implemented** — no
+builder, decoder, or CLI command is provided for any of them. Their IDs are
+recorded only so their traffic can be identified and refused:
 
-* the **hearing-test / ear-scan** family (`0x011E`, `0x011F`, `0x040E`, `0x0415`)
+- the **hearing-test / ear-scan** family (`0x011E`, `0x011F`, `0x040E`, `0x0415`)
   drives **loud, repeated test tones** in the wearer's ears;
-* the **OTA** family (`0x0300`–`0x0308`) is a firmware **push** state machine with
-  **no read-back** path, and it is ungated, so a stray write could start a flash;
-* the **debug** family (`0x0F00`–`0x0F02`) toggles real firmware verbosity and is
+- the **OTA** family (`0x0300`–`0x0308`) is a firmware **push** state machine
+  with **no read-back** path, and it is ungated, so a stray write could start a
+  flash;
+- the **debug** family (`0x0F00`–`0x0F02`) toggles real firmware verbosity and is
   refused by retail units.
 
-The two **vendor-app-only** requests are a separate case, because they are
-unverifiable rather than unsafe: `0x0503` (feature-switch sync) only fires when
-the official app toggles a feature, and `0x0516` is the AI-conversation mic
-stream, emitted only while the app runs an AI feature. Neither trigger is
-host-reachable, so no live test can ever confirm the body — and a decoder that
-cannot be verified would present a static-only recovery as supported. Both are
-documented in [`protocol.md`](docs/protocol.md) and deliberately left undecoded.
+Two **vendor-app-only** requests (`0x0503`, `0x0516`) are a separate case: they
+are unverifiable rather than unsafe, because their trigger is the official app
+running an AI or feature-sync flow, which this project cannot reach. They are
+documented and deliberately left undecoded.
 
-Do not sweep unknown commands against a headset that is being worn; any extension
-of this project should gate writes behind an explicit opt-in. See
+**If you extend this project, gate writes behind an explicit opt-in, and never
+sweep unknown commands against a headset that is being worn.** See
 [`docs/protocol.md`](docs/protocol.md) §7 for the recorded shapes and the
-deliberate non-implementation rationale.
+non-implementation rationale.
 
-## Installation
+## Install
 
-The package is **not yet published to PyPI**. Install from source:
+### Requirements
+
+- **Python 3.9 or newer**
+- **git**, to get the source
+- A **Bluetooth Classic** radio on the machine doing the talking. On macOS the
+  transport uses `IOBluetooth`; no extra driver is needed.
+
+### Set up a checkout
+
+The command-line tool and the desktop app are run from a checkout. Clone the
+repository and install into a virtualenv at its root:
 
 ```console
 $ git clone https://github.com/anshwalia/open-real-link.git
 $ cd open-real-link
+$ python3 -m venv .venv
+$ . .venv/bin/activate
+$ pip install -e ".[macos,gui]"
+```
+
+The extras are optional and independent:
+
+| Extra | Adds |
+| --- | --- |
+| `macos` | the IOBluetooth transport (`pyobjc-framework-IOBluetooth`) |
+| `gui` | PySide6, for the desktop app |
+| `dev` | the test and lint tools (`pytest`, `coverage`, `ruff`) |
+
+Add `dev` if you intend to run the test suite: `pip install -e ".[dev,macos,gui]"`.
+
+### Just the library
+
+If you only want the protocol core to build on in your own project, the package
+installs on its own and has **no dependencies**:
+
+```console
 $ pip install .
 ```
 
-The protocol core has no dependencies and imports no platform-specific module,
-so it can be used and tested anywhere, including against recorded captures.
+The distribution is **not yet published to PyPI**, so install from source. Note
+that the wheel currently ships only the `tlcore` library; `tlcli`, `tlapp`, and
+the transports come with a checkout.
 
-Platform transports are optional extras, installed the same way:
+## Try it without a headset
 
-```console
-$ pip install ".[macos]"   # macOS (implemented)
-$ pip install ".[linux]"   # Linux (transport still to be written)
-```
-
-For development, use the virtualenv at the repository root. Every `python`
-command in this README and in `docs/` means that interpreter:
+Every part of the tool runs against a recorded capture, so you can explore the
+whole thing with **no device and no radio**. Use the fixture bundled in the
+repository:
 
 ```console
-$ python3 -m venv .venv
-$ . .venv/bin/activate
-$ pip install -e ".[dev,macos,gui]"
+$ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
+$ python -m tlapp --replay fixtures/spp-smoketest.jsonl
 ```
 
-`[macos]` is the IOBluetooth transport, `[gui]` adds PySide6 for the desktop
-app, and `[dev]` adds the test and lint tools. (`.venv/bin/python` is the exact
-equivalent if you would rather not activate.)
+The replay fixtures carry no device address, so they are safe to use and share
+anywhere.
 
-## Quick start
+## Use it
+
+### Command line
+
+Run from the activated checkout. Replace `AA-BB-CC-DD-EE-FF` with your headset's
+address:
 
 ```console
-$ python -c "import tlcore; print(tlcore.NOISE_MODE_NAMES)"
-{1: 'Normal (noise off)', 2: 'Transparency', 4: 'ANC light', 8: 'ANC deep', 16: 'ANC medium', 32: 'ANC smart'}
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF smoke       # read-only live check
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF info        # model, firmware, battery, wear, mode
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF eq          # read the EQ mode + preset list
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF high-volume # read the loudness boost
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF events --seconds 15   # decode pushes
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
+$ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
 ```
 
-Build a command and frame it for the device:
+`python -m tlcli --help` lists every subcommand. For a hardware runbook and
+troubleshooting, see [`docs/live-test.md`](docs/live-test.md).
+
+### Desktop app
+
+```console
+$ python -m tlapp                                     # connect by hand
+$ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
+$ python -m tlapp --replay fixtures/spp-smoketest.jsonl
+```
+
+The app has a **General** view for everyday use — status, noise mode, equalizer,
+high volume, gestures, find-my-buds, backup/restore, and a live event monitor —
+and an **Expert** view for the diagnostic reads, the capability bitmap, the
+bass-engine read, and a guarded raw console that refuses the tone / OTA / debug
+families. On connect it runs a compatibility check against the unit's own
+capability bitmap and reports which everyday features it advertises. See
+[`docs/app.md`](docs/app.md).
+
+### As a library
 
 ```python
 import tlcore
@@ -176,71 +230,42 @@ packet = tlcore.build_packet(
     tlcore.payload_set_noise_mode(tlcore.NOISE_MODE_ANC),
 )
 for frame in tlcore.build_frames(packet, max_frame_size=512):
-    ...  # write frame to the transport, ~10 ms apart for the Air7 Pro
-```
-
-Or drive a headset from the command line (run from a checkout):
-
-```console
-$ python -m tlcli --replay fixtures/spp-smoketest.jsonl info
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF smoke      # read-only live check
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF mode set anc
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF eq          # read the EQ mode + list
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF high-volume  # read the loudness boost
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF high-volume off   # write it (buds worn)
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF keys        # read the gesture table
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF events --seconds 15   # decode pushes
-$ python -m tlcli say "Noise control is on."            # host-side TTS via the headset
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF say --status   # speak a live summary
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF send 0x010C 01 --read 1
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
-$ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
-```
-
-See [`docs/live-test.md`](docs/live-test.md) for a hardware runbook and
-troubleshooting.
-
-Or open the desktop app (see [`docs/app.md`](docs/app.md)):
-
-```console
-$ python -m tlapp --replay fixtures/spp-smoketest.jsonl   # no device needed
-$ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
+    ...  # write each frame to your transport, ~10 ms apart for the Air7 Pro
 ```
 
 ## Project layout
 
 | Path | Contents |
 | --- | --- |
-| `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders, backup/restore |
+| `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders, backup/restore. Pure, no I/O |
 | `tltransport/` | `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport` (offline) |
 | `tlcli/` | Command-line front end, `python -m tlcli` |
 | `tlapp/` | PySide6 desktop app, `python -m tlapp` (Qt-free controller + widgets) |
 | `fixtures/` | Recorded device traffic used as golden test input |
-| `tests/` | Reference-codec parity, transport/session, macOS transport, and protocol-docs guards |
+| `tests/` | Reference-codec parity, transport/session, macOS transport, and docs guards |
 | `docs/` | Protocol reference and design notes |
 
 ## Documentation
 
-Additional documentation lives in [`docs/`](docs/):
-
-- [`protocol.md`](docs/protocol.md) — the wire format, command set, and which
-  commands are implemented and verified
-- [`command-coverage.md`](docs/command-coverage.md) — every known TL command ID,
-  with what `open-real-link` implements and what an Air7 Pro accepts
-- [`device-compatibility.md`](docs/device-compatibility.md) — the static
+- [`docs/protocol.md`](docs/protocol.md) — the wire format, command set, and
+  which commands are implemented and verified
+- [`docs/command-coverage.md`](docs/command-coverage.md) — every known TL command
+  ID, with what this project implements and what an Air7 Pro accepts
+- [`docs/device-compatibility.md`](docs/device-compatibility.md) — the static
   candidate list of models, tiered by protocol shape
-- [`live-test.md`](docs/live-test.md) — running against real hardware
-- [`app.md`](docs/app.md) — the desktop app: what it exposes, how it is tested,
-  and the safety model
-- [`architecture.md`](docs/architecture.md) — component layers and library/app split
-- [`stack.md`](docs/stack.md) — implementation stack
+- [`docs/live-test.md`](docs/live-test.md) — running against real hardware
+- [`docs/app.md`](docs/app.md) — the desktop app: what it exposes, how it is
+  tested, and its safety model
+- [`docs/architecture.md`](docs/architecture.md) — component layers and the
+  library/app split
+- [`docs/stack.md`](docs/stack.md) — the implementation stack
 
 ## Provenance
 
 Built from static analysis of a shipped APK together with controlled live
 traffic from a device owned by the author. The vendor app itself was never
-executed and requires a mandatory account login, which this project does not
-use and will not require.
+executed and requires a mandatory account login, which this project does not use
+and will not require.
 
 ## License
 
