@@ -153,6 +153,7 @@ The extras are optional and independent:
 | `macos` | the IOBluetooth transport (`pyobjc-framework-IOBluetooth`) |
 | `gui` | PySide6, for the desktop app |
 | `dev` | the test and lint tools (`pytest`, `coverage`, `ruff`) |
+| `release` | PyInstaller, for building the macOS app bundle |
 
 Add `dev` if you intend to run the test suite: `pip install -e ".[dev,macos,gui]"`.
 
@@ -168,6 +169,20 @@ $ pip install .
 The distribution is **not yet published to PyPI**, so install from source. Note
 that the wheel currently ships only the `tlcore` library; `tlcli`, `tlapp`, and
 the transports come with a checkout.
+
+### Build a macOS app bundle
+
+A frozen `OpenRealLink.app` — no Python or pip required on the target Mac — is
+built from a checkout with PyInstaller:
+
+```console
+$ release/macos/build.sh            # writes dist/macos/OpenRealLink.app
+$ MAKE_DMG=1 release/macos/build.sh # ...and a .dmg around it
+```
+
+The bundle is ad-hoc signed, so it runs on the machine that built it; a public
+download needs a Developer ID signature and notarisation. See
+[`docs/packaging.md`](docs/packaging.md).
 
 ## Try it without a headset
 
@@ -244,6 +259,7 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
 | `fixtures/` | Recorded device traffic used as golden test input |
 | `tests/` | Reference-codec parity, transport/session, macOS transport, and docs guards |
 | `docs/` | Protocol reference and design notes |
+| `release/macos/` | PyInstaller spec, entry point, icon and build scripts for the `.app` |
 
 ## Documentation
 
@@ -259,6 +275,8 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
 - [`docs/architecture.md`](docs/architecture.md) — component layers and the
   library/app split
 - [`docs/stack.md`](docs/stack.md) — the implementation stack
+- [`docs/packaging.md`](docs/packaging.md) — building and signing the macOS app
+  bundle, and the plan for Windows and Linux
 
 ## Provenance
 

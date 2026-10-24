@@ -12,3 +12,6 @@ htmlcov/
 
 # macOS
 .DS_Store
+
+# generated app icon (from icon.svg / icon.png via make-icon.sh)
+release/macos/icon.icns

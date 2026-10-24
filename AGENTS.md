@@ -35,6 +35,7 @@ The protocol work is done; what remains is a UI and two transport shims.
 | `tltransport` | macOS live transport + portable replay done; Linux/Windows/Android still to write — until then `--transport auto` off macOS raises `TransportUnavailable` naming the platform rather than falling back to replay | [`architecture.md`](docs/architecture.md) §3, §4 |
 | `tlcli` | done (the hardware test harness) | [`live-test.md`](docs/live-test.md) |
 | `tlapp` | **in progress** — connect, status, noise mode, EQ preset + list, high volume, find my buds, paired-device list, gesture table, backup/restore, event monitor, a connect-time compatibility check, and two views: General and Expert (diagnostics, bitmap, bass read, guarded raw console) | [`app.md`](docs/app.md) |
+| `release/macos` | a macOS `.app` bundle built with PyInstaller — ad-hoc signed, so not yet installable on other Macs | [`packaging.md`](docs/packaging.md) |
 
 The app is built **one verified feature at a time**; `docs/app.md` lists what is
 in it and what is deliberately not yet. The build order is in
@@ -120,6 +121,8 @@ globally.
 - `pytest -q` passes.
 - `python tests/test_app.py` prints `APP: OK` (the Qt-free app controller).
 - `python tests/test_protocol_docs.py` prints `DOCS: OK`.
+- `python tests/test_packaging.py` prints `PACKAGING: OK` (the macOS bundle
+  inputs and icon pipeline; the icon step skips off macOS).
 - `TL_REFERENCE=… python tests/test_parity_tl_frame.py` prints `PARITY: OK`
   (or skips cleanly when the reference is unavailable).
 - Nothing from the "Do not add here" list is staged.
