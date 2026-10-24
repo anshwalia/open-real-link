@@ -16,10 +16,14 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -28,6 +32,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -56,12 +61,17 @@ from .controller import (
 #: Sentinel so ``_run`` can tell "returned None" from "failed".
 _FAILED = object()
 
+#: Sub-tabs of the General view, in order.
 TAB_DEVICE = 0
 TAB_SOUND = 1
 TAB_GESTURES = 2
 TAB_BACKUP = 3
 TAB_EVENTS = 4
-TAB_EXPERT = 5
+
+#: The two top-level views. General is the everyday surface; Expert collects
+#: everything that needs protocol knowledge, so General can stay simple.
+VIEW_GENERAL = 0
+VIEW_EXPERT = 1
 
 #: How often the event monitor reads the link, in milliseconds.  Slightly
 #: longer than the read budget so the GUI thread always gets a turn.
@@ -69,7 +79,7 @@ EVENT_POLL_MS = 60
 
 
 class MainWindow(QMainWindow):
-    """The application window: a connection bar and six tabs."""
+    """The application window: a connection bar, a view switch and two views."""
 
     def __init__(self, options: ConnectionOptions):
         super().__init__()
@@ -78,7 +88,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("OpenRealLink")
         self.resize(900, 780)
         self._build_toolbar()
-        self._build_tabs()
+        self._build_view_switch()
+        self._build_views()
         self._set_connected(False)
         self.statusBar().showMessage(
             f"Ready (replay: {options.replay})." if options.replay
@@ -108,15 +119,154 @@ class MainWindow(QMainWindow):
         self.conn_label.setStyleSheet("color: #a00; font-weight: 600;")
         bar.addWidget(self.conn_label)
 
-    def _build_tabs(self) -> None:
+    def _build_view_switch(self) -> None:
+        """A two-button switch between the General and Expert views."""
+        bar = QToolBar("View")
+        bar.setMovable(False)
+        self.addToolBar(bar)
+        bar.addWidget(QLabel("  View  "))
+        self.view_buttons: dict[int, QPushButton] = {}
+        self.view_group = QButtonGroup(self)
+        self.view_group.setExclusive(True)
+        for label, index in (("General", VIEW_GENERAL), ("Expert", VIEW_EXPERT)):
+            button = QPushButton(label)
+            button.setCheckable(True)
+            button.setChecked(index == VIEW_GENERAL)
+            button.clicked.connect(lambda _checked=False, i=index: self.show_view(i))
+            bar.addWidget(button)
+            self.view_group.addButton(button, index)
+            self.view_buttons[index] = button
+        bar.addWidget(QLabel(
+            "   General is the everyday surface; Expert adds diagnostics and the "
+            "guarded console."))
+
+    def show_view(self, index: int) -> None:
+        """Switch the top-level view, refusing Expert while it is locked."""
+        if index == VIEW_EXPERT and not self.expert_view.isEnabled():
+            return
+        self.views.setCurrentIndex(index)
+        button = self.view_buttons.get(index)
+        if button is not None:
+            button.setChecked(True)
+
+    def _build_views(self) -> None:
+        self.views = QStackedWidget()
+        self.general_view = self._build_general_view()
+        self.expert_view = self._build_expert_view()
+        self.views.addWidget(self.general_view)   # index VIEW_GENERAL
+        self.views.addWidget(self.expert_view)    # index VIEW_EXPERT
+        self.setCentralWidget(self.views)
+
+    def _build_general_view(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._build_compat_banner())
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_device_tab(), "Device")
         self.tabs.addTab(self._build_sound_tab(), "Sound")
         self.tabs.addTab(self._build_gestures_tab(), "Gestures")
         self.tabs.addTab(self._build_backup_tab(), "Backup")
         self.tabs.addTab(self._build_events_tab(), "Events")
-        self.tabs.addTab(self._build_expert_tab(), "Expert")
-        self.setCentralWidget(self.tabs)
+        outer.addWidget(self.tabs)
+        return page
+
+    # -------------------------------------------------- compatibility banner
+    def _build_compat_banner(self) -> QWidget:
+        """The launch-time verdict, kept above every General tab.
+
+        It runs from the reads the connect path already makes -- the ``0x8100``
+        bitmap and the status poll -- so showing it costs no extra traffic.
+        """
+        self.compat_frame = QFrame()
+        self.compat_frame.setObjectName("compatBanner")
+        row = QHBoxLayout(self.compat_frame)
+        row.setContentsMargins(10, 8, 10, 8)
+        self.compat_label = QLabel(
+            "Not connected -- connect to run the compatibility check.")
+        self.compat_label.setWordWrap(True)
+        self.compat_label.setTextFormat(Qt.TextFormat.RichText)
+        row.addWidget(self.compat_label, 1)
+        self.compat_check_btn = QPushButton("Check compatibility")
+        self.compat_check_btn.clicked.connect(self._check_compatibility)
+        row.addWidget(self.compat_check_btn)
+        self.compat_details_btn = QPushButton("Details...")
+        self.compat_details_btn.clicked.connect(self._show_compat_details)
+        self.compat_details_btn.setEnabled(False)
+        row.addWidget(self.compat_details_btn)
+        self._compat: dict | None = None
+        self._style_compat("idle")
+        return self.compat_frame
+
+    def _style_compat(self, verdict: str) -> None:
+        colours = {
+            "idle": ("#f4f4f5", "#3f3f46"),
+            "compatible": ("#e7f6ec", "#12603a"),
+            "limited": ("#fdf3e2", "#8a5300"),
+            "unsupported": ("#fdeaea", "#a11a1a"),
+        }
+        background, foreground = colours.get(verdict, colours["idle"])
+        self.compat_frame.setStyleSheet(
+            f"QFrame#compatBanner {{ background: {background}; "
+            f"border: 1px solid {foreground}33; border-radius: 6px; }}"
+            f"QFrame#compatBanner QLabel {{ color: {foreground}; }}")
+
+    def _show_compat(self, result: dict | None) -> None:
+        self._compat = result
+        if result is None:
+            self.compat_label.setText(
+                "Not connected -- connect to run the compatibility check.")
+            self._style_compat("idle")
+            self.compat_details_btn.setEnabled(False)
+            return
+        mark = {"compatible": "\u2713", "limited": "\u26a0",
+                "unsupported": "\u2715"}.get(result["verdict"], "")
+        self.compat_label.setText(f"<b>{mark} {result['headline']}</b>")
+        self._style_compat(result["verdict"])
+        self.compat_details_btn.setEnabled(True)
+
+    def _check_compatibility(self) -> None:
+        """Re-run the check from the cached reads, reading them if needed."""
+        if not self.controller.connected:
+            self._warn("Not connected", "Connect to a device first.")
+            return
+        if not self.controller.capabilities_ready:
+            self._run(lambda c: c.capabilities(), self._show_caps)
+            self._run(lambda c: c.status(), self._show_status)
+            self._apply_capability_gating()
+        self._run(lambda c: c.compatibility(), self._show_compat)
+
+    def _show_compat_details(self) -> None:
+        if not self._compat:
+            return
+        result = self._compat
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Compatibility details")
+        layout = QVBoxLayout(dialog)
+        title = QLabel(f"<b>{result['headline']}</b>")
+        title.setWordWrap(True)
+        layout.addWidget(title)
+        table = self._table(["Feature", "Status", "Missing"])
+        for feature in result["features"]:
+            self._add_row(table, feature["name"],
+                          "available" if feature["available"] else "not advertised",
+                          ", ".join(feature["missing"]) or "\u2014")
+        layout.addWidget(table)
+        if result["notes"]:
+            note = QLabel(" ".join(result["notes"]))
+            note.setWordWrap(True)
+            layout.addWidget(note)
+        footer = QLabel(
+            f"{result['advertised']} command(s) advertised by the device. This is "
+            "a host-side summary of the device's own capability bitmap, not a "
+            "vendor guarantee.")
+        footer.setWordWrap(True)
+        layout.addWidget(footer)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     @staticmethod
     def _table(headers: list[str]) -> QTableWidget:
@@ -426,14 +576,15 @@ class MainWindow(QMainWindow):
         return page
 
     # -------------------------------------------------------------- raw tab
-    def _build_expert_tab(self) -> QWidget:
+    # ---------------------------------------------------------- expert view
+    def _build_expert_view(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
 
         intro = QLabel(
             "Everything here needs protocol knowledge to read, and none of it is "
-            "needed to use the headset. The diagnostic reads and the raw console "
-            "live together on this one tab so the everyday tabs can stay simple.")
+            "needed to use the headset. Keeping it in its own view is what lets "
+            "the General view stay simple.")
         intro.setWordWrap(True)
         outer.addWidget(intro)
 
@@ -658,10 +809,11 @@ class MainWindow(QMainWindow):
 
     def _after_connect(self, _result=None) -> None:
         self._set_connected(True)
-        self.statusBar().showMessage("Connected. Reading capabilities and status…")
+        self.statusBar().showMessage("Connected. Checking compatibility...")
         self._run(lambda c: c.capabilities(), self._show_caps)
         self._run(lambda c: c.status(), self._show_status)
         self._apply_capability_gating()
+        self._run(lambda c: c.compatibility(), self._show_compat)
         self.statusBar().showMessage("Connected.")
 
     def _set_connected(self, state: bool) -> None:
@@ -673,8 +825,15 @@ class MainWindow(QMainWindow):
         self.tabs.setTabEnabled(TAB_GESTURES, state)
         self.tabs.setTabEnabled(TAB_BACKUP, state)
         self.tabs.setTabEnabled(TAB_EVENTS, state)
-        self.tabs.setTabEnabled(TAB_EXPERT, state)
+        # The Expert view is device-only, so it is locked while disconnected and
+        # the window falls back to General if it was showing.
+        self.expert_view.setEnabled(state)
+        self.view_buttons[VIEW_EXPERT].setEnabled(state)
+        if not state and self.views.currentIndex() == VIEW_EXPERT:
+            self.show_view(VIEW_GENERAL)
+        self.compat_check_btn.setEnabled(state)
         if not state:
+            self._show_compat(None)
             self._stop_listening()
             self._wear = None
             self._set_ringing(False)

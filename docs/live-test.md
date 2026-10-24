@@ -285,7 +285,7 @@ RESULT: OK
 
 ### Expert surface re-check (read-only, 2026-10-23)
 
-The nine Expert-tab reads and the `0x0112` paired-device list were re-driven
+The nine Expert-surface reads and the `0x0112` paired-device list were re-driven
 through the **app's own controller** against the same Air7 Pro. Every value
 matched what is recorded below: vendor `0x072F`, protocol `000001`, colour
 `0x06`, one upgrade-capability entry, `0x010D` still empty, push types

@@ -153,6 +153,55 @@ def test_live_capture_capabilities_and_status() -> None:
 
 
 # --------------------------------------------------------------------------
+# compatibility check (the General view's launch banner)
+# --------------------------------------------------------------------------
+def test_compatibility_assessment_on_live_capture() -> None:
+    ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    ctrl.connect()
+    ctrl.capabilities()
+    ctrl.status()
+    verdict = ctrl.compatibility()
+    check("compat verdict", verdict["verdict"], "compatible")
+    check("compat model", verdict["model_name"], "realme Buds Air7 Pro")
+    check("compat tier", verdict["tier"], "A")
+    check("compat advertised", verdict["advertised"], 49)
+    check("compat missing", verdict["missing"], [])
+    check("compat feature count", len(verdict["features"]), 7)
+    ctrl.disconnect()
+    # the caches are dropped with the link, so a stale verdict cannot linger
+    check("compat cleared on disconnect", ctrl.compatibility()["verdict"],
+          "unsupported")
+
+
+def test_assess_compatibility_verdicts() -> None:
+    from tlapp.controller import assess_compatibility
+
+    unsupported = assess_compatibility(None, None)
+    check("no caps -> unsupported", unsupported["verdict"], "unsupported")
+
+    limited = assess_compatibility(
+        {"ok": True, "commands": {0x0105, 0x0106, 0x0109, 0x010C, 0x0404}},
+        {"model": {"model_id": 0x064C12}})
+    check("partial -> limited", limited["verdict"], "limited")
+    check("limited names the gap", "Equalizer" in limited["missing"], True)
+
+    unknown = assess_compatibility(
+        {"ok": True, "commands": set(range(0x0100, 0x0500))}, None)
+    check("unknown model, all features -> compatible", unknown["verdict"],
+          "compatible")
+    check("unknown model has no name", unknown["model_name"], None)
+    check("unknown model is noted", bool(unknown["notes"]), True)
+
+    tier_c = assess_compatibility(
+        {"ok": True, "commands": {0x0105, 0x0106, 0x0109, 0x010C, 0x0404,
+                                  0x010F, 0x0406, 0x0110, 0x0407, 0x0400,
+                                  0x0108, 0x0401, 0x0112}},
+        {"model": {"model_id": 0x061012}})   # Air 3S, tier C
+    check("tier C -> compatible with a note", tier_c["verdict"], "compatible")
+    check("tier C note", any("tier-C" in note for note in tier_c["notes"]), True)
+
+
+# --------------------------------------------------------------------------
 # 3: noise mode get/set
 # --------------------------------------------------------------------------
 def test_noise_roundtrip() -> None:
@@ -448,7 +497,7 @@ def test_expert_diagnostics_disconnected() -> None:
 
 
 def test_expert_diagnostics_are_read_only() -> None:
-    """Nothing on the Expert tab may write: it is reads and the raw console."""
+    """Nothing on the Expert view may write: it is reads and the raw console."""
     ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
     for name in ("identity", "upgrade_capability", "switch_features",
                  "notification_capabilities", "personalized_anc", "ai_status"):

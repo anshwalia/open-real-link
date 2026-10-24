@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **ninth slice.** The app is built one feature at a time, and a feature
+Status: **tenth slice.** The app is built one feature at a time, and a feature
 reaches the UI only once it is implemented *and* verified. These slices expose
-eleven things and nothing else:
+thirteen things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -21,11 +21,20 @@ eleven things and nothing else:
    gesture, write the whole table back with `0x0401` and read it again.
 10. **Push-event monitor** — listen for the device's own notifications (button
     presses, battery, wear, noise, multi-connect) and decode them live.
-11. **Expert tab** — the diagnostic reads (`0x0102`, `0x0104`, `0x010B`,
+11. **Expert view** — the diagnostic reads (`0x0102`, `0x0104`, `0x010B`,
     `0x0107`, `0x010D`, `0x0200`, `0x011A`, `0x0131`), the capability bitmap,
     the bass-engine read from `0x012C`, and the **guarded raw console** (one
     command the app has no control for, with the tone / OTA / debug families
-    refused), collected on one tab.
+    refused), collected in one view.
+12. **Two views** — a **General** view for everyday use and an **Expert** view
+    for the diagnostics and the guarded console. The Expert view is locked until
+    a device is connected, and the window falls back to General when one
+    disconnects.
+13. **Compatibility check** — on connect, the app summarises the unit's own
+    capability bitmap (`0x8100`) and model into a banner above the General tabs:
+    which everyday features are available, and which the unit does not advertise.
+    It reuses the reads the connect path already makes, so it costs no extra
+    traffic. It is a host-side summary, not a vendor guarantee.
 
 Everything else the CLI can do (voice, the SDP service list) is deliberately
 **not** in the UI yet. It is added, wired up and live-tested one item at a time,
@@ -78,6 +87,27 @@ path can be overridden with `OPEN_REAL_LINK_LOCK` to run two builds side by side
 
 ## What the window does
 
+The window has two top-level **views**, switched from the toolbar: **General**
+for everyday use, and **Expert** for everything that needs protocol knowledge.
+The Expert view is locked while disconnected, so the General view is the whole
+app until a headset is connected.
+
+### General — the compatibility banner
+
+Above the General tabs sits a banner that runs as soon as the app connects. It
+reports one of three verdicts from the device's own `0x8100` bitmap:
+
+* **compatible** — the unit advertises every feature the General view needs;
+* **limited** — it is a TL device, but one or more everyday features are not
+  advertised (named, so the gap is visible rather than hidden);
+* **unsupported** — no `0x8100` bitmap came back, so it does not look like a
+  supported realme/OPPO TL headset.
+
+**Details…** opens the per-feature breakdown. The model id is matched against the
+static candidate table only to *label* the model and its tier; the bitmap is what
+decides each row. A tier-C candidate is compatible but carries a note that its
+transport or payload shape differs from the verified model.
+
 ### Device
 
 * **Connect / Disconnect** and a live connected/disconnected state.
@@ -85,7 +115,7 @@ path can be overridden with `OPEN_REAL_LINK_LOCK` to run two builds side by side
   candidate list), firmware, version, battery for left/right/case, wear state,
   the active noise mode, and use time.
 * **Read capabilities** reads the `0x8100` bitmap and summarises it; the full
-  table lives on the **Expert** tab.
+  table lives on the **Expert** view.
 * **Find my buds** — Ring / Stop, and **Connected devices** — the `0x0112`
   paired-device list. Both have their own notes below.
 
@@ -133,9 +163,9 @@ identity, not a setting.
 * **High volume** — the loudness-boost flag. **Read** sets the checkbox to the
   device's answer; **Apply** writes it and reads it back.
 
-The bass-engine read lives on the **Expert** tab, not here: its bands are the
+The bass-engine read lives on the **Expert** view, not here: its bands are the
 device's own `type 1/2/3` selector with no recovered user-facing name, so a
-table of unlabelled bands on the everyday tab invites a question it cannot
+table of unlabelled bands on the everyday view invites a question it cannot
 answer.
 
 A noise-mode or high-volume write is accepted only while the buds are **worn**;
@@ -248,9 +278,9 @@ and reports it in the status bar — never a modal, because a modal opened from 
 
 ### Expert
 
-Everything on this tab needs protocol knowledge to read, and none of it is
-needed to use the headset. Keeping it together is what lets the other five tabs
-stay simple. It holds four groups:
+Everything on this view needs protocol knowledge to read, and none of it is
+needed to use the headset. Keeping it in its own view is what lets the General
+view stay simple. It holds four groups:
 
 * **Diagnostics** — six reads, each gated on its own capability bit: **Identity**
   (vendor id `0x0102`, protocol version `0x0104`, colour id `0x010B`),
@@ -271,7 +301,7 @@ stay simple. It holds four groups:
   was long assumed to be, `0x0124`, is never answered by an Air7 Pro.
 * **Raw console** — see below.
 
-One gating rule is worth stating because it bit this tab during development: a
+One gating rule is worth stating because it bit this view during development: a
 control is only switched off by the bitmap when its command is genuinely
 `cap-bit N`. An **always-on or ungated** command is not in the bitmap at all, so
 asking `supports()` about one answers "no" for a command that plainly works.

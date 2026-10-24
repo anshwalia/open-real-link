@@ -30,9 +30,10 @@ from tlapp.window import (  # noqa: E402
     TAB_BACKUP,
     TAB_DEVICE,
     TAB_EVENTS,
-    TAB_EXPERT,
     TAB_GESTURES,
     TAB_SOUND,
+    VIEW_EXPERT,
+    VIEW_GENERAL,
     MainWindow,
 )
 
@@ -112,6 +113,13 @@ def test_window_builds_and_connects() -> None:
         assert window.noise_apply_btn.isEnabled()
         assert "Normal" in window.lbl_noise.text()
 
+        # the launch compatibility check ran from the same reads
+        assert window._compat is not None
+        assert window._compat["verdict"] == "compatible"
+        assert "realme Buds Air7 Pro" in window._compat["headline"]
+        assert "every general feature" in window.compat_label.text()
+        assert window.compat_details_btn.isEnabled()
+
         # the Sound tab carries the equalizer and high-volume controls too
         assert window.eq_combo.count() == 7           # verified presets 0..6
         assert window.eq_combo.currentData() == 0
@@ -147,8 +155,8 @@ def test_window_builds_and_connects() -> None:
         assert window.gestures_table.rowCount() == 0
         assert window.lbl_gestures.text() == "No table read yet."
 
-        # the raw console is live but empty, and explains the guard before use
-        assert window.tabs.isTabEnabled(TAB_EXPERT)
+        # the Expert view is live but empty, and explains the guard before use
+        assert window.expert_view.isEnabled()
         assert window.raw_table.rowCount() == 0
         assert window.lbl_raw.text() == "Nothing sent yet."
         assert window.raw_command_edit.text() == ""
@@ -623,13 +631,17 @@ def test_window_disconnected_state() -> None:
     _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
-        # Sound, Gestures, Backup, Events and Expert all need a device
+        # Sound, Gestures, Backup, Events and the Expert view all need a device
         assert window.connect_btn.text() == "Connect"
         assert not window.tabs.isTabEnabled(TAB_SOUND)
         assert not window.tabs.isTabEnabled(TAB_GESTURES)
         assert not window.tabs.isTabEnabled(TAB_BACKUP)
         assert not window.tabs.isTabEnabled(TAB_EVENTS)
-        assert not window.tabs.isTabEnabled(TAB_EXPERT)
+        assert not window.expert_view.isEnabled()
+        assert not window.view_buttons[VIEW_EXPERT].isEnabled()
+        assert window.views.currentIndex() == VIEW_GENERAL
+        assert not window.compat_check_btn.isEnabled()
+        assert "Not connected" in window.compat_label.text()
     finally:
         window.close()
 
@@ -807,22 +819,22 @@ def test_find_buttons_are_disabled_while_disconnected() -> None:
         window.close()
 
 
-def test_expert_tab_collects_the_diagnostics() -> None:
-    """The expert surface is one tab, and Normal keeps the simple tabs simple."""
+def test_expert_view_collects_the_diagnostics() -> None:
+    """The expert surface is its own view, and General keeps the tabs simple."""
     app = _app()
     window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
     try:
         window.connect_device()
         app.processEvents()
 
-        assert window.tabs.count() == 6
-        assert window.tabs.tabText(TAB_EXPERT) == "Expert"
+        assert window.tabs.count() == 5
+        assert window.expert_view.isEnabled()
 
-        expert = window.tabs.widget(TAB_EXPERT)
+        expert = window.expert_view
         device = window.tabs.widget(TAB_DEVICE)
         sound = window.tabs.widget(TAB_SOUND)
 
-        # everything diagnostic moved here
+        # everything diagnostic lives on the Expert view
         for widget in (window.caps_table, window.bass_table,
                        window.bass_read_btn, window.diag_table,
                        window.raw_table, window.raw_send_btn):
@@ -836,6 +848,60 @@ def test_expert_tab_collects_the_diagnostics() -> None:
         # the capability table is still populated the moment we connect
         assert window.caps_table.rowCount() == len(t.ALL_COMMANDS)
         assert len(window._diag_buttons) == 6
+    finally:
+        window.close()
+
+
+def test_two_views_switch_and_lock_offline() -> None:
+    """General and Expert are top-level views; Expert needs a device."""
+    app = _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        assert window.views.currentIndex() == VIEW_GENERAL
+        # Expert is locked while disconnected, so switching to it is refused
+        assert not window.expert_view.isEnabled()
+        window.show_view(VIEW_EXPERT)
+        assert window.views.currentIndex() == VIEW_GENERAL
+
+        window.connect_device()
+        app.processEvents()
+        assert window.expert_view.isEnabled()
+        assert window.view_buttons[VIEW_EXPERT].isEnabled()
+        window.show_view(VIEW_EXPERT)
+        assert window.views.currentIndex() == VIEW_EXPERT
+        assert window.view_buttons[VIEW_EXPERT].isChecked()
+
+        # disconnecting falls back to General and re-locks Expert
+        window._toggle_connection()
+        app.processEvents()
+        assert window.views.currentIndex() == VIEW_GENERAL
+        assert not window.expert_view.isEnabled()
+    finally:
+        window.close()
+
+
+def test_compat_banner_verdicts() -> None:
+    """The banner must name a partial unit rather than hide the gap."""
+    from tlapp.controller import assess_compatibility
+
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_compat(assess_compatibility(None, None))
+        assert window._compat["verdict"] == "unsupported"
+        assert "0x8100" in window._compat["headline"]
+        assert window.compat_details_btn.isEnabled()
+
+        window._show_compat(assess_compatibility(
+            {"ok": True, "commands": {0x0105, 0x0106, 0x0109, 0x010C, 0x0404}},
+            {"model": {"model_id": 0x064C12}}))
+        assert window._compat["verdict"] == "limited"
+        assert "Equalizer" in window._compat["headline"]
+        assert "does not advertise" in window.compat_label.text()
+
+        window._show_compat(None)
+        assert "Not connected" in window.compat_label.text()
+        assert not window.compat_details_btn.isEnabled()
     finally:
         window.close()
 

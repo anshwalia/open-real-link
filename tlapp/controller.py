@@ -51,7 +51,9 @@ __all__ = [
     "EQ_PRESET_MAX",
     "EQ_PRESET_MIN",
     "EVENT_POLL_SECONDS",
+    "GENERAL_FEATURES",
     "SEND_LISTEN_SECONDS",
+    "assess_compatibility",
     "eq_preset_choices",
     "event_phrase",
     "friendly_error",
@@ -207,6 +209,106 @@ def event_phrase(row: dict) -> str:
     return row.get("payload", "")
 
 
+#: The **general-view** feature set: a label and the command ids its controls
+#: use. The grouping is a product decision, not a protocol fact -- whether each
+#: row is available comes from the device's own ``0x8100`` bitmap at runtime.
+GENERAL_FEATURES: tuple[tuple[str, tuple[int, ...]], ...] = (
+    ("Device status & battery", (0x0105, 0x0106, 0x0109)),
+    ("Noise control", (0x010C, 0x0404)),
+    ("Equalizer", (0x010F, 0x0406)),
+    ("High volume", (0x0110, 0x0407)),
+    ("Find my buds", (0x0400,)),
+    ("Gestures", (0x0108, 0x0401)),
+    ("Connected devices", (0x0112,)),
+)
+
+
+def _command_advertised(advertised: set[int], cmd: int) -> bool:
+    """Whether ``cmd`` is usable given the advertised set.
+
+    Mirrors the window's gating rule: an *always-on* or *ungated* command is not
+    in the bitmap at all, so its absence must not read as "unsupported".
+    """
+    spec = t.command_spec(cmd)
+    if spec is not None and not spec.gating.startswith("cap-bit"):
+        return True
+    return cmd in advertised
+
+
+def assess_compatibility(caps: dict | None, status: dict | None = None) -> dict:
+    """Judge whether the connected unit is usable from the general view.
+
+    Built only from reads the app already performs on connect -- the live
+    capability bitmap (``0x8100``) and the status poll -- so it adds no wire
+    traffic and no protocol fact. The bitmap is authoritative for what the unit
+    answers; the static model table only labels the model and its candidate tier.
+
+    Returns a dict with ``verdict`` (``compatible`` / ``limited`` /
+    ``unsupported``), a one-line ``headline``, the resolved model and tier, and
+    a per-feature breakdown. This is a host-side summary, not a vendor promise.
+    """
+    advertised = set(caps["commands"]) if caps else set()
+    model_id: int | None = None
+    model_name: str | None = None
+    tier: str | None = None
+    if status:
+        raw = status.get("model", {}).get("model_id")
+        if raw is not None:
+            model_id = raw
+            spec = t.device_spec(f"{raw:06X}")
+            if spec is not None:
+                model_name, tier = spec.name, spec.tier
+
+    features = [
+        {
+            "name": name,
+            "available": all(_command_advertised(advertised, cmd) for cmd in cmds),
+            "missing": [f"0x{cmd:04X}" for cmd in cmds
+                        if not _command_advertised(advertised, cmd)],
+        }
+        for name, cmds in GENERAL_FEATURES
+    ]
+    available = [feature["name"] for feature in features if feature["available"]]
+    missing = [feature["name"] for feature in features if not feature["available"]]
+
+    notes: list[str] = []
+    if not caps or not caps.get("ok") or not advertised:
+        verdict = "unsupported"
+        headline = ("No TL capability bitmap (0x8100) was returned -- this does "
+                    "not look like a supported realme/OPPO TL headset.")
+    else:
+        if model_name is None:
+            notes.append("The model id is not in the static candidate table, so "
+                         "only the device's own advertised commands are known.")
+        elif tier == "C":
+            notes.append(f"{model_name} is a tier-C candidate: its transport or "
+                         "payload shape differs from the verified model, so some "
+                         "features may not behave as expected.")
+        if missing:
+            verdict = "limited"
+            headline = ("Connected, but this unit does not advertise: "
+                        + ", ".join(missing) + ".")
+        elif model_name:
+            verdict = "compatible"
+            headline = f"{model_name} -- every general feature is available."
+        else:
+            verdict = "compatible"
+            headline = "This device advertises every general feature."
+
+    return {
+        "verdict": verdict,
+        "headline": headline,
+        "model_id": model_id,
+        "model_name": model_name,
+        "tier": tier,
+        "advertised": len(advertised),
+        "features": features,
+        "available": available,
+        "missing": missing,
+        "notes": notes,
+    }
+
+
 def eq_preset_choices() -> list[tuple[int, str]]:
     """The selectable sound-effect presets, in wire-value order.
 
@@ -226,6 +328,7 @@ class DeviceController:
         self.transport = None
         self.session = None
         self._caps: dict | None = None
+        self._status: dict | None = None
 
     # -- lifecycle ---------------------------------------------------------
     @property
@@ -246,6 +349,7 @@ class DeviceController:
         except t.TLError as exc:
             raise ControllerError(friendly_error(exc)) from exc
         self._caps = None
+        self._status = None
 
     def disconnect(self) -> None:
         if self.transport is not None:
@@ -256,6 +360,7 @@ class DeviceController:
         self.transport = None
         self.session = None
         self._caps = None
+        self._status = None
 
     # -- plumbing ----------------------------------------------------------
     def _require(self):
@@ -282,10 +387,26 @@ class DeviceController:
         """Whether the last-read bitmap advertises ``cmd``."""
         return bool(self._caps and cmd in self._caps["commands"])
 
+    @property
+    def capabilities_ready(self) -> bool:
+        """Whether the ``0x8100`` bitmap has been read on this connection."""
+        return self._caps is not None
+
     # -- 2. device status --------------------------------------------------
     def status(self) -> dict:
         """Poll model, firmware, version, battery, wear, mode and use time."""
-        return self._call(self._require().read_status, timeout=self.options.timeout)
+        result = self._call(self._require().read_status, timeout=self.options.timeout)
+        self._status = result
+        return result
+
+    # -- compatibility -----------------------------------------------------
+    def compatibility(self) -> dict:
+        """Summarise whether this unit is usable from the general view.
+
+        Adds no wire traffic: it reads whatever :meth:`capabilities` and
+        :meth:`status` have already cached (the window reads both on connect).
+        """
+        return assess_compatibility(self._caps, self._status)
 
     # -- 3. noise mode -----------------------------------------------------
     def noise_mode(self) -> int:
@@ -382,7 +503,7 @@ class DeviceController:
 
         None of these mean anything to a listener -- they identify the *wire*
         peer, not the product -- which is exactly why they live behind the
-        Expert tab rather than on Device.
+        Expert view rather than on the Device tab.
         """
         session = self._require()
         timeout = self.options.timeout
