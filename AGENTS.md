@@ -113,6 +113,9 @@ you would rather not activate.
 - `tlcore` is **pure**: no platform imports and no I/O. Transports live in
   `tltransport`; the CLI in `tlcli`; the GUI in `tlapp` (whose controller is
   itself Qt-free, so `import tlapp` never pulls in PySide6).
+- Annotations use PEP 604 (`X | None`); every annotated module starts with
+  `from __future__ import annotations`, which keeps them valid on the Python 3.9
+  CI leg. Add the future import to any new module that annotates.
 - The codec is verified byte-for-byte against an external reference through
   `tests/test_parity_tl_frame.py`, which reads `TL_REFERENCE` from the
   environment and **skips cleanly** when unset. Never hard-code a reference path.
@@ -135,7 +138,7 @@ you would rather not activate.
 ## Before committing
 
 - `pytest -q` passes.
-- `ruff check .` reports nothing.
+- `ruff check .` reports nothing (CI runs the same check).
 - `python tests/test_app.py` prints `APP: OK` (the Qt-free app controller).
 - `python tests/test_protocol_docs.py` prints `DOCS: OK`.
 - `python tests/test_command_registry.py` prints `COMMAND REGISTRY: OK` (the

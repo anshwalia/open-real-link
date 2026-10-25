@@ -181,6 +181,9 @@ $ pip install -e ".[dev,macos]"   # on macOS; ".[dev]" on Linux/Windows
 $ pytest -q
 ```
 
+CI runs that suite on Linux, Windows and macOS across Python 3.9 and 3.13, and
+also runs `ruff check .` over the whole tree.
+
 A few checks are platform- or reference-gated and **skip cleanly** when their
 input is absent, so the suite passes without any of them: the GUI test (no
 PySide6), and the reference-codec parity harness (no `TL_REFERENCE`). The

@@ -295,7 +295,7 @@ discoverability by project name for discoverability by protocol name.
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`
    (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
-4. **PySide6 app** — **started, in progress.** `tlapp/` exists with ten
+4. **PySide6 app** — **started, in progress.** `tlapp/` exists with these
    slices: connect, capability view, device status, the noise selector, the EQ
    preset and its `0x0122` list, high volume, find my buds, the paired-device
    list, the gesture table, settings backup / restore, the push-event monitor, a
