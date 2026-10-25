@@ -77,7 +77,7 @@ def load_fixture_hexes(name: str) -> list[tuple[str, str]]:
     if not path.exists():
         return []
     rows = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         rec = json.loads(line)

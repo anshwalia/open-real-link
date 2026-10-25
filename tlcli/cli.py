@@ -580,7 +580,7 @@ def _keys_write(args, action: str, specs: list[str]) -> int:
                    for old, new in zip(table["entries"], entries) if old != new]
         if args.save:
             pathlib.Path(args.save).write_text(
-                json.dumps(_key_table_dict(table), indent=2) + "\n")
+                json.dumps(_key_table_dict(table), indent=2) + "\n", encoding="utf-8")
             print(f"saved the original table to {args.save}")
         if not args.confirm:
             if args.json:
@@ -708,7 +708,7 @@ def cmd_backup(args) -> int:
     if args.file == "-":
         print(text)
         return 0
-    pathlib.Path(args.file).write_text(text + "\n")
+    pathlib.Path(args.file).write_text(text + "\n", encoding="utf-8")
     print(f"backup written to {args.file}")
     print(f"  device    : {snapshot['device']}")
     print(f"  captured  : {len(snapshot['raw'])} responses")
@@ -720,7 +720,7 @@ def cmd_backup(args) -> int:
 
 def cmd_restore(args) -> int:
     """Re-apply the restorable user settings from a backup snapshot."""
-    data = json.loads(pathlib.Path(args.file).read_text())
+    data = json.loads(pathlib.Path(args.file).read_text(encoding="utf-8"))
     transport, session = open_session(args)
     try:
         report = t.restore(session, data, dry_run=args.dry_run)

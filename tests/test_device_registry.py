@@ -133,7 +133,7 @@ def main() -> int:
     doc = ROOT / "docs" / "device-compatibility.md"
     check("device doc exists", doc.exists(), True)
     if doc.exists():
-        text = doc.read_text()
+        text = doc.read_text(encoding="utf-8")
         for d in devices:
             check(f"doc names {d.name}", d.name in text, True)
         for t in ALLOWED_TIER:

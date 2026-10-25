@@ -549,7 +549,7 @@ def test_instance_lock_reclaims_a_dead_holder() -> None:
         path = pathlib.Path(tmp) / "app.lock"
         # QLockFile stores pid / appname / hostname; a dead pid on this host
         # is what makes a lock stale and reclaimable
-        path.write_text(f"{999_999_999}\ntlapp\n{socket.gethostname()}\n")
+        path.write_text(f"{999_999_999}\ntlapp\n{socket.gethostname()}\n", encoding="utf-8")
         assert path.exists()
         fresh = InstanceLock(path)
         try:

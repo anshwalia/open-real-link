@@ -113,7 +113,7 @@ def write_snapshot(path, snapshot: dict) -> pathlib.Path:
     text = json.dumps(snapshot, indent=2) + "\n"
     tmp = path.with_name(path.name + ".tmp")
     try:
-        tmp.write_text(text)
+        tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, path)  # atomic: a reader never sees a partial file
     except OSError as exc:
         try:
@@ -133,7 +133,7 @@ def read_snapshot(path) -> dict:
     """
     path = pathlib.Path(path).expanduser()
     try:
-        raw = path.read_text()
+        raw = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise BackupFileError(
             f"cannot read {path.name}: {exc.strerror or exc}") from exc

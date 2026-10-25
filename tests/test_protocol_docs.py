@@ -69,7 +69,7 @@ def main() -> int:
     if not DOC.exists():
         print(f"missing {DOC}")
         return 1
-    text = DOC.read_text()
+    text = DOC.read_text(encoding="utf-8")
 
     import tlcore
 

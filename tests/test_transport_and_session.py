@@ -267,7 +267,7 @@ def test_cli_backup_restore() -> None:
         tmp = pathlib.Path(tmpdir)
         cap_path = tmp / "backup.jsonl"
         cap_path.write_text("\n".join(
-            json.dumps({"dir": d, "hex": b.hex()}) for d, b in _backup_records(canned)))
+            json.dumps({"dir": d, "hex": b.hex()}) for d, b in _backup_records(canned)), encoding="utf-8")
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -277,7 +277,7 @@ def test_cli_backup_restore() -> None:
         check("cli backup noise mode", snapshot["settings"]["noise_mode"], 1)
 
         snap_path = tmp / "snapshot.json"
-        snap_path.write_text(json.dumps(snapshot))
+        snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
         rec_path = tmp / "restore.jsonl"
         rec_path.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
@@ -290,7 +290,7 @@ def test_cli_backup_restore() -> None:
             # the per-test checks were unenforced under pytest (see
             # test_transport_and_session at the end of this file)
             ("tx", wire(0x0407, bytes([snapshot["settings"]["high_volume"]]))),
-            ("rx", wire(0x8407, bytes([0])))]))
+            ("rx", wire(0x8407, bytes([0])))]), encoding="utf-8")
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -516,7 +516,7 @@ def test_cli_eq() -> None:
         rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
             ("tx", wire(0x010F)), ("rx", wire(0x810F, bytes.fromhex("0004"))),
-            ("tx", wire(0x0122)), ("rx", wire(0x8122, bytes.fromhex("0001010102040000")))]))
+            ("tx", wire(0x0122)), ("rx", wire(0x8122, bytes.fromhex("0001010102040000")))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = main(["--replay", str(rec), "eq", "get"])
@@ -532,12 +532,12 @@ def test_cli_high_volume() -> None:
         get_rec = pathlib.Path(tmpdir) / "hv-get.jsonl"
         get_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
-            ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0001")))]))
+            ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0001")))]), encoding="utf-8")
         off_rec = pathlib.Path(tmpdir) / "hv-off.jsonl"
         off_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
             ("tx", wire(0x0407, bytes([0]))), ("rx", wire(0x8407, bytes([0]))),
-            ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0000")))]))
+            ("tx", wire(0x0110)), ("rx", wire(0x8110, bytes.fromhex("0000")))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = main(["--replay", str(get_rec), "high-volume", "get"])
@@ -579,12 +579,12 @@ def test_cli_ai_status() -> None:
         get_rec = pathlib.Path(tmpdir) / "ai-get.jsonl"
         get_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
-            ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101")))]))
+            ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101")))]), encoding="utf-8")
         set_rec = pathlib.Path(tmpdir) / "ai-set.jsonl"
         set_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
             ("tx", wire(0x0428, bytes([1, 1]))), ("rx", wire(0x8428, bytes([0]))),
-            ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101")))]))
+            ("tx", wire(0x0131)), ("rx", wire(0x8131, bytes.fromhex("000101")))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = main(["--replay", str(get_rec), "ai-status", "get"])
@@ -609,7 +609,7 @@ def test_cli_multipoint() -> None:
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
             ("tx", wire(0x0112)), ("rx", wire(0x8112, bytes.fromhex(
                 "00026655443322110c0201094c6170746f702d4100"
-                "ffeeddccbbaa0b00000850686f6e652d4200")))]))
+                "ffeeddccbbaa0b00000850686f6e652d4200")))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = main(["--replay", str(rec), "multipoint"])
@@ -675,7 +675,7 @@ def test_cli_compactness() -> None:
         rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex("00bf4f5ae665dc4004"))),
             ("tx", wire(0x0405, bytes([1]))), ("rx", wire(0x8405, bytes([0]))),
-            ("rx", wire(0x0204, bytes.fromhex("0401040204")))]))
+            ("rx", wire(0x0204, bytes.fromhex("0401040204")))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = main(["--replay", str(rec), "compactness", "start"])
@@ -731,7 +731,7 @@ def test_keys_session_and_cli() -> None:
         get_rec = pathlib.Path(tmpdir) / "keys-get.jsonl"
         get_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
-            ("tx", wire(0x0108)), ("rx", wire(0x8108, kf_table))]))
+            ("tx", wire(0x0108)), ("rx", wire(0x8108, kf_table))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = main(["--replay", str(get_rec), "keys", "get"])
@@ -757,7 +757,7 @@ def test_keys_session_and_cli() -> None:
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
             ("tx", wire(0x0108)), ("rx", wire(0x8108, kf_table)),
             ("tx", wire(0x0401, off_payload)), ("rx", wire(0x8401, b"\x00")),
-            ("tx", wire(0x0108)), ("rx", wire(0x8108, off_table))]))
+            ("tx", wire(0x0108)), ("rx", wire(0x8108, off_table))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             rc = main(["--replay", str(off_rec), "keys", "disable-long-press", "--confirm"])
@@ -769,7 +769,7 @@ def test_keys_session_and_cli() -> None:
         ev_rec = pathlib.Path(tmpdir) / "events.jsonl"
         ev_rec.write_text("\n".join(json.dumps({"dir": d, "hex": b.hex()}) for d, b in [
             ("tx", wire(0x0100)), ("rx", wire(0x8100, bytes.fromhex(caps))),
-            ("rx", wire(0x0204, bytes.fromhex("f102010200000000")))]))
+            ("rx", wire(0x0204, bytes.fromhex("f102010200000000")))]), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             rc = main(["--replay", str(ev_rec), "events", "--seconds", "0.1"])
@@ -813,7 +813,7 @@ def test_cli_bass() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp) / "bass.jsonl"
         path.write_text("\n".join(
-            json.dumps({"ts": 0.0, "dir": d, "hex": h.hex()}) for d, h in records) + "\n")
+            json.dumps({"ts": 0.0, "dir": d, "hex": h.hex()}) for d, h in records) + "\n", encoding="utf-8")
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -950,7 +950,7 @@ def _fixture_file(directory: str, records) -> str:
     path = pathlib.Path(directory) / "fixture.jsonl"
     path.write_text("".join(
         json.dumps({"ts": i, "dir": d, "hex": b.hex()}) + "\n"
-        for i, (d, b) in enumerate(records)))
+        for i, (d, b) in enumerate(records)), encoding="utf-8")
     return str(path)
 
 

@@ -75,7 +75,7 @@ def fixture(directory: str, records) -> str:
     path = pathlib.Path(directory) / "app-fixture.jsonl"
     path.write_text("".join(
         json.dumps({"ts": i, "dir": d, "hex": b.hex()}) + "\n"
-        for i, (d, b) in enumerate(records)))
+        for i, (d, b) in enumerate(records)), encoding="utf-8")
     return str(path)
 
 
@@ -588,11 +588,11 @@ def test_backup_file_names_and_directory() -> None:
 def test_backup_file_refuses_a_foreign_file() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         foreign = pathlib.Path(tmp) / "foreign.json"
-        foreign.write_text('{"hello": "world"}')
+        foreign.write_text('{"hello": "world"}', encoding="utf-8")
         check_raises("a JSON file that is not a snapshot", BackupFileError,
                      read_snapshot, foreign)
         notjson = pathlib.Path(tmp) / "notes.txt"
-        notjson.write_text("this is not json")
+        notjson.write_text("this is not json", encoding="utf-8")
         check_raises("a file that is not JSON at all", BackupFileError,
                      read_snapshot, notjson)
         check_raises("a file that is not there", BackupFileError,
@@ -612,7 +612,7 @@ def test_backup_writes_an_atomic_plain_json_file() -> None:
               sorted(p.name for p in path.parent.iterdir()), ["backup.json"])
 
         # it is plain JSON -- readable with nothing but the stdlib
-        reloaded = json.loads(path.read_text())
+        reloaded = json.loads(path.read_text(encoding="utf-8"))
         check("the file is a snapshot", reloaded["format"], t.BACKUP_FORMAT)
         check("reloading it validates", read_snapshot(path)["format"], t.BACKUP_FORMAT)
 
@@ -690,11 +690,11 @@ def test_a_bad_backup_path_is_a_friendly_error() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ctrl = _connected(tmp, backup_records())
         blocker = pathlib.Path(tmp) / "blocker"
-        blocker.write_text("not a directory")
+        blocker.write_text("not a directory", encoding="utf-8")
         check_raises("a path under a file", ControllerError, ctrl.backup_to,
                      blocker / "backup.json")
         foreign = pathlib.Path(tmp) / "foreign.json"
-        foreign.write_text("{}")
+        foreign.write_text("{}", encoding="utf-8")
         check_raises("restoring a foreign file", ControllerError,
                      ctrl.restore_from, foreign)
         check_raises("previewing a foreign file", ControllerError,

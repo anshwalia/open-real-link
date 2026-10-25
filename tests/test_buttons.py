@@ -141,7 +141,7 @@ def check_user_interaction_fixture() -> None:
     """
     path = ROOT / "fixtures" / "user-interaction.jsonl"
     stream = b"".join(bytes.fromhex(json.loads(line)["hex"])
-                      for line in path.read_text().splitlines() if line.strip())
+                      for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
     dec = t.StreamDecoder()
     packets = [ev["packet"] for ev in dec.feed(stream) if ev["kind"] == "packet"]
     check("fixture packet count", len(packets), 9)
@@ -169,7 +169,7 @@ def check_key_function_fixture() -> None:
     """The sanitized golden trace decodes to the same table it was built from."""
     path = ROOT / "fixtures" / "key-functions.jsonl"
     stream = b"".join(bytes.fromhex(json.loads(line)["hex"])
-                      for line in path.read_text().splitlines() if line.strip())
+                      for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
     dec = t.StreamDecoder()
     packets = [ev["packet"] for ev in dec.feed(stream) if ev["kind"] == "packet"]
     check("fixture packet count", len(packets), 4)

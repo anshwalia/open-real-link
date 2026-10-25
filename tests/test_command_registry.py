@@ -65,7 +65,7 @@ def _read_doc_tables() -> tuple[dict, dict, dict]:
     catalogue: dict[int, dict] = {}
     total: dict = {}
     section = None
-    for line in DOC.read_text().splitlines():
+    for line in DOC.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
             section = line[3:].strip()
             continue
