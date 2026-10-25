@@ -52,7 +52,7 @@ $ pip install -e ".[dev,macos,gui]"
 ```
 
 On **Windows** the virtualenv is under `Scripts\` and the `macos` extra does not
-install (it is `pyobjc`); use `py -3 -m venv .venv`, `.venv\Scripts\activate`
+install (it is `pyobjc`); use `python -m venv .venv`, `.venv\Scripts\activate`
 and `pip install -e ".[dev,gui]"`. The Windows transport is stdlib `ctypes`.
 
 Then:

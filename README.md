@@ -152,7 +152,7 @@ On **Windows** the virtualenv lives under `Scripts\`, and the `macos` extra is
 not installable there (it is `pyobjc`), so use:
 
 ```console
-> py -3 -m venv .venv
+> python -m venv .venv
 > .venv\Scripts\activate
 > pip install -e ".[dev,gui]"
 ```

@@ -87,8 +87,9 @@ $ pip install -e ".[dev,macos,gui]"
 $ pytest -q
 ```
 
-`.[macos]` is the IOBluetooth transport, `.[gui]` is PySide6 for the app, and
-`.[dev]` is the test/lint tools. Every command in this repository assumes that
+`.[macos]` is the IOBluetooth transport, `.[gui]` is PySide6 for the app,
+`.[dev]` is the test/lint tools, and `.[release]` is PyInstaller, for the app
+bundles. Every command in this repository assumes that
 virtualenv is **active** — `.venv/bin/python` and `.venv/bin/pip` are the exact
 equivalents if you would rather not activate. Nothing here is installed
 globally.
@@ -98,7 +99,7 @@ not install (it is `pyobjc`); the Windows transport is stdlib `ctypes`, so no
 extra is needed for it:
 
 ```console
-> py -3 -m venv .venv
+> python -m venv .venv
 > .venv\Scripts\activate
 > pip install -e ".[dev,gui]"
 > pytest -q
@@ -136,6 +137,8 @@ you would rather not activate.
 - `pytest -q` passes.
 - `python tests/test_app.py` prints `APP: OK` (the Qt-free app controller).
 - `python tests/test_protocol_docs.py` prints `DOCS: OK`.
+- `python tests/test_command_registry.py` prints `COMMAND REGISTRY: OK` (the
+  79-command catalogue and its capability gating).
 - `python tests/test_packaging.py` prints `PACKAGING: OK` (the macOS and Windows
   bundle inputs and icon pipelines; the macOS icon step skips off macOS).
 - `TL_REFERENCE=… python tests/test_parity_tl_frame.py` prints `PARITY: OK`
@@ -153,3 +156,7 @@ you would rather not activate.
 - Every entry in the `docs/command-coverage.md` "Implemented but not
   live-verified" ledger has been **either live-verified (and struck from the
   ledger) or removed from the code**. Nothing ships with a ledger entry open.
+- The app bundles (`.github/workflows/release.yml`) are **unsigned** — the macOS
+  `.app` is ad-hoc signed and the Windows `.exe` is unsigned — so a public
+  download still needs Developer ID / Authenticode signing; see
+  [`packaging.md`](docs/packaging.md).

@@ -37,7 +37,7 @@ On Windows (no `macos` extra — it is `pyobjc`; the Windows transport is stdlib
 `ctypes`):
 
 ```console
-> py -3 -m venv .venv
+> python -m venv .venv
 > .venv\Scripts\activate
 > pip install -e ".[dev,gui]"
 ```
