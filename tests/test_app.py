@@ -620,6 +620,9 @@ def test_backup_file_names_and_directory() -> None:
           {"model": "0x999999"}}), "0x999999-20261020T120000Z.json")
     check("name falls back to 'device'", suggested_name(
         {**snapshot, "device": {}, "created": ""}), "device.json")
+    check("a non-ISO created stamp falls back to a slug", suggested_name(
+        {**snapshot, "device": {"model": "0x999999"}, "created": "not a date"}),
+        "0x999999-not-a-date.json")
     check("default directory is a 'backups' directory",
           default_backup_dir().name, "backups")
     check("default directory is per-user",
@@ -640,6 +643,34 @@ def test_backup_file_refuses_a_foreign_file() -> None:
                      read_snapshot, pathlib.Path(tmp) / "nope.json")
         check_raises("writing a non-snapshot", BackupFileError, write_snapshot,
                      pathlib.Path(tmp) / "x.json", {"format": "something/else"})
+
+
+def test_backup_write_failure_is_reported_and_cleaned_up() -> None:
+    """A write that cannot complete must raise, name the file, leave no temp."""
+    # (a) a directory squatting on the temp path: both the write and the unlink
+    #     fail, so the nested best-effort guard is exercised too
+    with tempfile.TemporaryDirectory() as tmp:
+        target = pathlib.Path(tmp) / "backup.json"
+        (pathlib.Path(tmp) / "backup.json.tmp").mkdir()
+        try:
+            write_snapshot(target, {"format": t.BACKUP_FORMAT})
+            check("a blocked write raised", False, True)
+        except BackupFileError as exc:
+            check("the error names the file", "backup.json" in str(exc), True)
+        check("the target was never created", target.exists(), False)
+
+    # (b) the temp file writes but the atomic replace fails (the target is a
+    #     directory), so the temp file must be cleaned up
+    with tempfile.TemporaryDirectory() as tmp:
+        target = pathlib.Path(tmp) / "adir"
+        target.mkdir()
+        try:
+            write_snapshot(target, {"format": t.BACKUP_FORMAT})
+            check("a failed replace raised", False, True)
+        except BackupFileError:
+            pass
+        check("the temp file was cleaned up",
+              sorted(p.name for p in pathlib.Path(tmp).iterdir()), ["adir"])
 
 
 def test_backup_writes_an_atomic_plain_json_file() -> None:

@@ -566,6 +566,58 @@ def test_default_lock_path_is_writable() -> None:
     assert path.name == "open-real-link.lock"
 
 
+def test_default_lock_path_honours_the_override(monkeypatch, tmp_path) -> None:
+    """OPEN_REAL_LINK_LOCK redirects the lock, creating its parent."""
+    from tlapp.instance import LOCK_PATH_ENV, default_lock_path
+
+    target = tmp_path / "nested" / "app.lock"
+    monkeypatch.setenv(LOCK_PATH_ENV, str(target))
+    assert default_lock_path() == target
+    assert target.parent.is_dir()
+
+
+def test_default_lock_path_falls_back_when_the_cache_dir_is_empty(
+        monkeypatch, tmp_path) -> None:
+    """An empty GenericCacheLocation must fall through, not build a bare path."""
+    from PySide6.QtCore import QStandardPaths
+
+    from tlapp.instance import LOCK_PATH_ENV, default_lock_path
+
+    monkeypatch.setattr(QStandardPaths, "writableLocation",
+                        staticmethod(lambda _loc: ""))
+    target = tmp_path / "app.lock"
+    monkeypatch.setenv(LOCK_PATH_ENV, str(target))
+    assert default_lock_path() == target
+
+
+def test_instance_lock_is_a_context_manager(tmp_path) -> None:
+    from tlapp.instance import InstanceLock
+
+    path = tmp_path / "app.lock"
+    with InstanceLock(path) as lock:
+        assert lock.acquired
+    # the lock is released on exit, so a fresh instance acquires it
+    again = InstanceLock(path)
+    try:
+        assert again.acquired
+    finally:
+        again.release()
+
+
+def test_explain_without_a_holder(tmp_path) -> None:
+    """When QLockFile cannot name a holder, the message must still be useful."""
+    from tlapp.instance import InstanceLock
+
+    lock = InstanceLock(tmp_path / "app.lock")
+    try:
+        lock._lock.getLockInfo = lambda: (0, "", "")
+        message = lock.explain()
+        assert "already running" in message
+        assert "pid" not in message
+    finally:
+        lock.release()
+
+
 def _run_app(args: list[str], env_extra: dict, wait: float = 6.0):
     """Launch ``python -m tlapp`` in a real subprocess.
 

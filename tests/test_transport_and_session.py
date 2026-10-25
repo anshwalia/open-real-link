@@ -102,6 +102,19 @@ def test_wire_edges() -> None:
     check("unterminated varint is buffered", held.pending(), 3)
 
 
+def test_build_frames_multiframe_large_mtu() -> None:
+    # A payload that spans frames exercises the frame_index > 0 arm of
+    # _varint_size, which the offline suite otherwise never reaches (the parity
+    # harness covers it only with TL_REFERENCE set).  MTU 512 is the device
+    # MTU; MTU 130 is the documented reference defect, pinned by the parity
+    # harness and deliberately not re-tested here.
+    data = bytes(range(256)) * 8  # 2048 bytes
+    frames = t.build_frames(data, 512)
+    check("a large payload spans several frames", len(frames) > 1, True)
+    check("every frame fits the MTU", all(len(f) <= 512 for f in frames), True)
+    check("the payload reassembles exactly", t.deframe(frames), data)
+
+
 def test_decoder_short_bodies() -> None:
     # every decoder survives an empty body instead of raising IndexError
     check("public event (empty)", t.parse_public_event(b""),
@@ -994,6 +1007,31 @@ def test_session_edges() -> None:
     transport, session = replay([("rx", wire(0x0204, bytes([3, 1, 1, 4])))])
     packets = session.listen(0.05)
     check("listen collects packets", any(p["cmd"] == 0x0204 for p in packets), True)
+
+
+def test_session_short_bodies() -> None:
+    from tlcore.errors import PacketError
+
+    # the deadline expiring before any read: listen(0) breaks out immediately
+    _, idle = replay([])
+    check("listen(0) returns nothing", idle.listen(0), [])
+    # set_noise_mode validates its argument before it writes anything
+    check_raises("set_noise_mode(0x03) is not a mode", ValueError,
+                 idle.set_noise_mode, 0x03)
+
+    # each read half refuses a body shorter than the field it needs rather
+    # than slicing past the end
+    readers = {0x810F: "read_eq_mode", 0x8110: "read_high_volume",
+               0x8131: "read_ai_status"}
+    for cmd, body in ((0x810F, b"\x00"), (0x8110, b"\x00"), (0x8131, b"\x00\x00")):
+        _, session = replay([("tx", wire(cmd & 0x7FFF)), ("rx", wire(cmd, body))])
+        check_raises(f"short 0x{cmd:04X} body", PacketError,
+                     getattr(session, readers[cmd]))
+
+    # stop_compactness_detect is the False half of set_compactness_detect
+    _, session = replay([("tx", wire(0x0405, b"\x00")),
+                         ("rx", wire(0x8405, b"\x00"))])
+    check("stop_compactness_detect status", session.stop_compactness_detect(), 0)
 
 
 def _fixture_file(directory: str, records) -> str:
