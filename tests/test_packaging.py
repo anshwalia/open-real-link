@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Guards for the macOS app bundle and its icon.
+"""Guards for the macOS and Windows app bundles and their icons.
 
-The bundle itself is built by PyInstaller from ``release/macos/open-real-link.spec``
+The bundles themselves are built by PyInstaller from
+``release/macos/open-real-link.spec`` and ``release/windows/open-real-link.spec``
 and cannot be produced inside a unit test. What *can* be checked is that the
-pieces the spec depends on exist, and that the icon pipeline really turns an SVG
-or PNG into a `.icns` carrying every size macOS expects.
+pieces each spec depends on exist, that the macOS pipeline turns an SVG or PNG
+into a `.icns` carrying every size macOS expects, and that the Windows pipeline
+turns a PNG into a valid `.ico`.
 
 Run directly for the check list, or under pytest (which needs the aggregator at
 the bottom, since the per-test functions only *record* failures).
@@ -13,12 +15,15 @@ the bottom, since the per-test functions only *record* failures).
 """
 from __future__ import annotations
 
+import binascii
 import os
 import pathlib
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -32,6 +37,14 @@ SPEC = ROOT / "release" / "macos" / "open-real-link.spec"
 ENTRY = ROOT / "release" / "macos" / "entry.py"
 MAKE_ICON = ROOT / "release" / "macos" / "make-icon.sh"
 ICON = ROOT / "release" / "macos" / "icon.icns"
+
+SHARED_ICON = ROOT / "release" / "icon.png"
+WIN_SPEC = ROOT / "release" / "windows" / "open-real-link.spec"
+WIN_ENTRY = ROOT / "release" / "windows" / "entry.py"
+WIN_BUILD = ROOT / "release" / "windows" / "build.ps1"
+WIN_MAKE_ICON = ROOT / "release" / "windows" / "make_icon.py"
+WIN_ICON = ROOT / "release" / "windows" / "icon.ico"
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 #: The ten representations ``iconutil`` writes and macOS reads.
 ICON_SIZES = sorted([
@@ -103,6 +116,59 @@ def test_make_icon_pipeline() -> None:
         check("icns produced", out.is_file(), True)
         if out.is_file():
             check("generated icon sizes", _iconset_names(out, tmp), ICON_SIZES)
+
+
+def _tiny_png(width: int, height: int) -> bytes:
+    """A minimal opaque RGBA PNG, built without an image library."""
+    raw = b"".join(b"\x00" + b"\xff\x00\x00\xff" * width for _ in range(height))
+
+    def chunk(tag: bytes, payload: bytes) -> bytes:
+        return (struct.pack(">I", len(payload)) + tag + payload
+                + struct.pack(">I", binascii.crc32(tag + payload) & 0xFFFFFFFF))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def test_windows_bundle_inputs_exist() -> None:
+    """The Windows spec's entry point, data and tooling must be on disk."""
+    check("windows spec exists", WIN_SPEC.is_file(), True)
+    check("windows entry exists", WIN_ENTRY.is_file(), True)
+    check("windows build script exists", WIN_BUILD.is_file(), True)
+    check("windows make-icon exists", WIN_MAKE_ICON.is_file(), True)
+    check("shared icon source exists", SHARED_ICON.is_file(), True)
+    check("release workflow exists", RELEASE_WORKFLOW.is_file(), True)
+
+
+def test_windows_make_icon_pipeline() -> None:
+    """make_icon.py packs a PNG into a valid single-entry .ico (any OS)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = pathlib.Path(tmpdir)
+        png = tmp / "source.png"
+        png.write_bytes(_tiny_png(32, 32))
+        out = tmp / "icon.ico"
+        proc = subprocess.run(
+            [sys.executable, str(WIN_MAKE_ICON), str(png), str(out)],
+            capture_output=True, text=True)
+        check("make-icon exit", proc.returncode, 0)
+        check("ico produced", out.is_file(), True)
+        if not out.is_file():
+            return
+        data = out.read_bytes()
+        reserved, kind, count = struct.unpack("<HHH", data[:6])
+        check("ico reserved field", reserved, 0)
+        check("ico type field", kind, 1)
+        check("ico entry count", count, 1)
+        width, height, _colours, _rsv, planes, bpp, size, offset = \
+            struct.unpack("<BBBBHHII", data[6:22])
+        check("ico entry dimensions", (width, height), (32, 32))
+        check("ico entry planes", planes, 1)
+        check("ico entry bpp", bpp, 32)
+        check("ico entry size", size, png.stat().st_size)
+        check("ico image offset", offset, 22)
+        check("ico embeds the PNG", data[offset:offset + size], png.read_bytes())
+        check("ico has no trailing bytes", data[offset + size:], b"")
 
 
 def main() -> int:

@@ -4,7 +4,7 @@
 #
 #   release/macos/make-icon.sh [SOURCE] [OUTPUT]
 #
-# SOURCE defaults to release/macos/icon.svg, then release/macos/icon.png.
+# SOURCE defaults to release/macos/icon.svg, then the shared release/icon.png.
 # OUTPUT defaults to release/macos/icon.icns (which the PyInstaller spec picks up
 # automatically). Requires macOS: `sips` and `iconutil` are part of the system.
 #
@@ -18,13 +18,13 @@ SOURCE="${1:-}"
 OUTPUT="${2:-$HERE/icon.icns}"
 
 if [[ -z "$SOURCE" ]]; then
-  for candidate in "$HERE/icon.svg" "$HERE/icon.png"; do
+  for candidate in "$HERE/icon.svg" "$HERE/icon.png" "$HERE/../icon.png"; do
     if [[ -f "$candidate" ]]; then SOURCE="$candidate"; break; fi
   done
 fi
 
 if [[ -z "$SOURCE" || ! -f "$SOURCE" ]]; then
-  echo "make-icon: no source given and neither icon.svg nor icon.png is present." >&2
+  echo "make-icon: no source given and no icon.svg / icon.png was found." >&2
   echo "  usage: release/macos/make-icon.sh [SOURCE.svg|SOURCE.png] [OUTPUT.icns]" >&2
   exit 1
 fi

@@ -15,3 +15,6 @@ htmlcov/
 
 # generated app icon (from icon.svg / icon.png via make-icon.sh)
 release/macos/icon.icns
+
+# generated app icon (from release/icon.png via make_icon.py)
+release/windows/icon.ico

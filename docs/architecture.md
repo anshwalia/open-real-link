@@ -184,8 +184,9 @@ that reads like a fixable gap.
   shrink; each entry must be live-verified or removed before a release.
 * **One distribution, published late.** The repository is a monorepo, but only
   the core is a package: `open-real-link`, which is `tlcore`. The app ships from
-  the same repository — as a frozen macOS bundle under `release/macos/`, not a
-  separate distribution — so installing the library never drags in a UI toolkit.
+  the same repository — as frozen macOS and Windows builds under `release/`, not
+  a separate distribution — so installing the library never drags in a UI
+  toolkit.
   Release when the API stops moving — a published API you then change is worse
   than no package.
 * **No plugin architecture.** One transport is selected at runtime by platform;

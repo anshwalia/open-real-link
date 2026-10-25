@@ -1,18 +1,18 @@
 # OpenRealLink — packaging and releases
 
-Status: **macOS bundling implemented and verified; the Windows transport is
-written but no bundle is built.** Linux has no live transport yet, so there is
-nothing to ship there. This document covers what exists, how to build it, and
-what a public release still needs.
+Status: **macOS and Windows bundling implemented; Linux has no live transport
+yet, so there is nothing to ship there.** This document covers what exists, how
+to build it, and what a public release still needs.
 
 ---
 
-## 1. What the bundle is
+## 1. The macOS bundle
 
 A macOS **`OpenRealLink.app`**, frozen with [PyInstaller](https://pyinstaller.org)
 from the repository checkout. It bundles the interpreter, PySide6, the pyobjc
 `IOBluetooth` framework, `tlcore`, `tltransport`, `tlapp` and the replay
-fixtures, so the app runs on a Mac with **no Python and no pip**.
+fixtures, so the app runs on a Mac with **no Python and no pip**. The Windows
+build is described in §5.
 
 The build is described by these files:
 
@@ -109,11 +109,12 @@ A universal2 bundle needs a universal2 Python and universal2 PySide6/pyobjc, and
 
 ### App icon
 
-macOS app icons must be `.icns`; an SVG or PNG cannot be used directly. Drop a
-source next to the spec and let the helper build it:
+macOS app icons must be `.icns`; an SVG or PNG cannot be used directly. The
+shared source is `release/icon.png`; drop an `icon.svg` next to the spec to use a
+vector source instead, and let the helper build it:
 
 ```console
-$ release/macos/make-icon.sh                 # icon.svg / icon.png -> icon.icns
+$ release/macos/make-icon.sh                  # icon.svg / release/icon.png -> icon.icns
 $ release/macos/make-icon.sh logo.svg         # explicit source
 ```
 
@@ -127,20 +128,81 @@ exists. Without one the bundle gets the default PyInstaller icon.
 macOS does **not** mask app icons (unlike iOS): ship a 1024×1024 square with your
 own rounded shape and margin. Transparency is fine.
 
-## 5. Windows and Linux
+## 5. The Windows bundle
 
-Neither bundle is built. The Windows **transport** now exists
-(`tltransport/windows.py`, WinSock `AF_BTH` / `BTHPROTO_RFCOMM` via ctypes), so a
-Windows bundle is unblocked; Linux still needs a transport. The protocol and UI
-are portable, so the packaging work is small once the transport is in place:
+A one-folder Windows build — `OpenRealLink\OpenRealLink.exe` plus its
+dependencies — frozen with PyInstaller from the same checkout. It bundles the
+interpreter, PySide6, `tlcore`, `tltransport`, `tlapp` and the replay fixtures,
+so it runs on Windows with **no Python and no pip**.
 
-* **Windows** — PyInstaller produces a `.exe`/folder on Windows, and needs a
-  Windows build host (PyInstaller does not cross-compile). The transport has
-  been live-verified on hardware (`live-test.md`), so the Windows bundle is
-  unblocked.
-* **Linux** — PyInstaller produces an AppImage or a folder; the transport would
-  use BlueZ over a plain `socket` (`BTPROTO_RFCOMM`). Needs a Linux build host.
+| File | Role |
+| --- | --- |
+| `release/windows/open-real-link.spec` | the PyInstaller recipe: entry point, hidden imports, bundled data, icon, version resource |
+| `release/windows/build.ps1` | the wrapper: sets up the venv, runs PyInstaller, optionally zips the result |
+| `release/windows/build.cmd` | a thin `cmd.exe` wrapper around `build.ps1` |
+| `release/windows/entry.py` | the frozen entry point; calls `tlapp.app.main` |
+| `release/windows/make_icon.py` | packs `release/icon.png` into the `.ico` the build embeds |
 
-Both need their own `Info.plist`-equivalent concerns: Windows wants an icon and
-version resource, Linux a `.desktop` file and AppStream metadata. None of it
-exists yet.
+### Building
+
+From the repository root (PowerShell):
+
+```console
+PS> release\windows\build.ps1          # writes dist\windows\OpenRealLink\
+PS> release\windows\build.ps1 -Zip     # ...and a versioned .zip beside it
+```
+
+`release\windows\build.cmd -Zip` does the same from `cmd.exe`. The script uses
+the repo virtualenv (`.venv`) unless `%PYTHON%` is set, installs the
+`[gui,release]` extras, and writes the result to `dist\windows\`.
+
+| Path | What |
+| --- | --- |
+| `dist\windows\OpenRealLink\OpenRealLink.exe` | the app (no console window) |
+| `dist\windows\OpenRealLink-<version>-win64.zip` | the distributable archive, with `-Zip` |
+
+`dist\` and `build\` are ignored by git; nothing in them is committed.
+
+### What is inside
+
+* **The version resource** carries `ProductName`, `FileDescription`,
+  `FileVersion` and friends, read from `pyproject.toml`, so the build cannot
+  drift from the package version.
+* **The icon** is built by `make_icon.py` from `release/icon.png` — the shared
+  source, also used for the macOS `.icns`. It packs the PNG into a single-entry
+  `.ico` with no external tools; export a large square source for the crispest
+  taskbar and Explorer rendering.
+* **Replay fixtures** are bundled next to the `tltransport` package inside
+  `_internal`, so `--replay <fixture>` keeps working from the build, with no
+  device.
+
+The build is **one folder, not one file**: a one-file `.exe` unpacks to a temp
+directory on every launch, which is slower to start and more likely to trip
+antivirus heuristics. Zip the folder to distribute it.
+
+### Signing
+
+An unsigned `.exe` shows a SmartScreen warning on other machines ("Windows
+protected your PC"). A public download should be signed with an Authenticode
+certificate, after the build and **before** zipping:
+
+```console
+PS> signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+      /f cert.pfx /p <password> dist\windows\OpenRealLink\OpenRealLink.exe
+```
+
+An EV certificate earns SmartScreen reputation faster; a standard OV
+certificate works but warns until it builds reputation.
+
+### Releases
+
+`.github/workflows/release.yml` builds this bundle on `windows-latest` and
+attaches the `.zip` to a GitHub Release. PyInstaller does not cross-compile, so
+the build must run on a Windows host. Push a `v*` tag to cut a release, or run
+the workflow by hand to produce the artifact without releasing.
+
+## 6. Linux
+
+No bundle. Linux still needs a live transport (`tltransport/linux.py`, BlueZ
+over a plain `socket` / `BTPROTO_RFCOMM`), and PyInstaller would need a Linux
+build host. A `.desktop` file and AppStream metadata would come with it.

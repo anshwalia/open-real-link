@@ -214,6 +214,19 @@ The bundle is ad-hoc signed, so it runs on the machine that built it; a public
 download needs a Developer ID signature and notarisation. See
 [`docs/packaging.md`](docs/packaging.md).
 
+### Build a Windows app
+
+A frozen Windows build — no Python or pip required on the target machine — is
+built from a checkout with PyInstaller:
+
+```console
+PS> release\windows\build.ps1          # writes dist\windows\OpenRealLink\
+PS> release\windows\build.ps1 -Zip     # ...and a .zip beside it
+```
+
+The build is unsigned, so SmartScreen warns on other machines; a public download
+should be Authenticode-signed. See [`docs/packaging.md`](docs/packaging.md).
+
 ## Try it without a headset
 
 Every part of the tool runs against a recorded capture, so you can explore the
@@ -289,7 +302,8 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
 | `fixtures/` | Recorded device traffic used as golden test input |
 | `tests/` | Reference-codec parity, transport/session, per-platform transports, and docs guards |
 | `docs/` | Protocol reference and design notes |
-| `release/macos/` | PyInstaller spec, entry point, icon and build scripts for the `.app` |
+| `release/macos/` | PyInstaller spec, entry point and build scripts for the macOS `.app` |
+| `release/windows/` | PyInstaller spec, entry point and build scripts for the Windows build |
 
 ## Documentation
 
@@ -305,8 +319,8 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
 - [`docs/architecture.md`](docs/architecture.md) — component layers and the
   library/app split
 - [`docs/stack.md`](docs/stack.md) — the implementation stack
-- [`docs/packaging.md`](docs/packaging.md) — building and signing the macOS app
-  bundle, and the plan for Windows and Linux
+- [`docs/packaging.md`](docs/packaging.md) — building and signing the macOS and
+  Windows app bundles
 
 ## Provenance
 

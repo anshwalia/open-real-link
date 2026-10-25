@@ -1,0 +1,43 @@
+name: Release
+
+# Build the Windows desktop app and attach it to a GitHub Release. PyInstaller
+# does not cross-compile, so the build runs on a Windows runner. Push a `v*` tag
+# to cut a release; `workflow_dispatch` builds the artifact without releasing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build the app
+        shell: pwsh
+        run: release/windows/build.ps1 -Zip
+
+      - name: Upload the build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRealLink-windows
+          path: dist/windows/*.zip
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $zip = (Get-ChildItem dist/windows/*.zip).FullName
+          gh release create $env:GITHUB_REF_NAME $zip --generate-notes
