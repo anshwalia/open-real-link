@@ -51,6 +51,10 @@ $ . .venv/bin/activate
 $ pip install -e ".[dev,macos,gui]"
 ```
 
+On **Windows** the virtualenv is under `Scripts\` and the `macos` extra does not
+install (it is `pyobjc`); use `py -3 -m venv .venv`, `.venv\Scripts\activate`
+and `pip install -e ".[dev,gui]"`. The Windows transport is stdlib `ctypes`.
+
 Then:
 
 ```console
@@ -375,9 +379,10 @@ The remaining verified feature is the SDP service list, and it is macOS-only:
 the platform-neutral controller has no way to reach. `tlcli say` is not a
 protocol feature at all -- it speaks through the host's audio output.
 
-The app inherits that platform limit: there is **one** live transport
-(IOBluetooth), so on Linux or Windows **Connect** reports that no live transport
-exists on this platform and names the way out. Offline replay
+The app inherits that platform limit: there are **two** live transports
+(macOS IOBluetooth and Windows WinSock; the Windows one is written but not yet
+live-verified), so on Linux **Connect** reports that no live transport exists on
+this platform and names the way out. Offline replay
 (`--replay fixtures/...`) works everywhere, which is how the GUI tests run.
 
 Otherwise the verified surface is fully exposed. What is **not** here is

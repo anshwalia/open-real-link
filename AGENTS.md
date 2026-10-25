@@ -27,12 +27,13 @@ state the **finding** here and keep the artifact elsewhere.
 
 ## Where things stand
 
-The protocol work is done; what remains is a UI and two transport shims.
+The protocol work is done; what remains is a UI and the Linux/Android transport shims
+(the macOS one is live-verified and the Windows one is written).
 
 | layer | state | read |
 | --- | --- | --- |
 | `tlcore` | done, parity-verified | [`protocol.md`](docs/protocol.md), [`command-coverage.md`](docs/command-coverage.md) |
-| `tltransport` | macOS live transport + portable replay done; Linux/Windows/Android still to write — until then `--transport auto` off macOS raises `TransportUnavailable` naming the platform rather than falling back to replay | [`architecture.md`](docs/architecture.md) §3, §4 |
+| `tltransport` | macOS live transport live-verified + Windows transport written (not yet live-verified) + portable replay; Linux/Android still to write — on a platform with no live transport `--transport auto` raises `TransportUnavailable` naming the platform rather than falling back to replay | [`architecture.md`](docs/architecture.md) §3, §4 |
 | `tlcli` | done (the hardware test harness) | [`live-test.md`](docs/live-test.md) |
 | `tlapp` | **in progress** — connect, status, noise mode, EQ preset + list, high volume, find my buds, paired-device list, gesture table, backup/restore, event monitor, a connect-time compatibility check, and two views: General and Expert (diagnostics, bitmap, bass read, guarded raw console) | [`app.md`](docs/app.md) |
 | `release/macos` | a macOS `.app` bundle built with PyInstaller — ad-hoc signed, so not yet installable on other Macs | [`packaging.md`](docs/packaging.md) |
@@ -91,6 +92,20 @@ $ pytest -q
 virtualenv is **active** — `.venv/bin/python` and `.venv/bin/pip` are the exact
 equivalents if you would rather not activate. Nothing here is installed
 globally.
+
+**On Windows** the virtualenv lives under `Scripts\` and the `macos` extra does
+not install (it is `pyobjc`); the Windows transport is stdlib `ctypes`, so no
+extra is needed for it:
+
+```console
+> py -3 -m venv .venv
+> .venv\Scripts\activate
+> pip install -e ".[dev,gui]"
+> pytest -q
+```
+
+`.venv\Scripts\python.exe` and `.venv\Scripts\pip.exe` are the equivalents if
+you would rather not activate.
 
 ## Conventions
 

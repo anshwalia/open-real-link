@@ -1,9 +1,9 @@
 # OpenRealLink — packaging and releases
 
-Status: **macOS bundling implemented and verified.** Windows and Linux are not
-built yet (there is no transport for either, so there is nothing to ship). This
-document covers what exists, how to build it, and what a public release still
-needs.
+Status: **macOS bundling implemented and verified; the Windows transport is
+written but no bundle is built.** Linux has no live transport yet, so there is
+nothing to ship there. This document covers what exists, how to build it, and
+what a public release still needs.
 
 ---
 
@@ -129,14 +129,15 @@ own rounded shape and margin. Transparency is fine.
 
 ## 5. Windows and Linux
 
-Neither is built, and neither can be until a transport exists for it: the only
-live transport is macOS `IOBluetooth`, and `--transport auto` refuses to guess on
-other platforms. The protocol and UI are portable, so the packaging work is
-small once a transport lands:
+Neither bundle is built. The Windows **transport** now exists
+(`tltransport/windows.py`, WinSock `AF_BTH` / `BTHPROTO_RFCOMM` via ctypes), so a
+Windows bundle is unblocked; Linux still needs a transport. The protocol and UI
+are portable, so the packaging work is small once the transport is in place:
 
-* **Windows** — PyInstaller produces a `.exe`/folder on Windows; the transport
-  would use WinSock `AF_BLUETOOTH` / `BTHPROTO_RFCOMM`. Needs a Windows build
-  host (PyInstaller does not cross-compile).
+* **Windows** — PyInstaller produces a `.exe`/folder on Windows, and needs a
+  Windows build host (PyInstaller does not cross-compile). The transport has
+  **not been live-verified** on hardware yet, so build the bundle only after a
+  `live-test.md` run passes there.
 * **Linux** — PyInstaller produces an AppImage or a folder; the transport would
   use BlueZ over a plain `socket` (`BTPROTO_RFCOMM`). Needs a Linux build host.
 

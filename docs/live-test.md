@@ -2,8 +2,9 @@
 
 How to prove the controller against a real headset. The offline suite covers the
 protocol, transport contract, session, and CLI against recorded fixtures; this
-runbook covers the one thing it cannot: the macOS RFCOMM transport actually
-moving bytes.
+runbook covers the one thing it cannot: a live RFCOMM transport actually moving
+bytes. The macOS transport is the one that has been verified this way; the
+Windows transport is written and is verified by the same steps (§3, *Windows*).
 
 `tltransport/macos.py` is lifted from tooling that was validated on hardware.
 `MacOSTransport` as it exists in this repository was first run end to end this
@@ -18,13 +19,13 @@ cleared it. Re-run this to check any change to the transport.
 
 | | |
 | --- | --- |
-| Host | macOS with a working Bluetooth radio |
+| Host | macOS (IOBluetooth) or Windows (WinSock) with a working Bluetooth radio |
 | Python | 3.9+ |
-| Dependency | `pyobjc-framework-IOBluetooth` (`pip install ".[macos]"`) |
-| Device | a realme/OPPO TL headset **already paired** to this Mac |
+| Dependency | macOS: `pyobjc-framework-IOBluetooth` (`pip install ".[macos]"`). Windows: none — the transport is stdlib `ctypes` |
+| Device | a realme/OPPO TL headset **already paired** to this host |
 
 Set up the repository virtualenv first — every `python` below means the one in
-`.venv` (see [`../AGENTS.md`](../AGENTS.md)):
+`.venv` (see [`../AGENTS.md`](../AGENTS.md)). On macOS:
 
 ```console
 $ python3 -m venv .venv
@@ -32,7 +33,16 @@ $ . .venv/bin/activate
 $ pip install -e ".[dev,macos,gui]"
 ```
 
-Check the dependency and that the headset is paired (read-only):
+On Windows (no `macos` extra — it is `pyobjc`; the Windows transport is stdlib
+`ctypes`):
+
+```console
+> py -3 -m venv .venv
+> .venv\Scripts\activate
+> pip install -e ".[dev,gui]"
+```
+
+Check the dependency and that the headset is paired (read-only, macOS):
 
 ```console
 $ python -c "import IOBluetooth; print([d.getName() for d in IOBluetooth.IOBluetoothDevice.pairedDevices() or []])"
@@ -238,6 +248,46 @@ Run it against `--replay` first: that exercises the whole app with no hardware,
 which is the quickest way to tell a UI problem from a transport problem. Only
 **one** instance can run at a time (the headset has one RFCOMM channel); a second
 launch reports which process holds it and exits.
+
+### Windows (WinSock RFCOMM)
+
+The Windows transport (`tltransport/windows.py`) speaks RFCOMM through WinSock
+(`AF_BTH` / `BTHPROTO_RFCOMM`) using `ctypes`; there is no extra dependency and
+no build step. It is **written but not yet live-verified**, so treat the first
+pass as a test of the *transport*, not of the protocol.
+
+Prerequisites: Windows 10/11 with a Bluetooth radio and the buds **paired** in
+Windows Settings, plus a checkout installed with `pip install -e ".[dev]"`.
+Python's `socket` module does not build the Bluetooth address on Windows, which
+is why the transport calls WinSock directly.
+
+The address form differs from macOS: Windows shows the canonical
+`AA:BB:CC:DD:EE:FF` (macOS often shows hyphens). The CLI accepts either.
+
+```console
+$ python -m tlcli --address AA:BB:CC:DD:EE:FF smoke
+```
+
+`--transport auto` (the default) resolves to the Windows transport here. If
+channel discovery is slow or fails, pass the known SPP channel explicitly:
+
+```console
+$ python -m tlcli --address AA:BB:CC:DD:EE:FF --channel 12 smoke
+```
+
+Differences from the macOS run:
+
+* **No `--reset`.** Windows has no equivalent of dropping and re-paging the ACL
+  link; `open` retries a transient refusal instead.
+* **No `services` or `say`.** SDP enumeration and host-side TTS are macOS-only;
+  use `--channel 12` when the channel is already known.
+* **A refusal and a page timeout stay distinct.** `ChannelRefused` comes from
+  `WSAECONNREFUSED` (10061) and `PageTimeout` from `WSAETIMEDOUT` (10060) /
+  `WSAEHOSTDOWN` (10064); §4 applies, with the Winsock error in place of the
+  IOReturn.
+
+Record the same `smoke` output as §5, plus the Windows version and the Winsock
+error if the first open fails.
 
 ## 4. Troubleshooting
 

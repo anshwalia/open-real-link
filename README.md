@@ -89,11 +89,12 @@ available on macOS, Windows, Linux, and Android, so the protocol can be driven
 on any of them — it **cannot** work on iOS or in a web browser, which do not
 expose SPP.
 
-Only the **macOS** transport is implemented today; the Linux, Windows, and
-Android transports are still to be written. Until then `--transport auto` (the
-default) **refuses to guess**: off macOS it raises `TransportUnavailable`, naming
-the platform and suggesting `--replay FILE`, rather than quietly opening a
-recording.
+Only the **macOS** and **Windows** transports are implemented today; Linux and
+Android are still to be written. On a platform with no live transport,
+`--transport auto` (the default) **refuses to guess**: it raises
+`TransportUnavailable`, naming the platform and suggesting `--replay FILE`,
+rather than quietly opening a recording. The Windows transport is written but
+**not yet live-verified** on hardware.
 
 This is a reverse-engineered project, so support is empirical rather than
 promised. The verified model is the Buds Air7 Pro; the static candidate list in
@@ -131,7 +132,8 @@ non-implementation rationale.
 - **Python 3.9 or newer**
 - **git**, to get the source
 - A **Bluetooth Classic** radio on the machine doing the talking. On macOS the
-  transport uses `IOBluetooth`; no extra driver is needed.
+  transport uses `IOBluetooth`; on Windows the built-in WinSock Bluetooth stack.
+  No extra driver is needed on either.
 
 ### Set up a checkout
 
@@ -146,16 +148,44 @@ $ . .venv/bin/activate
 $ pip install -e ".[macos,gui]"
 ```
 
+On **Windows** the virtualenv lives under `Scripts\`, and the `macos` extra is
+not installable there (it is `pyobjc`), so use:
+
+```console
+> py -3 -m venv .venv
+> .venv\Scripts\activate
+> pip install -e ".[dev,gui]"
+```
+
+The Windows transport needs no extra: it is stdlib `ctypes`.
+
 The extras are optional and independent:
 
 | Extra | Adds |
 | --- | --- |
-| `macos` | the IOBluetooth transport (`pyobjc-framework-IOBluetooth`) |
+| `macos` | the IOBluetooth transport (`pyobjc-framework-IOBluetooth`; **macOS only** — the Windows transport needs no extra) |
 | `gui` | PySide6, for the desktop app |
 | `dev` | the test and lint tools (`pytest`, `coverage`, `ruff`) |
 | `release` | PyInstaller, for building the macOS app bundle |
 
-Add `dev` if you intend to run the test suite: `pip install -e ".[dev,macos,gui]"`.
+Add `dev` if you intend to run the test suite: `pip install -e ".[dev,macos,gui]"`
+on macOS, or `pip install -e ".[dev,gui]"` on Windows.
+
+### Run the tests
+
+The offline suite needs **no headset and no Bluetooth radio**, and it is the same
+one CI runs on Linux, Windows and macOS:
+
+```console
+$ pip install -e ".[dev,macos]"   # on macOS; ".[dev]" on Linux/Windows
+$ pytest -q
+```
+
+A few checks are platform- or reference-gated and **skip cleanly** when their
+input is absent, so the suite passes without any of them: the GUI test (no
+PySide6), and the reference-codec parity harness (no `TL_REFERENCE`). The
+reference codec lives outside this repository, so parity is a clean skip here and
+is only run where the reference is available.
 
 ### Just the library
 
@@ -253,11 +283,11 @@ for frame in tlcore.build_frames(packet, max_frame_size=512):
 | Path | Contents |
 | --- | --- |
 | `tlcore/` | Protocol core: framing, packets, commands, payloads, decoders, backup/restore. Pure, no I/O |
-| `tltransport/` | `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport` (offline) |
+| `tltransport/` | `MacOSTransport` (IOBluetooth RFCOMM), `WindowsTransport` (WinSock RFCOMM) and `ReplayTransport` (offline) |
 | `tlcli/` | Command-line front end, `python -m tlcli` |
 | `tlapp/` | PySide6 desktop app, `python -m tlapp` (Qt-free controller + widgets) |
 | `fixtures/` | Recorded device traffic used as golden test input |
-| `tests/` | Reference-codec parity, transport/session, macOS transport, and docs guards |
+| `tests/` | Reference-codec parity, transport/session, per-platform transports, and docs guards |
 | `docs/` | Protocol reference and design notes |
 | `release/macos/` | PyInstaller spec, entry point, icon and build scripts for the `.app` |
 

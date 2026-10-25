@@ -48,7 +48,7 @@ browser are not reachable for this device, and no stack choice changes that.
 
 | layer | work | status |
 |---|---|---|
-| **transport** | SDP/connect, read/write bytes, reconnect, discover channel | `tltransport/` — macOS only so far. Linux and Windows have **no live transport**: `--transport auto` raises `TransportUnavailable` naming the platform, rather than falling back to a recording. `replay` works everywhere |
+| **transport** | SDP/connect, read/write bytes, reconnect, discover channel | `tltransport/` — macOS (`macos.py`) and Windows (`windows.py`) live transports, plus a hardware-free `replay`. Linux has **no live transport**: `--transport auto` there raises `TransportUnavailable` naming the platform, rather than falling back to a recording |
 | **framing** | OPPOv1: `0xAA`, LEB128 length, control byte, FSN, multi-frame reassembly | ✅ `tlcore.wire` |
 | **packet** | 5-byte LE header, response bit, manager dispatch | ✅ `tlcore.wire` |
 | **command table** | 79 IDs, 61 capability groups, always-on set | ✅ `tlcore.commands` |
@@ -59,8 +59,9 @@ browser are not reachable for this device, and no stack choice changes that.
 
 `tlcore` is the entire reverse-engineering result, and it is done: ported by
 range extraction from the validated reference, verified byte-for-byte against it.
-So the work that is left is a UI plus two small transport shims — not a rewrite.
-The UI is now started and is built one verified feature at a time.
+So the work that is left is a UI plus the Linux transport shim — the Windows
+one is written, the macOS one live-verified. The UI is now started and is built
+one verified feature at a time.
 
 Two assets make both the remaining work and any future port cheap:
 
@@ -101,12 +102,15 @@ Two assets make both the remaining work and any future port cheap:
 **Why this one.** It reuses the verified protocol verbatim. It keeps one language
 across the reverse-engineering work and the app, so there is no second
 implementation of the wire format to keep in sync. And the only code that does
-not already exist is a UI plus two small transport shims — which is why the
-first real release is about a week of work rather than a month.
+not already exist is a UI plus the Linux transport shim (the macOS transport is
+live-verified and the Windows one is written) — which is why the first real
+release is about a week of work rather than a month.
 
 **What it costs.** No Android in the first cut, and Qt/PyInstaller packaging is
 the genuinely annoying part. Neither affects the core, which is where the value
-is and which is why Android stays reachable later (§5).
+is and which is why Android stays reachable later (§5). The Windows transport
+is written but has **not been live-verified** on hardware yet; the macOS one has
+(`live-test.md`).
 
 ---
 

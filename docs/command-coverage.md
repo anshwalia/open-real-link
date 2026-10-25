@@ -231,7 +231,8 @@ Do not sweep unknown command space.
 
 `tlcore.backup.capture` reads every supported poll command above and stores the
 raw reply. `tlcore.backup.restore` writes back only the settings that are both
-recovered and symmetric end to end:
+recovered and symmetric end to end — `tlcore.backup.RESTORABLE` is exactly these
+four:
 
 | setting | read | write |
 | --- | --- | --- |
@@ -239,8 +240,6 @@ recovered and symmetric end to end:
 | key function | `0x0108` | `0x0401` |
 | EQ mode | `0x010F` | `0x0406` |
 | high volume | `0x0110` | `0x0407` |
-| switch features | `0x010D` | `0x0403` |
-| bass engine | `0x0124` | `0x041B` |
 
 Everything else is captured but reported `not_restored` (payload value
 semantics not recovered). In particular the `0x0122` EQ list is captured but
@@ -248,6 +247,9 @@ semantics not recovered). In particular the `0x0122` EQ list is captured but
 read byte is `isSelected` while the write's first byte is `action`, so the bytes
 cannot be replayed verbatim (see `docs/protocol.md` §8).
 
-The bass-engine layout is recovered from the decompiler but is **not**
-live-verified: the Air7 Pro advertises capability bit 38 yet does not answer
-`0x0124`, so no bass value is derived on this unit and no `0x041B` write is sent.
+Two settings used to be restorable and were dropped after live testing:
+`switch_features` and `bass_engine`. The switch-feature write (`0x0403`) is
+accepted but a provable no-op, so nothing verifies a restore; the bass-engine
+write (`0x041B`) **is** verified, but there is no working **read** to capture a
+value with, because `0x0124` is never answered (the multi-band read is `0x012C`,
+a different command, and the value also arrives on the `0x0508` push).
