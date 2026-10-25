@@ -1,0 +1,47 @@
+name: CI
+
+# The offline suite is the cross-platform regression test: it runs `tlcore`
+# against recorded fixtures and needs no Bluetooth radio, so it must pass on
+# every OS. A live transport is exercised separately, by hand, on the platform
+# that has one (macOS IOBluetooth, Windows WinSock).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # No `[gui]` extra: the GUI test skips cleanly without PySide6, which keeps
+      # the matrix fast. The `macos` extra is installed only on macOS, because
+      # pyobjc does not install anywhere else.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Install the macOS transport
+        if: runner.os == 'macOS'
+        run: pip install -e ".[macos]"
+
+      - name: Test
+        run: pytest -q
+
+      # The reference codec lives outside this repository, so the parity harness
+      # skips cleanly here (exit 0); run it where TL_REFERENCE points at the
+      # reference implementation.
+      - name: Parity harness (skips without TL_REFERENCE)
+        run: python tests/test_parity_tl_frame.py

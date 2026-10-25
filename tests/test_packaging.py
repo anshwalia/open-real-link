@@ -13,6 +13,7 @@ the bottom, since the per-test functions only *record* failures).
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import shutil
 import subprocess
@@ -63,9 +64,11 @@ def test_bundle_inputs_exist() -> None:
     check("entry exists", ENTRY.is_file(), True)
     check("fixtures dir exists", (ROOT / "fixtures").is_dir(), True)
     check("make-icon exists", MAKE_ICON.is_file(), True)
-    check("make-icon is executable",
-          bool(MAKE_ICON.stat().st_mode & 0o111) if MAKE_ICON.is_file() else False,
-          True)
+    if os.name != "nt":
+        # Windows has no Unix execute bit, and git does not set one on checkout
+        check("make-icon is executable",
+              bool(MAKE_ICON.stat().st_mode & 0o111) if MAKE_ICON.is_file() else False,
+              True)
 
 
 def test_committed_icon_has_all_sizes() -> None:
