@@ -26,7 +26,7 @@ The build is described by these files:
 The bundle identifier is `io.github.anshwalia.openreallink` and the version is
 read from `pyproject.toml`, so the bundle cannot drift from the package version.
 
-## 2. Building
+## 2. Building (macOS)
 
 From the repository root:
 
@@ -63,7 +63,7 @@ Output:
 * **The signature is ad-hoc** by default. That is enough to run the app on the
   machine that built it, and nothing more.
 
-## 3. Running the built app
+## 3. Running the built app (macOS)
 
 ```console
 $ open dist/macos/OpenRealLink.app
@@ -73,7 +73,7 @@ $ dist/macos/OpenRealLink.app/Contents/MacOS/OpenRealLink --replay spp-smoketest
 The command-line arguments are the same as `python -m tlapp` (`--address`,
 `--connect`, `--replay`, …).
 
-## 4. Signing and notarisation
+## 4. Signing and notarisation (macOS)
 
 An ad-hoc bundle is **rejected by Gatekeeper** on any other Mac ("OpenRealLink
 can't be opened because Apple cannot check it for malicious software"). Shipping

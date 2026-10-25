@@ -136,8 +136,8 @@ you would rather not activate.
 - `pytest -q` passes.
 - `python tests/test_app.py` prints `APP: OK` (the Qt-free app controller).
 - `python tests/test_protocol_docs.py` prints `DOCS: OK`.
-- `python tests/test_packaging.py` prints `PACKAGING: OK` (the macOS bundle
-  inputs and icon pipeline; the icon step skips off macOS).
+- `python tests/test_packaging.py` prints `PACKAGING: OK` (the macOS and Windows
+  bundle inputs and icon pipelines; the macOS icon step skips off macOS).
 - `TL_REFERENCE=… python tests/test_parity_tl_frame.py` prints `PARITY: OK`
   (or skips cleanly when the reference is unavailable).
 - Nothing from the "Do not add here" list is staged.

@@ -166,7 +166,7 @@ The extras are optional and independent:
 | `macos` | the IOBluetooth transport (`pyobjc-framework-IOBluetooth`; **macOS only** — the Windows transport needs no extra) |
 | `gui` | PySide6, for the desktop app |
 | `dev` | the test and lint tools (`pytest`, `coverage`, `ruff`) |
-| `release` | PyInstaller, for building the macOS app bundle |
+| `release` | PyInstaller, for building the macOS and Windows app bundles |
 
 Add `dev` if you intend to run the test suite: `pip install -e ".[dev,macos,gui]"`
 on macOS, or `pip install -e ".[dev,gui]"` on Windows.

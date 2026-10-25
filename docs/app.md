@@ -68,6 +68,10 @@ radio — which is how it is developed and demonstrated. The window connects as
 soon as it opens. The replay fixtures carry no device address, so they are safe
 to use anywhere.
 
+Frozen builds that need no Python are also available: a macOS `.app` and a
+Windows one-folder build, both produced from this checkout — see
+[`packaging.md`](packaging.md).
+
 ### One instance at a time
 
 The headset has a **single** RFCOMM slot, so a second copy of the app would fight

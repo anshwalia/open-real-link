@@ -96,7 +96,7 @@ Two assets make both the remaining work and any future port cheap:
 | RFCOMM | macOS pyobjc/IOBluetooth (working) · Linux stdlib `socket` · Windows `ctypes` → WinSock |
 | UI | PySide6 — Qt Quick/QML or QWidgets, one codebase for macOS/Windows/Linux |
 | reuse | **100 %** — `tlcore` imported directly, not ported |
-| packaging | PyInstaller (macOS bundle built; see [`packaging.md`](packaging.md)) |
+| packaging | PyInstaller (macOS and Windows builds; see [`packaging.md`](packaging.md)) |
 | Android | not in the first cut |
 
 **Why this one.** It reuses the verified protocol verbatim. It keeps one language
