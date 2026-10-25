@@ -380,8 +380,7 @@ the platform-neutral controller has no way to reach. `tlcli say` is not a
 protocol feature at all -- it speaks through the host's audio output.
 
 The app inherits that platform limit: there are **two** live transports
-(macOS IOBluetooth and Windows WinSock; the Windows one is written but not yet
-live-verified), so on Linux **Connect** reports that no live transport exists on
+(macOS IOBluetooth and Windows WinSock, both live-verified), so on Linux **Connect** reports that no live transport exists on
 this platform and names the way out. Offline replay
 (`--replay fixtures/...`) works everywhere, which is how the GUI tests run.
 

@@ -93,8 +93,8 @@ Only the **macOS** and **Windows** transports are implemented today; Linux and
 Android are still to be written. On a platform with no live transport,
 `--transport auto` (the default) **refuses to guess**: it raises
 `TransportUnavailable`, naming the platform and suggesting `--replay FILE`,
-rather than quietly opening a recording. The Windows transport is written but
-**not yet live-verified** on hardware.
+rather than quietly opening a recording. The Windows transport is written and
+live-verified on hardware.
 
 This is a reverse-engineered project, so support is empirical rather than
 promised. The verified model is the Buds Air7 Pro; the static candidate list in

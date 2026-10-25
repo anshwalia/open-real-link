@@ -94,9 +94,14 @@ class SOCKADDR_BTH(ctypes.Structure):
     """The Bluetooth socket address Windows' ``connect`` expects.
 
     Field order and widths are fixed by ``ws2bth.h``; ``port`` is the RFCOMM
-    channel. The struct is 40 bytes on both 32- and 64-bit Windows.
+    channel. The structure is **packed** -- ``ws2bth.h`` wraps it in
+    ``#pragma pack(1)`` -- so it is 30 bytes, not the 40 a naturally aligned
+    layout would give. Getting this wrong is silent: ``connect`` reads a zero
+    address and fails with ``WSAEADDRNOTAVAIL``, and an SDP result parses to a
+    zero channel.
     """
 
+    _pack_ = 1
     _fields_ = [
         ("addressFamily", ctypes.c_uint16),
         ("btAddr", ctypes.c_ulonglong),
@@ -273,17 +278,22 @@ class WindowsTransport:
     def discover_channel(self, address: str, uuid: str) -> int | None:
         """Find the RFCOMM channel for ``uuid`` via a WinSock SDP lookup.
 
-        The ``NS_BTH`` provider wants the device address as 12 hex digits with
-        no separators. If it rejects that form, the search is retried across all
-        devices and the results are still filtered by address, so the answer is
-        the same -- just slower.
+        The ``NS_BTH`` provider wants the address in its canonical
+        colon-separated form as ``lpszContext``; the stripped form is rejected
+        with ``WSAEINVAL``. The search is retried with a ``NULL`` context (all
+        devices) and the results are still filtered by address.
+
+        A device may advertise several services under one class UUID -- a Buds
+        Air7 Pro answers four for SPP -- so the channel is returned only when it
+        is unambiguous, and ``None`` means "pass ``--channel``". Returning the
+        first match would silently open the wrong service.
         """
         ws2 = _winsock()
         guid = guid_from_uuid(uuid)
         wanted = parse_address(address)
         flags = LUP_RETURN_NAME | LUP_RETURN_ADDR | LUP_FLUSHCACHE
-        hex_address = address.replace(":", "").replace("-", "").upper()
-        for context in (hex_address, None):
+        colon_address = format_address(wanted)
+        for context in (colon_address, None):
             query = WSAQUERYSETW()
             query.dwSize = ctypes.sizeof(WSAQUERYSETW)
             query.lpServiceClassId = ctypes.pointer(guid)
@@ -302,6 +312,7 @@ class WindowsTransport:
     @staticmethod
     def _scan(ws2, handle, flags: int, wanted: int) -> int | None:
         size = ctypes.c_uint32(0x1000)
+        channels: set[int] = set()
         while True:
             buffer = ctypes.create_string_buffer(size.value)
             rc = ws2.WSALookupServiceNextW(handle, flags, ctypes.byref(size),
@@ -309,11 +320,13 @@ class WindowsTransport:
             if rc != 0:
                 if ws2.WSAGetLastError() == WSAEFAULT:
                     continue  # size was raised to the required length
-                return None
+                break
             result = ctypes.cast(buffer, ctypes.POINTER(WSAQUERYSETW)).contents
             found = WindowsTransport._channel_from_result(result, wanted)
             if found is not None:
-                return found
+                channels.add(found)
+        # One channel is an answer; several are not. See discover_channel.
+        return channels.pop() if len(channels) == 1 else None
 
     @staticmethod
     def _channel_from_result(result: WSAQUERYSETW, wanted: int) -> int | None:

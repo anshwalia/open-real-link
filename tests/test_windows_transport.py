@@ -87,9 +87,11 @@ def run() -> int:
                  win.WindowsTransport._raise_for_status, 12345, "AA-BB-CC", 12)
 
     # --- the address struct the C API reads -------------------------------
-    check("SOCKADDR_BTH size", ctypes.sizeof(win.SOCKADDR_BTH), 40)
-    check("btAddr offset", win.SOCKADDR_BTH.btAddr.offset, 8)
-    check("port offset", win.SOCKADDR_BTH.port.offset, 32)
+    # ws2bth.h packs this struct (30 bytes); a naturally aligned layout (40
+    # bytes, btAddr at offset 8) makes connect read a zero address.
+    check("SOCKADDR_BTH size", ctypes.sizeof(win.SOCKADDR_BTH), 30)
+    check("btAddr offset", win.SOCKADDR_BTH.btAddr.offset, 2)
+    check("port offset", win.SOCKADDR_BTH.port.offset, 26)
     sa = win.sockaddr_bth("AA-BB-CC-DD-EE-FF", 12)
     check("sockaddr family", sa.addressFamily, win.AF_BTH)
     check("sockaddr address", sa.btAddr, 0xAABBCCDDEEFF)

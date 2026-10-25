@@ -28,12 +28,12 @@ state the **finding** here and keep the artifact elsewhere.
 ## Where things stand
 
 The protocol work is done; what remains is a UI and the Linux/Android transport shims
-(the macOS one is live-verified and the Windows one is written).
+(the macOS and Windows ones are live-verified).
 
 | layer | state | read |
 | --- | --- | --- |
 | `tlcore` | done, parity-verified | [`protocol.md`](docs/protocol.md), [`command-coverage.md`](docs/command-coverage.md) |
-| `tltransport` | macOS live transport live-verified + Windows transport written (not yet live-verified) + portable replay; Linux/Android still to write — on a platform with no live transport `--transport auto` raises `TransportUnavailable` naming the platform rather than falling back to replay | [`architecture.md`](docs/architecture.md) §3, §4 |
+| `tltransport` | macOS and Windows live transports live-verified + portable replay; Linux/Android still to write — on a platform with no live transport `--transport auto` raises `TransportUnavailable` naming the platform rather than falling back to replay | [`architecture.md`](docs/architecture.md) §3, §4 |
 | `tlcli` | done (the hardware test harness) | [`live-test.md`](docs/live-test.md) |
 | `tlapp` | **in progress** — connect, status, noise mode, EQ preset + list, high volume, find my buds, paired-device list, gesture table, backup/restore, event monitor, a connect-time compatibility check, and two views: General and Expert (diagnostics, bitmap, bass read, guarded raw console) | [`app.md`](docs/app.md) |
 | `release/macos` | a macOS `.app` bundle built with PyInstaller — ad-hoc signed, so not yet installable on other Macs | [`packaging.md`](docs/packaging.md) |

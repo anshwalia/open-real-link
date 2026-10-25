@@ -136,8 +136,8 @@ are portable, so the packaging work is small once the transport is in place:
 
 * **Windows** — PyInstaller produces a `.exe`/folder on Windows, and needs a
   Windows build host (PyInstaller does not cross-compile). The transport has
-  **not been live-verified** on hardware yet, so build the bundle only after a
-  `live-test.md` run passes there.
+  been live-verified on hardware (`live-test.md`), so the Windows bundle is
+  unblocked.
 * **Linux** — PyInstaller produces an AppImage or a folder; the transport would
   use BlueZ over a plain `socket` (`BTPROTO_RFCOMM`). Needs a Linux build host.
 

@@ -253,8 +253,8 @@ launch reports which process holds it and exits.
 
 The Windows transport (`tltransport/windows.py`) speaks RFCOMM through WinSock
 (`AF_BTH` / `BTHPROTO_RFCOMM`) using `ctypes`; there is no extra dependency and
-no build step. It is **written but not yet live-verified**, so treat the first
-pass as a test of the *transport*, not of the protocol.
+no build step. It has been **live-verified** end to end on hardware (§5), the
+read-only `smoke` and the six-mode write.
 
 Prerequisites: Windows 10/11 with a Bluetooth radio and the buds **paired** in
 Windows Settings, plus a checkout installed with `pip install -e ".[dev]"`.
@@ -268,8 +268,11 @@ The address form differs from macOS: Windows shows the canonical
 $ python -m tlcli --address AA:BB:CC:DD:EE:FF smoke
 ```
 
-`--transport auto` (the default) resolves to the Windows transport here. If
-channel discovery is slow or fails, pass the known SPP channel explicitly:
+`--transport auto` (the default) resolves to the Windows transport here. SDP
+discovery is deliberately conservative on Windows: a Buds Air7 Pro answers four
+services under the SPP class UUID, so `discover_channel` returns a channel only
+when it is unambiguous and otherwise `None`. Pass the known SPP channel
+explicitly:
 
 ```console
 $ python -m tlcli --address AA:BB:CC:DD:EE:FF --channel 12 smoke
@@ -332,6 +335,48 @@ noise mode cycle (starting 0x01 Normal (noise off))
 restored 0x01 (Normal (noise off))
 RESULT: OK
 ```
+
+### Windows transport (WinSock RFCOMM, 2026-10-25)
+
+The Windows transport was driven from this codebase on the same Buds Air7 Pro,
+read-only first and then the six-mode write. It reproduces the macOS result
+exactly — **49 commands**, model `0x064C12`, firmware `1.1.0.85`:
+
+```console
+$ python -m tlcli --address <device> --channel 12 smoke
+live smoke test: <device>
+  [PASS] capability bitmap (0x8100)       49 commands, status=0
+  [PASS] status poll (0x0101..0x0128)     model=0x064C12 fw=1.1.0.85 mode=0x01(Normal (noise off)) battery[L=100% R=100% CASE=0%] wear=in-ear
+RESULT: OK
+
+$ python -m tlcli --address <device> --channel 12 mode cycle --dwell 0
+noise mode cycle (starting 0x01 Normal (noise off))
+  [PASS] 0x01 Normal (noise off)   -> 0x01 (Normal (noise off))
+  [PASS] 0x02 Transparency         -> 0x02 (Transparency)
+  [PASS] 0x04 ANC light            -> 0x04 (ANC light)
+  [PASS] 0x08 ANC deep             -> 0x08 (ANC deep)
+  [PASS] 0x10 ANC medium           -> 0x10 (ANC medium)
+  [PASS] 0x20 ANC smart            -> 0x20 (ANC smart)
+restored 0x01 (Normal (noise off))
+RESULT: OK
+```
+
+Two transport bugs surfaced on the first pass, both now fixed in
+`tltransport/windows.py`:
+
+* **`SOCKADDR_BTH` is packed, not aligned.** `ws2bth.h` wraps the struct in
+  `#pragma pack(1)`, so it is **30 bytes** with `btAddr` at offset **2** and
+  `port` at **26** — not the 40-byte naturally aligned layout. The aligned struct
+  made `connect` read a zero address and fail with `WSAEADDRNOTAVAIL`; the same
+  misread made an SDP result parse to channel 0.
+* **The `NS_BTH` SDP provider wants the address colon-separated.** The stripped
+  12-hex form is rejected with `WSAEINVAL`; the canonical form is accepted.
+
+Discovery is deliberately conservative: this unit advertises **four** services
+under the SPP class UUID (channels 12, 15, 17 and 29), so `discover_channel`
+returns a channel only when the answer is unambiguous and otherwise `None`,
+which tells the caller to pass `--channel`. `getpeername` after a channel-12
+connect confirms the TL service is the one on **channel 12**.
 
 ### Expert surface re-check (read-only, 2026-10-23)
 
