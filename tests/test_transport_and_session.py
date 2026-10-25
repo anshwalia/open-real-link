@@ -65,7 +65,7 @@ def test_protocol_conformance() -> None:
     check("ReplayTransport implements Transport",
           isinstance(ReplayTransport([]), t.Transport), True)
     check("for_platform returns a Transport subclass",
-          issubclass(__import__("tltransport").for_platform(), object), True)
+          issubclass(__import__("tltransport").for_platform("replay"), object), True)
 
 
 def test_strict_matching() -> None:
@@ -1085,6 +1085,11 @@ def test_transport_factory() -> None:
         check("for_platform() resolves here", tltransport.for_platform(),
               tltransport.for_platform("macos"))
         check("macos is available", "macos" in tltransport.available_transports(), True)
+    elif sys.platform == "win32":
+        check("platform_transport", tltransport.platform_transport(), "windows")
+        check("for_platform() resolves here", tltransport.for_platform(),
+              tltransport.for_platform("windows"))
+        check("windows is available", "windows" in tltransport.available_transports(), True)
     else:
         check("no live transport here", tltransport.platform_transport(), None)
         check("macos is not advertised",
@@ -1113,7 +1118,7 @@ def test_no_live_transport_off_macos() -> None:
 
     saved = sys.platform
     try:
-        for fake in ("linux", "win32"):
+        for fake in ("linux", "freebsd"):
             sys.platform = fake
             check(f"{fake}: no live transport", tltransport.platform_transport(), None)
             check(f"{fake}: only replay", tltransport.available_transports(), ["replay"])
@@ -1125,12 +1130,53 @@ def test_no_live_transport_off_macos() -> None:
             # ImportError about a pyobjc dependency that reads like a fixable gap
             check_raises(f"{fake}: macos refused", t.TransportUnavailable,
                          tltransport.for_platform, "macos")
+            check_raises(f"{fake}: windows refused", t.TransportUnavailable,
+                         tltransport.for_platform, "windows")
             check(f"{fake}: replay still resolves", tltransport.for_platform("replay"), RT)
             # raised before any I/O, so the caller never sees a decode failure
             check_raises(f"{fake}: open_transport refused", t.TransportUnavailable,
                          tltransport.open_transport, "AA-BB-CC-DD-EE-FF", channel=12)
+
+        # Windows now has a live transport, so `auto` must resolve to it -- and
+        # must not be reachable from any other platform.
+        sys.platform = "win32"
+        check("win32: live transport", tltransport.platform_transport(), "windows")
+        check("win32: both transports", tltransport.available_transports(),
+              ["replay", "windows"])
+        check("win32: for_platform() resolves",
+              tltransport.for_platform("windows").__name__, "WindowsTransport")
+        check_raises("win32: macos refused", t.TransportUnavailable,
+                     tltransport.for_platform, "macos")
     finally:
         sys.platform = saved
+
+
+def test_discovery_miss_is_a_tlerror() -> None:
+    """A channel-discovery miss must be a ``TLError``, not a bare ``ValueError``.
+
+    Regression: ``open_transport`` raised ``ValueError`` when discovery found
+    nothing, which the front ends do not catch -- a bogus address printed a
+    traceback instead of the one-line "pass --channel N" hint.
+    """
+    import tltransport
+
+    class _NoChannel:
+        def __init__(self, **_kwargs):
+            pass
+
+        def discover_channel(self, address, uuid):
+            return None
+
+        def open(self, address, channel):
+            raise AssertionError("open must not be reached")
+
+    saved = tltransport.for_platform
+    tltransport.for_platform = lambda name=None: _NoChannel
+    try:
+        check_raises("discovery miss is a TLError", t.TransportError,
+                     tltransport.open_transport, "AA-BB-CC-DD-EE-FF")
+    finally:
+        tltransport.for_platform = saved
 
 
 def test_off_macos_errors_are_one_sentence() -> None:

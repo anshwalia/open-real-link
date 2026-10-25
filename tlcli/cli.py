@@ -1130,7 +1130,7 @@ def _add_common_options(parser: argparse.ArgumentParser) -> None:
                         help="RFCOMM channel (default: discover SPP)")
     parser.add_argument("--uuid", default=argparse.SUPPRESS,
                         help=f"service UUID to discover (default {SPP_UUID})")
-    parser.add_argument("--transport", choices=["auto", "macos", "replay"],
+    parser.add_argument("--transport", choices=["auto", "macos", "windows", "replay"],
                         default=argparse.SUPPRESS)
     parser.add_argument("--replay", metavar="FILE", default=argparse.SUPPRESS,
                         help="run against a recorded fixture")
