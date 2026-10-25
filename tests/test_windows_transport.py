@@ -87,15 +87,43 @@ def run() -> int:
                  win.WindowsTransport._raise_for_status, 12345, "AA-BB-CC", 12)
 
     # --- the address struct the C API reads -------------------------------
-    # ws2bth.h packs this struct (30 bytes); a naturally aligned layout (40
-    # bytes, btAddr at offset 8) makes connect read a zero address.
+    # Regression: ws2bth.h wraps SOCKADDR_BTH in #pragma pack(1), so it is 30
+    # bytes with btAddr at offset 2 and port at 26. A naturally aligned layout
+    # (40 bytes, btAddr at 8) is silently wrong: connect reads a zero address
+    # and fails with WSAEADDRNOTAVAIL, and an SDP result parses to channel 0.
+    check("SOCKADDR_BTH is packed", getattr(win.SOCKADDR_BTH, "_pack_", 0), 1)
     check("SOCKADDR_BTH size", ctypes.sizeof(win.SOCKADDR_BTH), 30)
-    check("btAddr offset", win.SOCKADDR_BTH.btAddr.offset, 2)
-    check("port offset", win.SOCKADDR_BTH.port.offset, 26)
+    offsets = {name: getattr(win.SOCKADDR_BTH, name).offset
+               for name, _ in win.SOCKADDR_BTH._fields_}
+    check("SOCKADDR_BTH field offsets", offsets,
+          {"addressFamily": 0, "btAddr": 2, "serviceClassId": 10, "port": 26})
     sa = win.sockaddr_bth("AA-BB-CC-DD-EE-FF", 12)
     check("sockaddr family", sa.addressFamily, win.AF_BTH)
     check("sockaddr address", sa.btAddr, 0xAABBCCDDEEFF)
     check("sockaddr channel", sa.port, 12)
+    # The exact 30 bytes handed to connect(): family, little-endian address,
+    # empty GUID, little-endian channel. Pinned so any layout drift fails here
+    # instead of on hardware.
+    check("sockaddr wire bytes", bytes(sa).hex(),
+          "2000ffeeddccbbaa0000" + "00" * 16 + "0c000000")
+    # And the same layout must parse an SDP result back to its channel -- the
+    # half of the bug that made discovery read channel 0. The bytes are built by
+    # hand in the packed wire form, not with sockaddr_bth(), so a reader that
+    # disagrees with the provider fails here.
+    packed = bytes.fromhex("2000ffeeddccbbaa0000" + "00" * 16 + "0c000000")
+    raw = ctypes.create_string_buffer(packed, len(packed))
+    csa = win.CSADDR_INFO()
+    csa.RemoteAddr.lpSockaddr = ctypes.cast(raw, ctypes.c_void_p)
+    csa.RemoteAddr.iSockaddrLength = len(packed)
+    result = win.WSAQUERYSETW()
+    result.dwNumberOfCsAddrs = 1
+    result.lpcsaBuffer = ctypes.pointer(csa)
+    check("SDP result -> channel",
+          win.WindowsTransport._channel_from_result(
+              result, win.parse_address("AA-BB-CC-DD-EE-FF")), 12)
+    check("SDP result ignores another address",
+          win.WindowsTransport._channel_from_result(
+              result, win.parse_address("11-22-33-44-55-66")), None)
 
     # --- a fresh transport needs no radio ---------------------------------
     transport = win.WindowsTransport()
