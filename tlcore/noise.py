@@ -30,6 +30,6 @@ NOISE_MODE_NAMES = {
 }
 
 # `0x0404` action=2 writes the *cycle* settings (separate field, read via
-# `0x010C 02 01`); see docs/05 §4.1.
+# `0x010C 02 01`); see docs/protocol.md §8.1.
 NOISE_FIELD_MODE = 0x01  # active mode  -> 0x010C 01 01
 NOISE_FIELD_CYCLE = 0x02  # mode cycle   -> 0x010C 02 01

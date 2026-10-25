@@ -25,7 +25,7 @@ def payload_set_noise_reduction(action: int, noise_type: int, value: int) -> byt
     type   1 -> 0x01, otherwise 0x02
     value  raw byte (mode / cycle / ANC depth)
 
-    Observed semantics on the Air7 Pro (docs/14 §7):
+    Observed semantics on the Air7 Pro (docs/protocol.md §8.1):
 
     * ``action=1`` sets the **active noise mode** (the field read back by
       ``0x010C 01 01``).  ``payload_set_noise_mode`` is the friendly wrapper.

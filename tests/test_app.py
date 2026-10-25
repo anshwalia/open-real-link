@@ -9,6 +9,8 @@ Run directly for the check list; ``tests/test_app_gui.py`` covers the widgets.
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import pathlib
 import sys
@@ -19,13 +21,13 @@ sys.path.insert(0, str(ROOT))
 
 import tlcore as t  # noqa: E402 - after the sys.path insert above
 from tlapp import (  # noqa: E402
+    EQ_PRESET_MAX,
+    EQ_PRESET_MIN,
+    EVENT_POLL_SECONDS,
     BackupFileError,
     ConnectionOptions,
     ControllerError,
     DeviceController,
-    EQ_PRESET_MAX,
-    EQ_PRESET_MIN,
-    EVENT_POLL_SECONDS,
     default_backup_dir,
     eq_preset_choices,
     event_phrase,
@@ -499,9 +501,48 @@ def test_expert_diagnostics_disconnected() -> None:
 def test_expert_diagnostics_are_read_only() -> None:
     """Nothing on the Expert view may write: it is reads and the raw console."""
     ctrl = DeviceController(ConnectionOptions(replay="spp-smoketest.jsonl"))
-    for name in ("identity", "upgrade_capability", "switch_features",
-                 "notification_capabilities", "personalized_anc", "ai_status"):
-        check(f"{name} is a read", "set" not in name.lower(), True)
+    reads = ("identity", "upgrade_capability", "switch_features",
+             "notification_capabilities", "personalized_anc", "ai_status")
+    words = ("identity", "capabilit", "switch", "personalized", "ai_status")
+    inspected = set()
+    for name in dir(ctrl):
+        if any(word in name.lower() for word in words):
+            inspected.add(name)
+            check(f"{name} is a read", "set" not in name.lower(), True)
+    # the tripwire is only meaningful if it actually looked at the reads
+    for name in reads:
+        check(f"{name} was inspected", name in inspected, True)
+
+
+def test_app_argument_parser() -> None:
+    """`python -m tlapp` arguments map onto ConnectionOptions with no Qt."""
+    from tlapp.app import build_parser, options_from_args
+
+    defaults = options_from_args(build_parser().parse_args([]))
+    check("default transport", defaults.transport, "auto")
+    check("default timeout", defaults.timeout, 1.5)
+    check("default address", defaults.address, None)
+    check("default replay", defaults.replay, None)
+
+    args = build_parser().parse_args([
+        "--address", "AA-BB-CC-DD-EE-FF", "--channel", "12", "--transport", "replay",
+        "--replay", "fixtures/spp-smoketest.jsonl", "--reset", "--loose",
+        "--timeout", "2.5", "--connect",
+    ])
+    options = options_from_args(args)
+    check("address", options.address, "AA-BB-CC-DD-EE-FF")
+    check("channel", options.channel, 12)
+    check("transport", options.transport, "replay")
+    check("replay", options.replay, "fixtures/spp-smoketest.jsonl")
+    check("reset", options.reset, True)
+    check("loose", options.loose, True)
+    check("timeout", options.timeout, 2.5)
+    check("connect", args.connect, True)
+
+    # an unknown transport is rejected by argparse, not passed through
+    with contextlib.redirect_stderr(io.StringIO()):
+        check_raises("bad transport exits", SystemExit,
+                     build_parser().parse_args, ["--transport", "nope"])
 
 
 # --------------------------------------------------------------------------

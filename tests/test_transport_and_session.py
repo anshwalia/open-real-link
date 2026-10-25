@@ -68,6 +68,56 @@ def test_protocol_conformance() -> None:
           issubclass(__import__("tltransport").for_platform("replay"), object), True)
 
 
+def test_crc16_ccitt() -> None:
+    # CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection) check values,
+    # so the ported helper is honest even without TL_REFERENCE.
+    check("crc16(empty)", t.crc16_ccitt(b""), 0xFFFF)
+    check("crc16('123456789')", t.crc16_ccitt(b"123456789"), 0x29B1)
+    check("crc16(init=0)", t.crc16_ccitt(b"123456789", init=0), 0x31C3)
+
+
+def test_wire_edges() -> None:
+    # varint: zero is a single 0x00, and multi-byte values round-trip
+    check("varint_encode(0)", t.varint_encode(0), b"\x00")
+    check("varint_decode(0x00)", t.varint_decode(b"\x00"), (0, 1))
+    for value in (1, 127, 128, 300, 0x3FFF):
+        encoded = t.varint_encode(value)
+        check(f"varint round-trip {value}", t.varint_decode(encoded), (value, len(encoded)))
+    # nothing in, nothing out
+    check("build_frames(empty)", t.build_frames(b""), [])
+    # a frame under its 4-byte minimum, and one with a bad SOF
+    check_raises("parse_frame too short", t.FrameError, t.parse_frame, b"\xaa\x01")
+    check_raises("parse_frame bad SOF", t.FrameError, t.parse_frame, b"\x00\x01\x00\x00")
+    # a declared length under the minimum is dropped as junk, not misparsed
+    framed = t.StreamDecoder()
+    events = framed.feed(b"\xaa\x01\x00")
+    check("short frame is junk", events[0]["kind"] if events else None, "junk")
+    # the raw decoder drops a non-packet run as junk
+    raw = t.StreamDecoder(raw=True)
+    events = raw.feed(b"\xff" * 6)
+    check("raw junk", events[0]["kind"] if events else None, "junk")
+    # an unterminated varint is held back, never misparsed
+    held = t.StreamDecoder()
+    check("unterminated varint yields nothing", held.feed(b"\xaa\x80\x80"), [])
+    check("unterminated varint is buffered", held.pending(), 3)
+
+
+def test_decoder_short_bodies() -> None:
+    # every decoder survives an empty body instead of raising IndexError
+    check("public event (empty)", t.parse_public_event(b""),
+          {"flags": None, "volume": None, "ai": None})
+    check("remote vendor id (empty)", t.parse_remote_vendor_id(b""),
+          {"status": 0, "vendor_id": None})
+    check("color id (empty)", t.parse_color_id(b""),
+          {"status": 0, "color_id": None})
+    check("high volume (empty)", t.parse_high_volume(b""),
+          {"status": 0, "enabled": None})
+    check("ai status (empty)", t.parse_ai_status(b""),
+          {"status": 0, "state": None, "type": None})
+    check("key function (empty)", t.parse_key_function(b""),
+          {"status": 0, "count": 0, "records": []})
+
+
 def test_strict_matching() -> None:
     transport, session = replay([("tx", wire(0x010C, bytes([1]))),
                                  ("rx", wire(0x810C, bytes([0, 1, 1, 1])))])
@@ -1184,7 +1234,7 @@ def test_off_macos_errors_are_one_sentence() -> None:
     import contextlib
     import io
 
-    from tlapp.controller import ControllerError, DeviceController, ConnectionOptions
+    from tlapp.controller import ConnectionOptions, ControllerError, DeviceController
     from tlcli.cli import main
 
     saved = sys.platform

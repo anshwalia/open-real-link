@@ -23,13 +23,13 @@ from .backupfile import (
     write_snapshot,
 )
 from .controller import (
-    ConnectionOptions,
-    ControllerError,
-    DeviceController,
     EQ_PRESET_MAX,
     EQ_PRESET_MIN,
     EVENT_POLL_SECONDS,
     SEND_LISTEN_SECONDS,
+    ConnectionOptions,
+    ControllerError,
+    DeviceController,
     eq_preset_choices,
     event_phrase,
     friendly_error,

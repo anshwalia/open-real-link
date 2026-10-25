@@ -18,9 +18,9 @@ of the prose, which no test can judge. Run it directly, or under pytest.
 
 from __future__ import annotations
 
+import pathlib
 import re
 import sys
-import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))

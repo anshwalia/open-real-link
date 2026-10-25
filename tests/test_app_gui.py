@@ -996,7 +996,7 @@ def test_an_ungated_read_is_not_switched_off_by_the_bitmap() -> None:
         app.processEvents()
         assert not window.controller.supports(0x0200)   # not in the bitmap
         assert window._capability_enabled(0x0200)       # yet it is usable
-        assert not window.controller.supports(0x0107) is False
+        assert window.controller.supports(0x0107) is not False
         assert window._capability_enabled(0x0107)
         # a cap-bit command really does follow the bitmap
         window.controller.supports = lambda cmd: False

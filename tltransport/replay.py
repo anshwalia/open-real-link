@@ -17,7 +17,8 @@ from __future__ import annotations
 import json
 import pathlib
 from collections import deque
-from typing import Iterable, Optional, Union
+from collections.abc import Iterable
+from typing import Optional, Union
 
 from tlcore.errors import NotConnected, TLError
 
@@ -54,7 +55,7 @@ class ReplayTransport:
 
     # -- constructors ------------------------------------------------------
     @classmethod
-    def from_jsonl(cls, path: Union[str, pathlib.Path], **kwargs) -> "ReplayTransport":
+    def from_jsonl(cls, path: Union[str, pathlib.Path], **kwargs) -> ReplayTransport:
         path = pathlib.Path(path)
         records = []
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -66,7 +67,7 @@ class ReplayTransport:
         return cls(records, source=str(path), **kwargs)
 
     @classmethod
-    def from_fixture(cls, name: str, **kwargs) -> "ReplayTransport":
+    def from_fixture(cls, name: str, **kwargs) -> ReplayTransport:
         return cls.from_jsonl(FIXTURES_DIR / name, **kwargs)
 
     # -- Transport ---------------------------------------------------------

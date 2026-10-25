@@ -26,9 +26,9 @@ from tlcore.errors import (
 )
 
 try:
+    import IOBluetooth
     import objc
     from Foundation import NSDate, NSDefaultRunLoopMode, NSObject, NSRunLoop
-    import IOBluetooth
 except ImportError as exc:  # pragma: no cover - environment dependent
     raise ImportError(
         "the macOS transport needs pyobjc-framework-IOBluetooth "

@@ -20,7 +20,6 @@ from .buttons import EVENT_USER_INTERACTION, parse_user_interaction
 from .commands import CMD_NAMES, CMD_NOTIFICATION_EVENT
 from .requests import REQUEST_DECODERS, decode_request
 
-
 # ``parse_feature_detect`` (``0x812A``, the answer to the ``0x012A`` feature
 # query) was removed rather than shipped: a Buds Air7 Pro does not advertise
 # ``0x012A`` in its capability bitmap and never answers it, so no live test can
@@ -176,7 +175,7 @@ def parse_battery(payload: bytes) -> dict:
     reply: ``00 03 01 64 02 64 03 00`` -> left 100%, right 100%, case 0%.
 
     A case level of 0 is what the device reports when the buds are **out** of
-    the case; it does not mean an empty battery (docs/16).
+    the case; it does not mean an empty battery (docs/protocol.md §8).
     """
     status, pairs = parse_pairs(payload)
     return {
@@ -301,7 +300,7 @@ def parse_eq_info(payload: bytes) -> dict:
         [freqCount][ (freq uint16 LE)(db int8) x freqCount ]
 
     The frequency is read through ``ProtocolUtil.e(..., true)`` -- the same
-    little-endian helper the ``0x0418`` writer uses (docs/12).  The Air7 Pro
+    little-endian helper the ``0x0418`` writer uses (docs/protocol.md §8.2).  The Air7 Pro
     reports a single point-less entry: ``00 01 01 01 02 04 00 00`` -> eqId 4,
     selected, ``min=1``, ``max=2``, no bands.
     """

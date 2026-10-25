@@ -21,9 +21,9 @@ from .commands import (
     CMD_GET_EQ_MODE,
     CMD_GET_HIGH_VOLUME,
     CMD_GET_KEY_FUNCTION,
+    CMD_GET_MULTI_BASS_ENGINE,
     CMD_GET_MULTI_CONNECT,
     CMD_GET_NOISE_REDUCTION,
-    CMD_GET_MULTI_BASS_ENGINE,
     CMD_GET_PERSONALIZED_ANC,
     CMD_GET_PROTOCOL_VERSION,
     CMD_GET_REMOTE_CAPABILITY,
@@ -33,8 +33,8 @@ from .commands import (
     CMD_NOTIFICATION_CAPS,
     CMD_SET_AI_STATUS,
     CMD_SET_EQ_MODE,
-    CMD_SET_HIGH_VOLUME,
     CMD_SET_FIND_MODE,
+    CMD_SET_HIGH_VOLUME,
     CMD_SET_KEY_FUNCTION,
     CMD_SET_NOISE_REDUCTION,
     RESPONSE_BIT,
@@ -46,11 +46,12 @@ from .payloads import (
     payload_compactness_detect,
     payload_set_ai_status,
     payload_set_eq_mode,
-    payload_set_high_volume,
     payload_set_find_mode,
+    payload_set_high_volume,
     payload_set_noise_mode,
 )
 from .wire import StreamDecoder, build_frames, build_packet
+
 
 class Session:
     """Drives a transport with TL packets; adds no I/O of its own."""
@@ -476,8 +477,13 @@ class Session:
         The order matches a real device conversation (and the recorded fixtures)
         so a replay reproduces it without skipping records.
         """
-        from .decoders import (parse_battery, parse_device_version, parse_earbud_status,
-                               parse_model_id, parse_use_time)
+        from .decoders import (
+            parse_battery,
+            parse_device_version,
+            parse_earbud_status,
+            parse_model_id,
+            parse_use_time,
+        )
 
         out: dict = {}
         # ``0x0101`` is the version/property query; the body is not decoded yet,
