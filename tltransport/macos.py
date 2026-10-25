@@ -16,7 +16,6 @@ load-bearing (they cost real debugging time in the original tools):
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from tlcore.errors import (
     ChannelRefused,
@@ -118,14 +117,14 @@ class MacOSTransport:
     def __init__(self, *, retries: int = 6, retry_delay: float = 0.5):
         self.retries = retries
         self.retry_delay = retry_delay
-        self.address: Optional[str] = None
-        self.channel_id: Optional[int] = None
+        self.address: str | None = None
+        self.channel_id: int | None = None
         self.device = None
         self.channel = None
-        self._delegate: Optional[_Delegate] = None
+        self._delegate: _Delegate | None = None
 
     # -- discovery ---------------------------------------------------------
-    def discover_channel(self, address: str, uuid: str) -> Optional[int]:
+    def discover_channel(self, address: str, uuid: str) -> int | None:
         needle = uuid.replace("-", "").upper()
         for svc in sdp_services(address):
             if svc["channel"] is None:

@@ -19,9 +19,9 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import tlcore as t
-from tlcore.errors import DeviceRejected, NotWorn, Timeout
-from tltransport.replay import ReplayMismatch, ReplayTransport
+import tlcore as t  # noqa: E402 - after the sys.path insert above
+from tlcore.errors import DeviceRejected, NotWorn, Timeout  # noqa: E402
+from tltransport.replay import ReplayMismatch, ReplayTransport  # noqa: E402
 
 #: name of the pytest aggregator -- main() must skip it or it recurses
 AGGREGATOR = "test_transport_and_session"

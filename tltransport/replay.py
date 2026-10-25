@@ -18,7 +18,6 @@ import json
 import pathlib
 from collections import deque
 from collections.abc import Iterable
-from typing import Optional, Union
 
 from tlcore.errors import NotConnected, TLError
 
@@ -40,7 +39,7 @@ class ReplayTransport:
 
     def __init__(self, records: Iterable[tuple[str, bytes]] = (), *,
                  strict: bool = True, loop: bool = False, channel: int = 12,
-                 source: Optional[str] = None):
+                 source: str | None = None):
         self.records: list[tuple[str, bytes]] = [
             (direction, bytes(data)) for direction, data in records
         ]
@@ -55,7 +54,7 @@ class ReplayTransport:
 
     # -- constructors ------------------------------------------------------
     @classmethod
-    def from_jsonl(cls, path: Union[str, pathlib.Path], **kwargs) -> ReplayTransport:
+    def from_jsonl(cls, path: str | pathlib.Path, **kwargs) -> ReplayTransport:
         path = pathlib.Path(path)
         records = []
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -71,7 +70,7 @@ class ReplayTransport:
         return cls.from_jsonl(FIXTURES_DIR / name, **kwargs)
 
     # -- Transport ---------------------------------------------------------
-    def discover_channel(self, address: str, uuid: str) -> Optional[int]:
+    def discover_channel(self, address: str, uuid: str) -> int | None:
         return self.channel
 
     def open(self, address: str, channel: int) -> None:

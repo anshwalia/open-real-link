@@ -10,7 +10,6 @@ the same code runs against real hardware and against a recorded replay.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from .commands import (
     ALWAYS_ON,
@@ -64,7 +63,7 @@ class Session:
         self.max_frame_size = max_frame_size
         self.read_timeout = read_timeout
         self.decoder = StreamDecoder()
-        self.capabilities: Optional[dict] = None
+        self.capabilities: dict | None = None
         #: Unsolicited packets seen while waiting for a reply.
         self.events: list[dict] = []
 
@@ -96,8 +95,8 @@ class Session:
             if packets:
                 return packets
 
-    def request(self, cmd: int, payload: bytes = b"", *, timeout: Optional[float] = None,
-                expect: Optional[int] = None, type_byte: int = 0) -> dict:
+    def request(self, cmd: int, payload: bytes = b"", *, timeout: float | None = None,
+                expect: int | None = None, type_byte: int = 0) -> dict:
         """Send ``cmd`` and return the matching reply packet.
 
         Non-matching packets (unsolicited pushes) are collected in
@@ -111,7 +110,7 @@ class Session:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise Timeout(f"no 0x{expect:04X} reply to 0x{cmd:04X}")
-            found: Optional[dict] = None
+            found: dict | None = None
             for pkt in self._read_packets(remaining):
                 if found is None and pkt["cmd"] == expect:
                     found = pkt
@@ -158,7 +157,7 @@ class Session:
         return status
 
     # -- capability negotiation -------------------------------------------
-    def negotiate_capabilities(self, *, timeout: Optional[float] = None) -> dict:
+    def negotiate_capabilities(self, *, timeout: float | None = None) -> dict:
         """Send an empty ``0x0100`` and decode the ``0x8100`` capability bitmap."""
         reply = self.request(CMD_GET_REMOTE_CAPABILITY, b"", timeout=timeout)
         self.capabilities = parse_capabilities(reply["payload"])
@@ -173,7 +172,7 @@ class Session:
         return cmd in set(self.capabilities["commands"])
 
     # -- noise mode --------------------------------------------------------
-    def read_noise_mode(self, *, timeout: Optional[float] = None) -> int:
+    def read_noise_mode(self, *, timeout: float | None = None) -> int:
         """Read the active noise mode (``0x010C`` selector ``1``).
 
         Reply body is ``[status][field][len][value]``; the value is last.
@@ -186,7 +185,7 @@ class Session:
             raise PacketError(f"0x810C body too short for a mode value: {payload.hex()}")
         return payload[3]
 
-    def set_noise_mode(self, value: int, *, timeout: Optional[float] = None) -> int:
+    def set_noise_mode(self, value: int, *, timeout: float | None = None) -> int:
         """Write the active noise mode. Raises :class:`NotWorn` if not in-ear."""
         if value not in NOISE_MODE_NAMES:
             raise ValueError(f"0x{value:02X} is not a known noise mode: "
@@ -196,7 +195,7 @@ class Session:
         return self.check_status(reply)
 
     # -- sound effect / EQ -------------------------------------------------
-    def read_eq_mode(self, *, timeout: Optional[float] = None) -> int:
+    def read_eq_mode(self, *, timeout: float | None = None) -> int:
         """Read the active sound-effect/EQ preset (``0x010F``)."""
         reply = self.request(CMD_GET_EQ_MODE, b"", timeout=timeout)
         self.check_status(reply)
@@ -205,7 +204,7 @@ class Session:
             raise PacketError(f"0x810F body too short for an EQ mode: {payload.hex()}")
         return payload[1]
 
-    def set_eq_mode(self, mode: int, *, timeout: Optional[float] = None) -> int:
+    def set_eq_mode(self, mode: int, *, timeout: float | None = None) -> int:
         """Write the active sound-effect/EQ preset (``0x0406``).
 
         **Verified live** on the Air7 Pro: the value ranges 0..6 and ``0x010F``
@@ -215,7 +214,7 @@ class Session:
         reply = self.request(CMD_SET_EQ_MODE, payload_set_eq_mode(mode), timeout=timeout)
         return self.check_status(reply)
 
-    def read_eq_info(self, *, timeout: Optional[float] = None) -> dict:
+    def read_eq_info(self, *, timeout: float | None = None) -> dict:
         """Read the EQ preset/custom list (``0x0122``)."""
         from .decoders import parse_eq_info
 
@@ -224,7 +223,7 @@ class Session:
         return parse_eq_info(reply["payload"])
 
     # -- high volume -------------------------------------------------------
-    def read_high_volume(self, *, timeout: Optional[float] = None) -> bool:
+    def read_high_volume(self, *, timeout: float | None = None) -> bool:
         """Read the high-volume (loudness boost) status (``0x0110``).
 
         **Verified live** on the Air7 Pro: the reply is ``[status][0|1]``.
@@ -236,7 +235,7 @@ class Session:
             raise PacketError(f"0x8110 body too short for a high-volume flag: {payload.hex()}")
         return bool(payload[1])
 
-    def set_high_volume(self, enabled: bool, *, timeout: Optional[float] = None) -> int:
+    def set_high_volume(self, enabled: bool, *, timeout: float | None = None) -> int:
         """Write the high-volume status (``0x0407``).
 
         **Verified live** on the Air7 Pro (2026-10-20): the ``0x0110`` read-back
@@ -247,7 +246,7 @@ class Session:
                              timeout=timeout)
         return self.check_status(reply)
 
-    def set_find_mode(self, on: bool, *, timeout: Optional[float] = None) -> int:
+    def set_find_mode(self, on: bool, *, timeout: float | None = None) -> int:
         """Write the find-mode flag (``0x0400``).
 
         **Verified live** on the Air7 Pro (2026-10-20): both ``0x0400 01`` and
@@ -265,7 +264,7 @@ class Session:
         return self.check_status(reply)
 
     # -- identity / status fields ------------------------------------------
-    def read_remote_vendor_id(self, *, timeout: Optional[float] = None) -> dict:
+    def read_remote_vendor_id(self, *, timeout: float | None = None) -> dict:
         """Read the remote vendor id (``0x0102``): ``[status][vendorId:2 LE]``.
 
         **Verified live** on the Air7 Pro (2026-10-20): ``00 2f 07`` ->
@@ -277,7 +276,7 @@ class Session:
         self.check_status(reply)
         return parse_remote_vendor_id(reply["payload"])
 
-    def read_protocol_version(self, *, timeout: Optional[float] = None) -> dict:
+    def read_protocol_version(self, *, timeout: float | None = None) -> dict:
         """Read the remote protocol version (``0x0104``): ``[status] + bytes``.
 
         **Verified live** on the Air7 Pro (2026-10-20): ``00 00 00 01``.  The
@@ -289,7 +288,7 @@ class Session:
         self.check_status(reply)
         return parse_protocol_version(reply["payload"])
 
-    def read_upgrade_capability(self, *, timeout: Optional[float] = None) -> dict:
+    def read_upgrade_capability(self, *, timeout: float | None = None) -> dict:
         """Read the OTA capability list (``0x0107``): ``[status][count] + records``.
 
         **Verified live** on the Air7 Pro (2026-10-20): ``00 01 01 03`` -> one
@@ -301,7 +300,7 @@ class Session:
         self.check_status(reply)
         return parse_upgrade_capability(reply["payload"])
 
-    def read_color_id(self, *, timeout: Optional[float] = None) -> dict:
+    def read_color_id(self, *, timeout: float | None = None) -> dict:
         """Read the earbuds colour id (``0x010B``): ``[status][colorId]``.
 
         **Verified live** on the Air7 Pro (2026-10-20): ``00 06``.
@@ -313,7 +312,7 @@ class Session:
         return parse_color_id(reply["payload"])
 
     # -- AI / translation status -------------------------------------------
-    def read_ai_status(self, *, timeout: Optional[float] = None) -> dict:
+    def read_ai_status(self, *, timeout: float | None = None) -> dict:
         """Read the AI/translation status (``0x0131``): ``[status][state][type]``.
 
         **Verified live** on the Air7 Pro (2026-10-20): returns
@@ -327,7 +326,7 @@ class Session:
         return {"state": payload[1], "type": payload[2]}
 
     # -- personalized-noise result / notification capabilities -------------
-    def read_multi_bass_engine(self, *, timeout: Optional[float] = None) -> dict:
+    def read_multi_bass_engine(self, *, timeout: float | None = None) -> dict:
         """Read the multi-band bass engine (``0x012C`` -> ``0x812C``).
 
         Empty payload, gated on capability bit 54.  Returns
@@ -345,7 +344,7 @@ class Session:
         self.check_status(reply)
         return parse_multi_bass_engine(reply["payload"])
 
-    def read_personalized_anc(self, *, timeout: Optional[float] = None) -> dict:
+    def read_personalized_anc(self, *, timeout: float | None = None) -> dict:
         """Read the personalized-noise calibration result *exists* flag (``0x011A``).
 
         **Verified live** on the Air7 Pro (2026-10-20): the reply is
@@ -360,7 +359,7 @@ class Session:
         self.check_status(reply)
         return parse_personalized_anc(reply["payload"])
 
-    def read_switch_features(self, *, timeout: Optional[float] = None) -> dict:
+    def read_switch_features(self, *, timeout: float | None = None) -> dict:
         """Read the switch / feature status list (``0x010D``).
 
         **Verified live** on the Air7 Pro (2026-10-20): the reply is
@@ -375,7 +374,7 @@ class Session:
         self.check_status(reply)
         return parse_switch_features(reply["payload"])
 
-    def read_notification_capabilities(self, *, timeout: Optional[float] = None) -> dict:
+    def read_notification_capabilities(self, *, timeout: float | None = None) -> dict:
         """Read the push-event types the device supports (``0x0200``).
 
         **Verified live** on the Air7 Pro (2026-10-20): the reply is
@@ -390,7 +389,7 @@ class Session:
         return parse_notification_capabilities(reply["payload"])
 
     # -- multipoint / paired-device list -----------------------------------
-    def read_multi_connect(self, *, timeout: Optional[float] = None) -> dict:
+    def read_multi_connect(self, *, timeout: float | None = None) -> dict:
         """Read the paired-device / multipoint list (``0x0112``).
 
         Returns ``{"status", "count", "entries": [{"mac", "name", "state",
@@ -405,7 +404,7 @@ class Session:
         return parse_multi_connect(reply["payload"])
 
     def set_ai_status(self, state: int, ai_type: int, *,
-                      timeout: Optional[float] = None) -> int:
+                      timeout: float | None = None) -> int:
         """Write the AI/translation status (``0x0428``), ``[state][type]``.
 
         **Verified live** on the Air7 Pro (2026-10-20): ``state=1`` activates
@@ -418,7 +417,7 @@ class Session:
 
     # -- compactness / in-ear detect ---------------------------------------
     def set_compactness_detect(self, action: bool, *,
-                               timeout: Optional[float] = None) -> int:
+                               timeout: float | None = None) -> int:
         """Start (``True``) or stop (``False``) in-ear detection (``0x0405``).
 
         **Verified live** on the Air7 Pro (2026-10-20): the trigger is accepted
@@ -431,12 +430,12 @@ class Session:
                              payload_compactness_detect(action), timeout=timeout)
         return self.check_status(reply)
 
-    def start_compactness_detect(self, *, timeout: Optional[float] = None) -> int:
+    def start_compactness_detect(self, *, timeout: float | None = None) -> int:
         """Start in-ear detection (``0x0405 01``).  See
         :meth:`set_compactness_detect`."""
         return self.set_compactness_detect(True, timeout=timeout)
 
-    def stop_compactness_detect(self, *, timeout: Optional[float] = None) -> int:
+    def stop_compactness_detect(self, *, timeout: float | None = None) -> int:
         """Stop in-ear detection (``0x0405 00``).  See
         :meth:`set_compactness_detect`."""
         return self.set_compactness_detect(False, timeout=timeout)
@@ -471,7 +470,7 @@ class Session:
         return self.check_status(reply)
 
     # -- bulk status -------------------------------------------------------
-    def read_status(self, *, timeout: Optional[float] = None) -> dict:
+    def read_status(self, *, timeout: float | None = None) -> dict:
         """Poll model, firmware, battery, wear state, noise mode, and use time.
 
         The order matches a real device conversation (and the recorded fixtures)

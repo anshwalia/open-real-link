@@ -17,7 +17,6 @@ any I/O.
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 from tlcore.errors import TransportError, TransportUnavailable
 from tlcore.transport import Transport
@@ -36,7 +35,7 @@ APPLE_UUID = "2CFE21DF-2515-4FDB-8886-F12C4D67927C"        # Apple accessory
 LIVE_PLATFORMS = {"darwin": "macos", "win32": "windows"}
 
 
-def platform_transport() -> Optional[str]:
+def platform_transport() -> str | None:
     """The name of this platform's **live** transport, or ``None`` if it has none.
 
     ``None`` is a real answer, not a failure: Linux can still replay a recording,
@@ -54,7 +53,7 @@ def available_transports() -> list[str]:
     return names
 
 
-def for_platform(name: Optional[str] = None):
+def for_platform(name: str | None = None):
     """Return the ``Transport`` class for ``name`` (default: this platform).
 
     ``auto`` (and ``None``) means *the live transport for this platform*, so on
@@ -90,8 +89,8 @@ def for_platform(name: Optional[str] = None):
     raise ValueError(f"unknown transport {name!r}; try one of {available_transports()}")
 
 
-def open_transport(address: str, *, channel: Optional[int] = None,
-                   uuid: Optional[str] = None, name: Optional[str] = None,
+def open_transport(address: str, *, channel: int | None = None,
+                   uuid: str | None = None, name: str | None = None,
                    reset: bool = False, **kwargs) -> Transport:
     """Construct and open a transport to ``address``.
 

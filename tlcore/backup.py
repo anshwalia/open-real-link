@@ -34,7 +34,6 @@ This module is pure: it talks only to a
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
 
 from .commands import (
     CMD_SET_EQ_MODE,
@@ -87,7 +86,7 @@ SETTING_KEYS = frozenset({
 RESTORABLE = frozenset({"noise_mode", "key_function", "eq_mode", "high_volume"})
 
 
-def _model_string(reply_hex: str) -> Optional[str]:
+def _model_string(reply_hex: str) -> str | None:
     model = parse_model_id(bytes.fromhex(reply_hex)).get("model_id")
     return f"0x{model:06X}" if model is not None else None
 
@@ -125,7 +124,7 @@ def _derive_settings(raw: dict) -> dict:
     return out
 
 
-def capture(session, *, timeout: Optional[float] = None) -> dict:
+def capture(session, *, timeout: float | None = None) -> dict:
     """Read the device's settings and return a serializable snapshot.
 
     Negotiates the capability bitmap first, then polls every supported entry in
@@ -161,7 +160,7 @@ def capture(session, *, timeout: Optional[float] = None) -> dict:
     }
 
 
-def restore(session, snapshot: dict, *, timeout: Optional[float] = None,
+def restore(session, snapshot: dict, *, timeout: float | None = None,
             dry_run: bool = False) -> dict:
     """Re-apply the restorable settings from ``snapshot``.
 

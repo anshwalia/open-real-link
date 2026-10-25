@@ -17,14 +17,14 @@ Three of the requirements are protocol requirements, not style:
 """
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Transport(Protocol):
     """A byte pipe to a paired device. Implementations live in ``tltransport``."""
 
-    def discover_channel(self, address: str, uuid: str) -> Optional[int]:
+    def discover_channel(self, address: str, uuid: str) -> int | None:
         """Return the RFCOMM channel for ``uuid`` on ``address``, or ``None``."""
         ...
 

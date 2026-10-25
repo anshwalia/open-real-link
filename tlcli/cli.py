@@ -16,7 +16,6 @@ import pathlib
 import subprocess
 import sys
 import time
-from typing import Optional
 
 import tlcore as t
 from tltransport import SPP_UUID, open_transport
@@ -52,7 +51,7 @@ def parse_mode(text: str) -> int:
         value = int(text, 0)
     except ValueError:
         raise SystemExit(f"unknown noise mode {text!r}; use a name "
-                         f"({', '.join(sorted(MODE_ALIASES))}) or a value like 0x20")
+                         f"({', '.join(sorted(MODE_ALIASES))}) or a value like 0x20") from None
     if value not in t.NOISE_MODE_NAMES:
         raise SystemExit(f"0x{value:02X} is not a known noise mode: "
                          + ", ".join(f"0x{k:02X}" for k in sorted(t.NOISE_MODE_NAMES)))
@@ -63,7 +62,7 @@ def parse_cmd(text: str) -> int:
     try:
         value = int(text, 0)
     except ValueError:
-        raise SystemExit(f"command id must be numeric, e.g. 0x0404 (got {text!r})")
+        raise SystemExit(f"command id must be numeric, e.g. 0x0404 (got {text!r})") from None
     if not 0 <= value <= 0xFFFF:
         raise SystemExit(f"command id out of range: {text!r}")
     return value
@@ -1291,7 +1290,7 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     for key, value in _DEFAULTS.items():
         if not hasattr(args, key):
