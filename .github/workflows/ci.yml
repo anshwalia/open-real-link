@@ -10,6 +10,22 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # Ruff is pinned by the `dev` extra, so this job and a local checkout
+      # agree on the rule set.
+      - run: pip install -e ".[dev]"
+
+      - run: ruff check .
+
   test:
     name: ${{ matrix.os }} · py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}

@@ -135,6 +135,7 @@ you would rather not activate.
 ## Before committing
 
 - `pytest -q` passes.
+- `ruff check .` reports nothing.
 - `python tests/test_app.py` prints `APP: OK` (the Qt-free app controller).
 - `python tests/test_protocol_docs.py` prints `DOCS: OK`.
 - `python tests/test_command_registry.py` prints `COMMAND REGISTRY: OK` (the
