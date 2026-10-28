@@ -359,6 +359,33 @@ format can be tested without a GUI. The single-instance guard is in
 The controller opens the device exactly the way the CLI does, by reusing
 `tlcli.cli.open_session`, so `--replay` and the live path behave the same.
 
+### Visual theme
+
+`tlapp/theme.py` is the single source of the app's look. `main()` calls
+`theme.apply_theme(app)` once, which selects Qt's **Fusion** style and paints it
+with a stylesheet resolved against the running palette. Fusion is chosen so the
+widget geometry is identical on macOS, Windows and Linux -- a deliberate trade
+of native chrome for a consistent identity, and the reason light **and** dark
+both work without per-widget colour code.
+
+Widgets tag themselves instead of naming colours:
+
+* **roles** -- `theme.set_role(button, theme.PRIMARY | DANGER | GHOST)` picks out
+  the one action that commits a change (Apply, Restore, Send, Ring), an
+  attention action (Stop), or a quiet one (Revert, Clear); everything else is the
+  default secondary button.
+* **states** -- `theme.set_state(widget, state)` drives the connection badge
+  (`connected` / `disconnected`), the compatibility banner (`idle` / `compatible`
+  / `limited` / `unsupported`) and the raw-command hint (`known` / `refused` /
+  `error`). The colours for each live in the stylesheet, so there is no inline
+  `setStyleSheet` anywhere in the app.
+* `theme.mono_font()` gives the fixed-width family to the address field, the raw
+  command and payload, the raw console and the hex columns (capability ids,
+  paired-device addresses).
+
+A 4-based spacing scale and a standard page inset (`theme.PAGE_MARGIN` /
+`PAGE_SPACING`) keep the tabs on a rhythm.
+
 ## Safety
 
 * The hearing-test / ear-scan tones, OTA and debug families have **no control**

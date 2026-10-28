@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
 
 import tlcore as t
 
-from . import backupfile
+from . import backupfile, theme
 from .controller import (
     EVENT_POLL_SECONDS,
     SEND_LISTEN_SECONDS,
@@ -78,6 +78,15 @@ VIEW_EXPERT = 1
 EVENT_POLL_MS = 60
 
 
+def _page_layout(page: QWidget) -> QVBoxLayout:
+    """A tab-page / view layout with the theme's inset and spacing rhythm."""
+    layout = QVBoxLayout(page)
+    layout.setContentsMargins(theme.PAGE_MARGIN, theme.PAGE_MARGIN,
+                              theme.PAGE_MARGIN, theme.PAGE_MARGIN)
+    layout.setSpacing(theme.PAGE_SPACING)
+    return layout
+
+
 class MainWindow(QMainWindow):
     """The application window: a connection bar, a view switch and two views."""
 
@@ -104,6 +113,7 @@ class MainWindow(QMainWindow):
         self.address_edit = QLineEdit(self.options.address or "")
         self.address_edit.setPlaceholderText("AA-BB-CC-DD-EE-FF")
         self.address_edit.setMinimumWidth(200)
+        theme.make_mono(self.address_edit)
         if self.options.replay:
             self.address_edit.setEnabled(False)
         bar.addWidget(self.address_edit)
@@ -113,10 +123,11 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.reset_check)
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self._toggle_connection)
+        theme.set_role(self.connect_btn, theme.PRIMARY)
         bar.addWidget(self.connect_btn)
         bar.addWidget(QLabel("   "))
         self.conn_label = QLabel("disconnected")
-        self.conn_label.setStyleSheet("color: #a00; font-weight: 600;")
+        self.conn_label.setObjectName("connBadge")
         bar.addWidget(self.conn_label)
 
     def _build_view_switch(self) -> None:
@@ -136,9 +147,11 @@ class MainWindow(QMainWindow):
             bar.addWidget(button)
             self.view_group.addButton(button, index)
             self.view_buttons[index] = button
-        bar.addWidget(QLabel(
+        help_label = QLabel(
             "   General is the everyday surface; Expert adds diagnostics and the "
-            "guarded console."))
+            "guarded console.")
+        theme.set_role(help_label, "muted")
+        bar.addWidget(help_label)
 
     def show_view(self, index: int) -> None:
         """Switch the top-level view, refusing Expert while it is locked."""
@@ -199,17 +212,9 @@ class MainWindow(QMainWindow):
         return self.compat_frame
 
     def _style_compat(self, verdict: str) -> None:
-        colours = {
-            "idle": ("#f4f4f5", "#3f3f46"),
-            "compatible": ("#e7f6ec", "#12603a"),
-            "limited": ("#fdf3e2", "#8a5300"),
-            "unsupported": ("#fdeaea", "#a11a1a"),
-        }
-        background, foreground = colours.get(verdict, colours["idle"])
-        self.compat_frame.setStyleSheet(
-            f"QFrame#compatBanner {{ background: {background}; "
-            f"border: 1px solid {foreground}33; border-radius: 6px; }}"
-            f"QFrame#compatBanner QLabel {{ color: {foreground}; }}")
+        # the colours live in the theme; this only tags the banner with the
+        # verdict so light and dark both follow it
+        theme.set_state(self.compat_frame, verdict)
 
     def _show_compat(self, result: dict | None) -> None:
         self._compat = result
@@ -276,12 +281,13 @@ class MainWindow(QMainWindow):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setAlternatingRowColors(True)
         return table
 
     # ------------------------------------------------------------- device tab
     def _build_device_tab(self) -> QWidget:
         page = QWidget()
-        outer = QVBoxLayout(page)
+        outer = _page_layout(page)
 
         info_box = QGroupBox("Device")
         form = QFormLayout(info_box)
@@ -319,8 +325,10 @@ class MainWindow(QMainWindow):
         self._ringing = False
         self.find_btn = QPushButton("Ring")
         self.find_btn.clicked.connect(self._ring_buds)
+        theme.set_role(self.find_btn, theme.PRIMARY)
         self.find_stop_btn = QPushButton("Stop")
         self.find_stop_btn.clicked.connect(self._stop_ringing)
+        theme.set_role(self.find_stop_btn, theme.DANGER)
         self.find_stop_btn.setEnabled(False)
         find_row.addWidget(self.find_btn)
         find_row.addWidget(self.find_stop_btn)
@@ -352,7 +360,7 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------- sound tab
     def _build_sound_tab(self) -> QWidget:
         page = QWidget()
-        outer = QVBoxLayout(page)
+        outer = _page_layout(page)
 
         note = QLabel(
             "A noise-mode write is accepted only while the buds are <b>worn</b>; "
@@ -370,6 +378,7 @@ class MainWindow(QMainWindow):
         read_btn.clicked.connect(lambda: self._run(lambda c: c.noise_mode(), self._show_noise))
         self.noise_apply_btn = QPushButton("Apply")
         self.noise_apply_btn.clicked.connect(self._apply_noise)
+        theme.set_role(self.noise_apply_btn, theme.PRIMARY)
         row.addWidget(self.noise_combo, 1)
         row.addWidget(read_btn)
         row.addWidget(self.noise_apply_btn)
@@ -386,6 +395,7 @@ class MainWindow(QMainWindow):
         eq_read.clicked.connect(lambda: self._run(lambda c: c.eq_mode(), self._show_eq))
         self.eq_apply_btn = QPushButton("Apply")
         self.eq_apply_btn.clicked.connect(self._apply_eq)
+        theme.set_role(self.eq_apply_btn, theme.PRIMARY)
         eq_row.addWidget(self.eq_combo, 1)
         eq_row.addWidget(eq_read)
         eq_row.addWidget(self.eq_apply_btn)
@@ -413,6 +423,7 @@ class MainWindow(QMainWindow):
             lambda: self._run(lambda c: c.high_volume(), self._show_high_volume))
         self.volume_apply_btn = QPushButton("Apply")
         self.volume_apply_btn.clicked.connect(self._apply_high_volume)
+        theme.set_role(self.volume_apply_btn, theme.PRIMARY)
         vol_row.addWidget(self.volume_check)
         vol_row.addWidget(vol_read)
         vol_row.addWidget(self.volume_apply_btn)
@@ -425,7 +436,7 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------- gestures tab
     def _build_gestures_tab(self) -> QWidget:
         page = QWidget()
-        outer = QVBoxLayout(page)
+        outer = _page_layout(page)
 
         note = QLabel(
             "Each row binds one gesture on one earbud to a function. The write "
@@ -445,8 +456,10 @@ class MainWindow(QMainWindow):
         self.long_press_btn.clicked.connect(self._stage_long_press_off)
         self.gestures_revert_btn = QPushButton("Revert")
         self.gestures_revert_btn.clicked.connect(self._revert_gestures)
+        theme.set_role(self.gestures_revert_btn, theme.GHOST)
         self.gestures_apply_btn = QPushButton("Apply changes")
         self.gestures_apply_btn.clicked.connect(self._apply_gestures)
+        theme.set_role(self.gestures_apply_btn, theme.PRIMARY)
         for widget in (self.gestures_read_btn, self.long_press_btn,
                        self.gestures_revert_btn, self.gestures_apply_btn):
             row.addWidget(widget)
@@ -470,7 +483,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- backup tab
     def _build_backup_tab(self) -> QWidget:
         page = QWidget()
-        outer = QVBoxLayout(page)
+        outer = _page_layout(page)
 
         note = QLabel(
             "A backup polls every setting the unit advertises and stores each raw "
@@ -494,6 +507,7 @@ class MainWindow(QMainWindow):
         browse_btn.clicked.connect(self._choose_save_path)
         self.backup_btn = QPushButton("Back up now")
         self.backup_btn.clicked.connect(self._do_backup)
+        theme.set_role(self.backup_btn, theme.PRIMARY)
         save_row.addWidget(self.backup_path_edit, 1)
         save_row.addWidget(browse_btn)
         save_row.addWidget(self.backup_btn)
@@ -518,6 +532,7 @@ class MainWindow(QMainWindow):
         self.preview_btn.clicked.connect(self._preview_restore)
         self.restore_btn = QPushButton("Restore")
         self.restore_btn.clicked.connect(self._do_restore)
+        theme.set_role(self.restore_btn, theme.PRIMARY)
         load_row.addWidget(self.restore_path_edit, 1)
         load_row.addWidget(open_btn)
         load_row.addWidget(self.preview_btn)
@@ -537,7 +552,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- events tab
     def _build_events_tab(self) -> QWidget:
         page = QWidget()
-        outer = QVBoxLayout(page)
+        outer = _page_layout(page)
 
         note = QLabel(
             "The device pushes state changes on its own: button presses, battery "
@@ -550,8 +565,10 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout()
         self.listen_btn = QPushButton("Start listening")
         self.listen_btn.clicked.connect(self._toggle_listening)
+        theme.set_role(self.listen_btn, theme.PRIMARY)
         clear_btn = QPushButton("Clear")
         clear_btn.clicked.connect(self._clear_events)
+        theme.set_role(clear_btn, theme.GHOST)
         self.event_types_btn = QPushButton("Read event types")
         self.event_types_btn.clicked.connect(
             lambda: self._run(lambda c: c.event_types(), self._show_event_types))
@@ -579,7 +596,7 @@ class MainWindow(QMainWindow):
     # ---------------------------------------------------------- expert view
     def _build_expert_view(self) -> QWidget:
         page = QWidget()
-        outer = QVBoxLayout(page)
+        outer = _page_layout(page)
 
         intro = QLabel(
             "Everything here needs protocol knowledge to read, and none of it is "
@@ -663,11 +680,13 @@ class MainWindow(QMainWindow):
         self.raw_command_edit = QLineEdit()
         self.raw_command_edit.setPlaceholderText("0x010C")
         self.raw_command_edit.setMaximumWidth(110)
+        theme.make_mono(self.raw_command_edit)
         self.raw_command_edit.textChanged.connect(self._raw_command_changed)
         row.addWidget(self.raw_command_edit)
         row.addWidget(QLabel("Payload"))
         self.raw_payload_edit = QLineEdit()
         self.raw_payload_edit.setPlaceholderText("01 01 20  (hex; empty is fine)")
+        theme.make_mono(self.raw_payload_edit)
         row.addWidget(self.raw_payload_edit, 1)
         row.addWidget(QLabel("Type"))
         self.raw_type_edit = QLineEdit("0")
@@ -680,13 +699,16 @@ class MainWindow(QMainWindow):
         row.addWidget(QLabel("s"))
         self.raw_send_btn = QPushButton("Send")
         self.raw_send_btn.clicked.connect(self._send_raw)
+        theme.set_role(self.raw_send_btn, theme.PRIMARY)
         row.addWidget(self.raw_send_btn)
         clear_btn = QPushButton("Clear")
         clear_btn.clicked.connect(self._clear_raw)
+        theme.set_role(clear_btn, theme.GHOST)
         row.addWidget(clear_btn)
         outer.addLayout(row)
 
         self.lbl_raw_command = QLabel("e.g. 0x010C")
+        self.lbl_raw_command.setObjectName("rawCommandHint")
         self.lbl_raw_command.setWordWrap(True)
         outer.addWidget(self.lbl_raw_command)
 
@@ -819,8 +841,7 @@ class MainWindow(QMainWindow):
     def _set_connected(self, state: bool) -> None:
         self.connect_btn.setText("Disconnect" if state else "Connect")
         self.conn_label.setText("connected" if state else "disconnected")
-        self.conn_label.setStyleSheet(
-            "color: #080; font-weight: 600;" if state else "color: #a00; font-weight: 600;")
+        theme.set_state(self.conn_label, "connected" if state else "disconnected")
         self.tabs.setTabEnabled(TAB_SOUND, state)
         self.tabs.setTabEnabled(TAB_GESTURES, state)
         self.tabs.setTabEnabled(TAB_BACKUP, state)
@@ -918,7 +939,9 @@ class MainWindow(QMainWindow):
         for spec in t.ALL_COMMANDS:
             row = self.caps_table.rowCount()
             self.caps_table.insertRow(row)
-            self.caps_table.setItem(row, 0, QTableWidgetItem(f"0x{spec.cmd:04X}"))
+            command_item = QTableWidgetItem(f"0x{spec.cmd:04X}")
+            command_item.setFont(theme.mono_font())
+            self.caps_table.setItem(row, 0, command_item)
             self.caps_table.setItem(
                 row, 1, QTableWidgetItem(t.CLASS_NAMES.get(t.cmd_class(spec.cmd), spec.family)))
             self.caps_table.setItem(row, 2, QTableWidgetItem(spec.name))
@@ -998,6 +1021,8 @@ class MainWindow(QMainWindow):
         for entry in info["entries"]:
             self._add_row(self.pair_table, entry["name"] or "—", entry["mac"],
                           str(entry["state"]), str(entry["flag"]))
+            self.pair_table.item(self.pair_table.rowCount() - 1, 1).setFont(
+                theme.mono_font())
         active = sum(1 for entry in info["entries"] if entry["state"])
         self.lbl_paired.setText(
             f"{info['count']} paired device(s), {active} active. "
@@ -1128,20 +1153,20 @@ class MainWindow(QMainWindow):
             cmd = parse_command(self.raw_command_edit.text())
         except ControllerError as exc:
             self.lbl_raw_command.setText(str(exc))
-            self.lbl_raw_command.setStyleSheet("color: #a00;")
+            theme.set_state(self.lbl_raw_command, "error")
             return
         family = t.dangerous_family(cmd)
         if family is not None:
             self.lbl_raw_command.setText(
                 f"0x{cmd:04X} — {family}: the app will refuse this.")
-            self.lbl_raw_command.setStyleSheet("color: #a00; font-weight: 600;")
+            theme.set_state(self.lbl_raw_command, "refused")
             return
         spec = t.command_spec(cmd)
         manager = t.CLASS_NAMES.get(t.cmd_class(cmd), "unknown manager")
         name = t.CMD_NAMES.get(cmd) or (spec.name if spec else "not a known command")
         gating = f" · {spec.gating}" if spec else ""
         self.lbl_raw_command.setText(f"0x{cmd:04X} — {manager} · {name}{gating}")
-        self.lbl_raw_command.setStyleSheet("")
+        theme.set_state(self.lbl_raw_command, "known")
 
     def _send_raw(self) -> None:
         try:
@@ -1208,8 +1233,11 @@ class MainWindow(QMainWindow):
         self.raw_table.insertRow(0)
         cells = (QTime.currentTime().toString("HH:mm:ss.zzz"), direction,
                  command, detail)
+        font = theme.mono_font()
         for column, value in enumerate(cells):
-            self.raw_table.setItem(0, column, QTableWidgetItem(value))
+            item = QTableWidgetItem(value)
+            item.setFont(font)
+            self.raw_table.setItem(0, column, item)
         self.raw_table.resizeColumnToContents(0)
 
     def _clear_raw(self) -> None:

@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     from PySide6.QtCore import QCoreApplication  # imported late: keeps tlapp Qt-free
     from PySide6.QtWidgets import QApplication
 
+    from . import theme
     from .instance import InstanceLock
     from .window import MainWindow
 
@@ -61,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     QCoreApplication.setApplicationName("open-real-link")
     QCoreApplication.setOrganizationName("open-real-link")
     app.setApplicationDisplayName("OpenRealLink")
+    theme.apply_theme(app)
     lock = InstanceLock()
     if not lock.acquired:
         # One RFCOMM slot: a second instance would fight the first for the
