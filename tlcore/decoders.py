@@ -333,7 +333,7 @@ def parse_eq_info(payload: bytes) -> dict:
 
 
 def parse_eq_mode(payload: bytes) -> dict:
-    """``0x810F`` (``getEQStatus``): ``[status][mode]``.
+    """``0x810F`` (EQ-mode read): ``[status][mode]``.
 
     The mode is the active sound-effect/EQ preset.  **Verified live** on the
     Air7 Pro: the ``0x0406`` write value is read back here identity over the

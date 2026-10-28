@@ -53,7 +53,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x010b` | 267 | poll | always-on | send + decode | live | getEarbudsColorId |
 | `0x010c` | 268 | poll | cap-bit 8 | send + decode | live | — |
 | `0x010d` | 269 | poll | cap-bit 7 | send + decode | live | — |
-| `0x010f` | 271 | poll | cap-bit 10 | send + decode | live | getEQStatus |
+| `0x010f` | 271 | poll | cap-bit 10 | send + decode | live | — |
 | `0x0110` | 272 | poll | cap-bit 11 | send + decode | live | — |
 | `0x0111` | 273 | poll | cap-bit 15 | — | — | — |
 | `0x0112` | 274 | poll | cap-bit 29 | send + decode | live | — |
@@ -215,7 +215,7 @@ Three recovered families are **documented but not implemented** — no builder,
 decoder or CLI command is provided, and their IDs are recorded only for
 identification:
 
-* `0x011E`, `0x011F`, `0x040E`, `0x0415` (the hearing-test / ear-scan family)
+* `0x011E`, `0x011F`, `0x040D`, `0x040E`, `0x0415` (the hearing-test / ear-scan family)
   drive **loud, repeated test tones**. They are live on this unit, and `send`
   refuses them without `--force`.
 * `0x0300`–`0x0308` (OTA) is a firmware **push** state machine with **no

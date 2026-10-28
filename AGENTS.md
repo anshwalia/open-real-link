@@ -130,8 +130,8 @@ you would rather not activate.
 
 ## Safety
 
-- Never sweep the hearing-test / ear-scan family (`0x011E`, `0x011F`, `0x040E`,
-  `0x0415`) — those commands drive loud test tones.
+- Never sweep the hearing-test / ear-scan family (`0x011E`, `0x011F`, `0x040D`,
+  `0x040E`, `0x0415`) — those commands drive loud test tones.
 - A noise-mode write (`0x0404 action=1`) is accepted only while the buds are
   **worn**; otherwise the device answers `0x8404 0e`.
 

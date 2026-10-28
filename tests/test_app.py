@@ -959,7 +959,7 @@ def test_send_raw_refuses_every_guarded_family() -> None:
                     FAILURES.append(f"0x{cmd:04X} refusal does not name the family")
         check("all three families are covered", len(families), 3)
         check("nothing guarded was written", ctrl.transport.writes, [])
-        check("every guarded id is in the table", len(t.DANGEROUS_COMMANDS), 16)
+        check("every guarded id is in the table", len(t.DANGEROUS_COMMANDS), 17)
         ctrl.disconnect()
 
 

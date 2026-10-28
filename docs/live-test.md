@@ -60,9 +60,9 @@ hyphens). Do **not** commit your own address into the repository.
   `smoke --write` are accepted only while the earbuds are in an ear; otherwise
   the device answers `0x8404 0e` and the CLI reports *not worn* and exits `2`.
 * **Never sweep command space.** The hearing-test / ear-scan family
-  (`0x011E`, `0x011F`, `0x040E`, `0x0415`) drives **loud, repeated tones** in the
-  wearer's ears. The CLI refuses those unless `--force` is given; do not pass it
-  on a worn headset.
+  (`0x011E`, `0x011F`, `0x040D`, `0x040E`, `0x0415`) drives **loud, repeated tones**
+  in the wearer's ears. The CLI refuses those unless `--force` is given; do not
+  pass it on a worn headset.
 * **The OTA and debug families are refused too.** `send` blocks
   `0x0300`–`0x0308` (firmware push, no read-back) and `0x0F00`–`0x0F02` (debug
   log) unless `--force` is given. Both are deliberately unimplemented; there is

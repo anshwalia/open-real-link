@@ -107,7 +107,7 @@ Three recovered command families are **documented but not implemented** — no
 builder, decoder, or CLI command is provided for any of them. Their IDs are
 recorded only so their traffic can be identified and refused:
 
-- the **hearing-test / ear-scan** family (`0x011E`, `0x011F`, `0x040E`, `0x0415`)
+- the **hearing-test / ear-scan** family (`0x011E`, `0x011F`, `0x040D`, `0x040E`, `0x0415`)
   drives **loud, repeated test tones** in the wearer's ears;
 - the **OTA** family (`0x0300`–`0x0308`) is a firmware **push** state machine
   with **no read-back** path, and it is ungated, so a stray write could start a

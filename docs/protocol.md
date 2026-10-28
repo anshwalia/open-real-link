@@ -225,7 +225,7 @@ static-only recovery as supported. Their bodies are documented below, in
 | `0x010B` | getEarbudsColorId | — | `parse_color_id` | verified |
 | `0x0112` | getMultiConnect (paired-device / multipoint list) | — | `parse_multi_connect` | verified |
 | `0x011A` | getPersonalizedNoiseReductionResultExist (personalized-noise result exists flag) | — | `parse_personalized_anc` | verified |
-| `0x010F` | getEQStatus (read the sound-effect/EQ mode) | — | `parse_eq_mode` | verified |
+| `0x010F` | read the sound-effect/EQ mode | — | `parse_eq_mode` | verified |
 | `0x0406` | setEQStatus (write the sound-effect/EQ mode) | `payload_set_eq_mode` | — | verified |
 | `0x0110` | getHighVolume (read the loudness boost) | — | `parse_high_volume` | verified |
 | `0x0400` | setFindMode (ring the buds so you can find them) | `payload_set_find_mode` | — | verified |
@@ -276,7 +276,7 @@ only so their traffic can be identified. The IDs are still listed in
 
 | Family | IDs | What it is | Why it is not implemented |
 | --- | --- | --- | --- |
-| hearing-test / ear-scan | `0x011E`, `0x011F`, `0x040E`, `0x0415` | a loud, repeated test-tone sweep | it plays **loud tones in the wearer's ears**; `send` refuses it without `--force` |
+| hearing-test / ear-scan | `0x011E`, `0x011F`, `0x040D`, `0x040E`, `0x0415` | a loud, repeated test-tone sweep | it plays **loud tones in the wearer's ears**; `send` refuses it without `--force` |
 | OTA | `0x0300`–`0x0308` | a firmware **push** state machine — `0x0302` is `[fileOffset:4][fileData]` streamed from a local file | there is **no firmware-read command**, and the family is **ungated**, so a stray write could begin a flash. Never driven on hardware; `send` refuses it without `--force` |
 | debug | `0x0F00`–`0x0F02` | a device → app **log stream** — `0x0F00` `[earSide][level][module]` starts it, `0x0F01` carries chunks, `0x0F02` stops it | it toggles real firmware verbosity; a retail Buds Air7 Pro **refuses it** (`0x8F00 status=1 total=0` for every documented variant). Never driven on hardware; `send` refuses it without `--force` |
 
@@ -296,10 +296,12 @@ identification; do not send them blind.
 
 | Family | IDs | Why |
 | --- | --- | --- |
-| set | the `0x04xx` IDs not in the table above (minus the tone family) | ID + gating known, payload layout not recovered |
+| set | the `0x04xx` IDs not in the table above (minus the tone family) | ID + gating known; no builder or decoder ships. Static layouts are recovered for most (`0x0409`, `0x040A`, `0x040B`, `0x0411`, `0x0412`, `0x041E`, `0x042C`), but their value semantics are unverified; `0x0402`/`0x0408` have no recovered layout |
 | poll | the `0x01xx` IDs not in the table above | ID + gating known, reply layout not mapped |
 
-All eight device → app `0x05xx` IDs have a decoder (see §8).
+Four of the eight device → app `0x05xx` IDs have a decoder — `0x0500`, `0x0504`,
+`0x0506`, `0x0508` (see §8); the other four (`0x0502`, `0x0503`, `0x050E`,
+`0x0516`) are documented only.
 
 The Air7 Pro advertises the capability bit that gates `0x0403`/`0x010D`, and both
 are implemented; it simply reports no switch features, so its boolean toggles go

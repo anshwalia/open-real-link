@@ -340,6 +340,7 @@ DANGEROUS_COMMANDS = {
     # loud, repeated test tones in the wearer's ears
     0x011E: "hearing / ear-scan tone family",
     0x011F: "hearing / ear-scan tone family",
+    0x040D: "hearing / ear-scan tone family",
     0x040E: "hearing / ear-scan tone family",
     0x0415: "hearing / ear-scan tone family",
     # firmware push with no read-back path; ungated, so a stray write can flash

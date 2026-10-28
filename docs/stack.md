@@ -71,9 +71,9 @@ Two assets make both the remaining work and any future port cheap:
 
 ### Constraints the app must honour
 
-1. **Never expose the hearing / ear-scan commands** (`0x011E`, `0x011F`, `0x040E`,
-   `0x0415`, capability bits 19/30) in the UI without a hard warning — they drive
-   **loud test tones**. Only `0x0404 action=1` (noise mode) is safe.
+1. **Never expose the hearing / ear-scan commands** (`0x011E`, `0x011F`, `0x040D`,
+   `0x040E`, `0x0415`, capability bits 19/30) in the UI without a hard warning —
+   they drive **loud test tones**. Only `0x0404 action=1` (noise mode) is safe.
 2. **Never expose OTA (`0x0300`–`0x0308`) or debug (`0x0F00`–`0x0F02`).** OTA is
    a firmware push with no read-back; debug toggles firmware verbosity. Neither
    has a builder, decoder or UI control — they are documented in
