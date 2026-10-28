@@ -1,8 +1,8 @@
 # OpenRealLink — the desktop app
 
-Status: **tenth slice.** The app is built one feature at a time, and a feature
-reaches the UI only once it is implemented *and* verified. These slices expose
-thirteen things and nothing else:
+Status: **the verified surface, exposed.** The app is built one feature at a
+time, and a feature reaches the UI only once it is implemented *and* verified.
+It exposes these things and nothing else:
 
 1. **Connect + capability view** — open the device and read which commands it
    advertises (`0x8100`).
@@ -35,6 +35,9 @@ thirteen things and nothing else:
     which everyday features are available, and which the unit does not advertise.
     It reuses the reads the connect path already makes, so it costs no extra
     traffic. It is a host-side summary, not a vendor guarantee.
+14. **Bluetooth pre-flight** — before the window opens, if the host's Bluetooth
+    radio is off, a gate screen offers to turn it on (macOS) or open the system
+    settings, and dismisses itself when the radio comes up.
 
 Everything else the CLI can do (voice, the SDP service list) is deliberately
 **not** in the UI yet. It is added, wired up and live-tested one item at a time,

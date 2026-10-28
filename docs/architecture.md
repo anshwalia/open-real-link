@@ -295,13 +295,14 @@ discoverability by project name for discoverability by protocol name.
 3. **`tlcli`** — **done.** A CLI over `tlcore` + `tltransport`; it doubles as the
    hardware test harness. Run it from a checkout with `python -m tlcli`
    (`info`, `eq`, `mode`, `smoke`, `send`, and `backup`/`restore`).
-4. **PySide6 app** — **started, in progress.** `tlapp/` exists with these
-   slices: connect, capability view, device status, the noise selector, the EQ
-   preset and its `0x0122` list, high volume, find my buds, the paired-device
-   list, the gesture table, settings backup / restore, the push-event monitor, a
-   connect-time compatibility check, and a two-view split (General / Expert)
-   whose Expert view holds the diagnostic reads, the capability bitmap, the
-   bass-engine read and the guarded raw console. The controller and the snapshot file I/O are Qt-free and
+4. **PySide6 app** — **started, in progress.** `tlapp/` exists with: connect,
+   capability view, device status, the noise selector, the EQ preset and its
+   `0x0122` list, high volume, find my buds, the paired-device list, the gesture
+   table, settings backup / restore, the push-event monitor, a connect-time
+   compatibility check, a two-view split (General / Expert) whose Expert view
+   holds the diagnostic reads, the capability bitmap, the bass-engine read and
+   the guarded raw console, a consistent visual theme, and a Bluetooth-off
+   pre-flight gate. The controller and the snapshot file I/O are Qt-free and
    fixture-tested; voice and the macOS-only SDP service list are deliberately
    still CLI-only. See [`app.md`](app.md).
 
