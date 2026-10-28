@@ -1078,3 +1078,67 @@ def test_read_identity_renders_the_three_reads() -> None:
         assert rows["Colour id"] == "0x06"
     finally:
         window.close()
+
+
+# --------------------------------------------------------------- bluetooth gate
+def test_gate_accepts_as_soon_as_the_radio_is_on(monkeypatch) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    import tlapp.bluetooth as bt
+    from tlapp.gate import BluetoothGate
+
+    _app()
+    monkeypatch.setattr(bt, "bluetooth_state", lambda: bt.ON)
+    gate = BluetoothGate()
+    gate._check()
+    assert gate.result() == QDialog.DialogCode.Accepted
+
+
+def test_gate_stays_open_while_the_radio_is_off(monkeypatch) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    import tlapp.bluetooth as bt
+    from tlapp.gate import BluetoothGate
+
+    _app()
+    monkeypatch.setattr(bt, "bluetooth_state", lambda: bt.OFF)
+    gate = BluetoothGate()
+    gate._check()
+    assert gate.result() != QDialog.DialogCode.Accepted
+
+
+def test_gate_turn_on_reports_that_it_is_waiting(monkeypatch) -> None:
+    import tlapp.bluetooth as bt
+    from tlapp.gate import BluetoothGate
+
+    _app()
+    monkeypatch.setattr(bt, "set_bluetooth", lambda on=True: True)
+    gate = BluetoothGate()
+    gate._try_turn_on()
+    assert "Turning Bluetooth on" in gate.status.text()
+
+
+def test_gate_turn_on_falls_back_to_system_settings(monkeypatch) -> None:
+    import tlapp.bluetooth as bt
+    from tlapp.gate import BluetoothGate
+
+    _app()
+    opened = []
+    monkeypatch.setattr(bt, "set_bluetooth", lambda on=True: False)
+    monkeypatch.setattr(bt, "open_bluetooth_settings",
+                        lambda: opened.append(True) or True)
+    gate = BluetoothGate()
+    gate._try_turn_on()
+    assert opened == [True]
+    assert "Open Bluetooth settings" in gate.status.text()
+
+
+def test_gate_settings_button_sets_a_waiting_message(monkeypatch) -> None:
+    import tlapp.bluetooth as bt
+    from tlapp.gate import BluetoothGate
+
+    _app()
+    monkeypatch.setattr(bt, "open_bluetooth_settings", lambda: True)
+    gate = BluetoothGate()
+    gate._open_settings()
+    assert "Waiting for Bluetooth" in gate.status.text()

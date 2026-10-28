@@ -46,10 +46,15 @@ def options_from_args(args: argparse.Namespace) -> ConnectionOptions:
     )
 
 
+def _needs_live_bluetooth(options: ConnectionOptions) -> bool:
+    """Whether this run will need a radio.  ``replay`` never does."""
+    return not options.replay and options.transport != "replay"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     from PySide6.QtCore import QCoreApplication  # imported late: keeps tlapp Qt-free
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QDialog
 
     from . import theme
     from .instance import InstanceLock
@@ -71,7 +76,19 @@ def main(argv: list[str] | None = None) -> int:
         # hang waiting for a click.
         print(f"tlapp: {lock.explain()}", file=sys.stderr)
         return 1
-    window = MainWindow(options_from_args(args))
+    options = options_from_args(args)
+    if _needs_live_bluetooth(options):
+        from . import bluetooth
+        from .gate import BluetoothGate
+
+        if bluetooth.bluetooth_state() == bluetooth.OFF:
+            # A radio that is off is the one failure the connect path cannot
+            # explain well, so catch it before the window opens.
+            gate = BluetoothGate()
+            if gate.exec() != QDialog.DialogCode.Accepted:
+                lock.release()
+                return 1
+    window = MainWindow(options)
     window.show()
     if args.connect or args.replay:
         window.connect_device()

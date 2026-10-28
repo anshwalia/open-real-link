@@ -22,6 +22,12 @@ from .backupfile import (
     suggested_name,
     write_snapshot,
 )
+from .bluetooth import (
+    bluetooth_state,
+    open_bluetooth_settings,
+    set_bluetooth,
+    wait_for_bluetooth,
+)
 from .controller import (
     EQ_PRESET_MAX,
     EQ_PRESET_MIN,
@@ -48,16 +54,20 @@ __all__ = [
     "EQ_PRESET_MIN",
     "EVENT_POLL_SECONDS",
     "SEND_LISTEN_SECONDS",
+    "bluetooth_state",
     "default_backup_dir",
     "eq_preset_choices",
     "event_phrase",
     "friendly_error",
     "function_choices",
     "noise_choices",
+    "open_bluetooth_settings",
     "parse_command",
     "parse_payload",
     "read_snapshot",
+    "set_bluetooth",
     "snapshot_summary",
     "suggested_name",
+    "wait_for_bluetooth",
     "write_snapshot",
 ]

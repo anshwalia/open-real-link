@@ -93,6 +93,31 @@ is reclaimed automatically, because `QLockFile` records the holder's PID. The
 path can be overridden with `OPEN_REAL_LINK_LOCK` to run two builds side by side.
 `SIGINT` and `SIGTERM` close the window cleanly and release the lock.
 
+### Bluetooth must be on
+
+The app cannot reach a headset over a radio that is switched off, so it checks
+**before** the main window opens. If Bluetooth is off it shows one screen —
+`tlapp/gate.py` — with a **Turn on Bluetooth** button, an **Open Bluetooth
+settings** button, and a live **Check again**. The screen watches the radio, so
+flipping the switch in System Settings dismisses it on its own.
+
+Turning Bluetooth on is the awkward part, and it differs by platform:
+
+* **macOS** has **no public API** for it. CoreBluetooth can observe the
+  controller state but not change it. The only programmatic switch is the
+  private `IOBluetoothPreferenceSetControllerPowerState` in
+  `IOBluetooth.framework` — the same one `blueutil` uses. It is verified to work
+  on macOS 26.7.2, but it is undocumented and Apple could remove it, so the app
+  only *fires* the request, watches for the result, and falls back to opening
+  **System Settings → Bluetooth** when it does not take.
+* **Windows** and **Linux** have no probe yet: the state reads as `unknown` and
+  the check is **skipped**, so a platform the app cannot probe never blocks a
+  connection that would have worked. This is a documented gap, not a silent one.
+* **`--replay`** never checks at all: a recording needs no radio.
+
+The probe lives in `tlapp/bluetooth.py` (Qt-free, so it is tested with no
+display); only the screen needs Qt.
+
 ## What the window does
 
 The window has two top-level **views**, switched from the toolbar: **General**
@@ -346,8 +371,10 @@ the app, so the CLI and the app cannot drift apart on which ids are refused.
 Widgets live in `tlapp/window.py`; every device action goes through
 `tlapp/controller.py`, which is **Qt-free** (`import tlapp` never imports
 PySide6). Snapshot file I/O is in `tlapp/backupfile.py`, also Qt-free, so the
-format can be tested without a GUI. The single-instance guard is in
-`tlapp/instance.py`. That split is what makes the app testable:
+format can be tested without a GUI. The Bluetooth probe is `tlapp/bluetooth.py`,
+Qt-free as well; the pre-flight screen it feeds is `tlapp/gate.py`. The
+single-instance guard is in `tlapp/instance.py`. That split is what makes the
+app testable:
 
 * `tests/test_app.py` drives the controller against recorded and synthetic
   fixtures — no display, no radio, no hardware;
