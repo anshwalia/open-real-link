@@ -16,7 +16,7 @@ This repository is deliberately free of reverse-engineering material. Do **not**
 commit, and do not paste into a doc or test:
 
 - APK / DEX files, decompiled sources, or excerpts from them;
-- REA / jadx / androguard output, or reverse-engineering tool logs;
+- decompiler / disassembler output, or reverse-engineering tool logs;
 - HCI traces (`.pklg`, `btsnoop`), raw capture logs, or probe/experiment scripts;
 - vendor binaries or extracted vendor assets;
 - device MAC addresses, paired-device names, or absolute home paths;

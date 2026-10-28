@@ -16,8 +16,8 @@ the Buds Air7 Pro, OPPOv1 framing, ~10 ms command spacing.
 
 This is established, not assumed:
 
-* the Air7 Pro RUS config (`dn4PRxdiX3hnEQdmbRkdQE5cEEFkWFRTZWlOAg==`) carries
-  **no BLE/GATT key** — only `"sppUUIDType": "TYPE_DEFAULT"`;
+* the Air7 Pro's RUS config carries **no BLE/GATT key** — only
+  `"sppUUIDType": "TYPE_DEFAULT"`;
 * the live SDP record exposes Classic channels 12 / 15 / 17;
 * a direct GATT probe found **no usable control path**. The services the device
   advertises are Fast Pair and vendor-specific, and **none of them appear in the
