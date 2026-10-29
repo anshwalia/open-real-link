@@ -55,7 +55,7 @@ browser are not reachable for this device, and no stack choice changes that.
 | **capability gate** | decode `0x8100` bitmap → which commands this unit accepts | ✅ `tlcore.commands` |
 | **device model** | noise vocabulary, decoders for battery / wear / mode / EQ / use-time | ✅ `tlcore.noise`, `tlcore.decoders` |
 | **settings** | backup / restore (noise mode, key function, EQ mode, high volume) | ✅ `tlcore.backup`, `tlcli backup` / `restore` |
-| **UI** | scan/pair, connect, capability view, noise selector, firmware, paired list, EQ, battery/wear, raw console | ⚠️ **in progress** — `tlapp/`: connect, capability view, status, noise mode, EQ preset + `0x0122` list, high volume, gesture table, backup / restore, push-event monitor, find my buds, paired-device list, a connect-time compatibility check, a Bluetooth-off pre-flight gate, a consistent visual theme, and two views — General and Expert (diagnostics + bitmap + bass + guarded raw console) ([`app.md`](app.md)) |
+| **UI** | connect, capability view, noise selector, firmware, paired list, EQ, battery/wear, raw console | ⚠️ **in progress** — `tlapp/`: connect, capability view, status, noise mode, EQ preset + `0x0122` list, high volume, gesture table, backup / restore, push-event monitor, find my buds, paired-device list, a connect-time compatibility check, a Bluetooth-off pre-flight gate, a consistent visual theme, and two views — General and Expert (diagnostics + bitmap + bass + guarded raw console) ([`app.md`](app.md)) |
 
 `tlcore` is the entire reverse-engineering result, and it is done: ported by
 range extraction from the validated reference, verified byte-for-byte against it.
@@ -182,7 +182,7 @@ Kept as a record.
 | **E** .NET 9 + Avalonia + 32feet | ✅ | ❌ | port | 3 wk | 32feet dropped macOS years ago; for a project whose proven platform *is* macOS, a missing macOS transport is backwards |
 | **F** KMP + Compose | ✅ | ⚠️ JNA | port | 4 wk | desktop RFCOMM is the worst of any option here — BlueCove is dead, so JNA into IOBluetooth / WinSock / BlueZ by hand |
 
-Options B–F every one of them require porting `tlcore`. That port is ~600–700
+Options B–F every one of them require porting `tlcore`. That port is ~3,000
 lines, mechanical, bounded, and verifiable against fixtures that already exist —
 so none of them is a bet on rewriting the project, and they lost on cost and fit
 rather than on feasibility.

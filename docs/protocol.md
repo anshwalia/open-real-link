@@ -131,8 +131,9 @@ A response is the request with the top bit set (`0x0404` → `0x8404`).
 The complete recovered catalogue is `tlcore.ALL_COMMANDS` — all **79** request
 IDs with their family, capability gating and observed name — with
 `tlcore.COMMAND_IDS` for membership tests and `tlcore.command_spec(cmd)` for
-lookup. `CAPABILITY_TABLE` + `ALWAYS_ON` describe only the gated subset (48
-IDs); `ALL_COMMANDS` also covers the ungated families (notify, OTA,
+lookup. `CAPABILITY_TABLE` holds the 61 capability groups (48 distinct
+command IDs) and `ALWAYS_ON` adds 7 always-on IDs; together they are the gated
+subset (54 IDs). `ALL_COMMANDS` also covers the ungated families (notify, OTA,
 device→app, debug). [`command-coverage.md`](command-coverage.md) is the prose
 view of the same table.
 
@@ -608,8 +609,8 @@ over a recording:
 
 * **`tlcore.Transport`** — a six-method byte pipe (`discover_channel`, `open`,
   `write`, `read`, `close`, `is_connected`). Implementations live in
-  `tltransport`: `MacOSTransport` (IOBluetooth RFCOMM) and `ReplayTransport`
-  (offline, over `fixtures/*.jsonl`).
+  `tltransport`: `MacOSTransport` (IOBluetooth RFCOMM), `WindowsTransport`
+  (WinSock RFCOMM) and `ReplayTransport` (offline, over `fixtures/*.jsonl`).
 * **`tlcore.Session`** — frames a command onto a transport, decodes replies,
   keeps unsolicited `0x0204` pushes separate in `Session.events`, negotiates the
   capability bitmap (``negotiate_capabilities`` / ``supports``), and applies the

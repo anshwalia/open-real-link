@@ -14,8 +14,8 @@ The reason is asymmetry of value and lifetime:
 
 | layer | size | how hard was it to get? | how long will it live? |
 |---|---|---|---|
-| **protocol core** | ~600 lines | **very** — it is the entire reverse-engineering result | long; every future TL headset reuses it |
-| **transport** | ~150–250 lines **per platform** | medium; platform API archaeology | long, but per-platform and independent |
+| **protocol core** | ~3,000 lines | **very** — it is the entire reverse-engineering result | long; every future TL headset reuses it |
+| **transport** | ~130–430 lines **per platform** | medium; platform API archaeology | long, but per-platform and independent |
 | **app / UI** | the most code | routine | **disposable** — you will rewrite the UI at least once |
 
 The protocol core is the asset. The UI is a shell. If the protocol lives inside
@@ -123,10 +123,10 @@ That buys three things:
    given the wear-gating (`0x8404 0e`) and the case/sleep behaviour, is a real
    tax on development speed.
 
-The golden fixtures already exist: `fixtures/mode-cycle.jsonl` and
-`fixtures/spp-smoketest.jsonl`, recorded from a real Buds Air7 Pro. They carry
-only a timestamp, a direction and hex, so they contain no device address and are
-safe to publish.
+The golden fixtures already exist — `fixtures/mode-cycle.jsonl` and
+`fixtures/spp-smoketest.jsonl` among a dozen recordings from a real Buds Air7
+Pro. They carry only a timestamp, a direction and hex, so they contain no
+device address and are safe to publish.
 
 ### Replay is not a fallback for a live connection
 

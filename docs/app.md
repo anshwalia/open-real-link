@@ -318,7 +318,7 @@ Everything on this view needs protocol knowledge to read, and none of it is
 needed to use the headset. Keeping it in its own view is what lets the General
 view stay simple. It holds four groups:
 
-* **Diagnostics** — six reads, each gated on its own capability bit: **Identity**
+* **Diagnostics** — six read buttons, each gated on its own capability bit: **Identity**
   (vendor id `0x0102`, protocol version `0x0104`, colour id `0x010B`),
   **Upgrade capability** (`0x0107`), **Switch features** (`0x010D`),
   **Notification caps** (`0x0200`), **Personalized ANC** (`0x011A`) and
