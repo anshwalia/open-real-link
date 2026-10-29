@@ -18,3 +18,6 @@ release/macos/icon.icns
 
 # generated app icon (from release/icon.png via make_icon.py)
 release/windows/icon.ico
+
+# EGM scratch: concepts briefs, design drafts, review and drift reports
+.dev/

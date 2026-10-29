@@ -1,5 +1,9 @@
 # AGENTS.md — working rules for this repository
 
+> **New session? Read [`CONTEXT.md`](CONTEXT.md) first** — the one-page entry
+> point (task → doc section, the settled negatives, safety, and the token
+> hazards).
+
 `open-real-link` is the **public implementation** of the realme/OPPO "TL"
 headset protocol. It contains exactly three kinds of thing, and nothing else:
 
@@ -74,6 +78,28 @@ ledger in [`docs/command-coverage.md`](docs/command-coverage.md) records the
 three and why each failed, and is **empty**. Do not add a new exception — the
 ledger may only shrink, and it has nowhere left to shrink from. Resolve any
 future one as described under "Before releasing".
+
+## Design work (EGM)
+
+Feature designs use the Elephant-Goldfish Model (EGM), installed for Pi as
+`/skill:egm-*` commands with `egm-*` reviewer subagents. Use it for the parts
+that still need design decisions — the Linux/Android transports and the app
+features `docs/app.md` lists as not yet present — not for the settled protocol
+core.
+
+Before any `/skill:egm-brainstorm`, `-draft`, `-review`, `-resolve` or
+`-drift-report`, read
+[`.agents/skills/open-real-link-elephant/SKILL.md`](.agents/skills/open-real-link-elephant/SKILL.md).
+It carries the project guardrails to paste into every fresh-context reviewer
+prompt: reviewers do not inherit this file, and an unguarded reviewer will
+design features the evidence gate forbids.
+
+- **Artifact directory:** `.dev/docs` (gitignored). Briefs, drafts and review
+  reports go there, not in the tree root.
+- **Approved designs** are committed under `docs/designs/`; everything else in
+  `.dev/` is scratch and stays out of git.
+- **Scope:** run EGM only against this repository. Never point a reviewer, a
+  brief or a draft at material outside it.
 
 ## Dev environment
 
