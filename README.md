@@ -47,6 +47,13 @@ Everything below was confirmed on a real **realme Buds Air7 Pro**, end to end:
 | Write the bass-engine value (both `0x041B` forms) | Verified end to end |
 | Byte-for-byte parity with the reference codec | Verified (23,247 checks) |
 
+Every capability row above is reachable from the CLI. One differs in *form*: the
+`0x041B` bass-engine write is verified and works, but nothing wraps it in a
+dedicated control — it is sent through the guarded raw console (`tlcli send
+0x041B …`, or the app's Expert console), which is how the live runs were made.
+Every recorded write sent a band's **existing** value, so the write path is
+verified while the audible effect of *changing* a band is not.
+
 The noise modes, confirmed by listening on the target device:
 
 | Value | Mode |

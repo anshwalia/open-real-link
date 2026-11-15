@@ -29,7 +29,7 @@ from .requests import REQUEST_DECODERS, decode_request
 #
 # NotificationCommandManager.k(): device -> app event pushed in a 0x0204
 # packet.  payload[0] is the event type; the rest is event-specific TLVs.
-# Names corrected 2026-10-20 from the decompiled dispatch (the earlier labels
+# Names corrected 2026-10-20 from the vendor app's dispatch (the earlier labels
 # 0x04-0x08/0x0B/0x0F were wrong):
 #   0x04 compactness        CommandUtil.e -> CompactnessDetectionInfoSdk
 #   0x05 gameMode           -> SettingsInfo(settingType 3)  -> I5

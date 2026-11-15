@@ -59,6 +59,7 @@ hyphens). Do **not** commit your own address into the repository.
 * **The write path is gated on the buds being worn.** `mode set` and
   `smoke --write` are accepted only while the earbuds are in an ear; otherwise
   the device answers `0x8404 0e` and the CLI reports *not worn* and exits `2`.
+  The in-ear sensor trigger `0x0405 01` is gated the same way (`0x8405 0e`).
 * **Never sweep command space.** The hearing-test / ear-scan family
   (`0x011E`, `0x011F`, `0x040D`, `0x040E`, `0x0415`) drives **loud, repeated tones**
   in the wearer's ears. The CLI refuses those unless `--force` is given; do not
@@ -471,8 +472,8 @@ every settings write it is accepted only while the buds are worn.
 
 `0x0400` rings the buds so you can locate them. It has **no read pair** -- the
 only reply is the `0x8400 <status>` ack -- and the vendor app never sends it, so
-it is the one command here recovered from decompiled code and then driven
-straight at the hardware. Both values were confirmed on the Air7 Pro
+it is the one command here recovered by static analysis of the shipped app and
+then driven straight at the hardware. Both values were confirmed on the Air7 Pro
 (2026-10-20): `01` and `00` each answer `0x8400 00`, and the buds **audibly
 rang** on `01` and stopped on `00`.
 
@@ -661,6 +662,31 @@ switch-feature write (`0x0403`, accepted but a provable no-op) and the
 bass-engine write (`0x041B`, which *is* verified but has no working **read** to
 capture a value with, since `0x0124` is never answered). As always, a settings
 write requires the buds to be **worn** (§2).
+
+### Full-surface re-verification (2026-11-15)
+
+Every subcommand was run against the same Air7 Pro (address redacted): worn for
+the write steps, out of the ears for the audible one. All passed; nothing needed
+fixing.
+
+| surface | result |
+| --- | --- |
+| `services` | 4 SPP-class records (channels 12, 15, 17, 29) |
+| `smoke` | PASS, 49 commands, `0x064C12`, fw `1.1.0.85` (`--reset` first: `0xE00002BC`) |
+| `caps` `info` `identity` `multipoint` `personalized-noise` `notification-caps` `bass` `keys` | read correctly |
+| `eq` / `high-volume` / `ai-status` writes | write, read back, restore |
+| `keys set` (`0x0401`) | patch one gesture, read back, revert, read back |
+| `compactness start` (`0x0405`) | start accepted, `0x0204` event `0x04` decoded, stop |
+| `backup` / `restore` | 17 responses captured; four settings **APPLIED** |
+| `events` | `0x0500` host-time, plus `0x0204` noiseReduction / earbudStatus / battery pushes |
+| `find` (`0x0400`) | rang for 3 s, auto-stopped, `0x8400 00` |
+| `send 0x041B fb0500` | `0x841B 00 0a` plus `0x0508 fb 05 00 00` |
+| guards | `0x011E`, `0x0300`, `0x0F00` refused before any traffic |
+
+Two observations from the run are now recorded: the `0x0405` start is wear-gated
+(`0x8405 0e`, see §2 of this document and [`docs/protocol.md`](protocol.md) §8), and the `0x041B`
+write is reachable only through the raw console, so `docs/command-coverage.md`
+marks it `build` rather than `build + send`.
 
 ## 6. What to record
 

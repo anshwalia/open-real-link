@@ -31,7 +31,7 @@ CLASS_NAMES = {
     CLASS_DEBUG: "DebugCommandManager",
 }
 
-# --- command IDs recovered from decompiled manager bodies ------------------
+# --- command IDs recovered from the vendor app's manager bodies ----------------
 CMD_NOTIFICATION_CAPS = 0x0200   # NotificationCommandManager.b
 CMD_REGISTER_NOTIFICATION = 0x0202   # NotificationCommandManager.c
 CMD_CANCEL_REGISTER_NOTIFICATION = 0x0203  # NotificationCommandManager.a
@@ -123,7 +123,7 @@ CAPABILITY_TABLE = [
 # Protocol.c2 -- always available, no capability check
 ALWAYS_ON = {0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x010B, 0x0F00}
 
-# Human labels.  **Observed** names came from log strings in the decompiled
+# Human labels.  **Observed** names came from log strings in the vendor app's
 # manager bodies; family labels are structural.  An empty string means the
 # command id is known to exist but its purpose was not recovered.
 CMD_NAMES = {

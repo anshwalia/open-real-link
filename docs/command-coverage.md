@@ -87,7 +87,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0307` | 775 | OTA | ungated | — | — | — |
 | `0x0308` | 776 | OTA | ungated | — | — | — |
 | `0x0400` | 1024 | set | cap-bit 5 | build + send | live | setFindMode |
-| `0x0401` | 1025 | set | cap-bit 3 | build | live | setKeyFunction |
+| `0x0401` | 1025 | set | cap-bit 3 | build + send | live | setKeyFunction |
 | `0x0402` | 1026 | set | cap-bit 6 | — | — | — |
 | `0x0403` | 1027 | set | cap-bit 7 | — | live | setSwitchFeature |
 | `0x0404` | 1028 | set | cap-bit 8 | build + send | live | SetNoiseReduction |
@@ -104,7 +104,7 @@ family in the catalogue below). Counts are derived from `tlcore.ALL_COMMANDS`;
 | `0x0412` | 1042 | set | cap-bit 26 | — | live | setPersonalizedNoiseReduction |
 | `0x0415` | 1045 | set | cap-bit 30 | — | live | sendProcessEarScanData |
 | `0x0418` | 1048 | set | cap-bit 34 | — | live | getDbValue, getFrequency, setEqInfo |
-| `0x041b` | 1051 | set | cap-bit 38 | build + send | live | setBassEngineValue |
+| `0x041b` | 1051 | set | cap-bit 38 | build | live | setBassEngineValue |
 | `0x041e` | 1054 | set | cap-bit 43 | — | live | setSpatialAudioType |
 | `0x0428` | 1064 | set | cap-bit 58 | build + send | live | setAIStatus / setTranslationAppStatus |
 | `0x042c` | 1068 | set | cap-bit 60 | — | — | setHeadsetMicStatus |
@@ -126,6 +126,20 @@ Two of the 81 rows are **not** TL commands and are not counted above: `0x7F00`
 is the manager-class mask (`cmd & 0x7F00`, `Protocol.b`) and `0x079A` is the
 OPPO interaction service's 16-bit UUID (`0000079A-D102-…`), not a request the
 app sends. That is why the catalogue has 81 rows but only **79 command IDs**.
+
+The `0x041B` row is `build` alone, not `build + send`. The builder
+(`payload_set_bass_engine`) and the write itself are verified on hardware —
+`0x041B [min][max][current]` answers `0x841B` and pushes `0x0508` — but nothing
+in `tlcore`, `tlcli` or `tlapp` issues it as a first-class command. It is
+reached through the guarded raw console (`tlcli send 0x041B …`, or the app's
+Expert console), which is how the live runs were made. In this table `send`
+means a **dedicated** sender, which is why every other `send` row has a
+`Session` method behind it. The reason there is no sender is the same reason a
+write control would be a guess: every recorded write sent a band's **existing**
+value (`current 00`), so the round trip is verified but the effect of *changing*
+a band never was. The optional 4th byte is a band selector -- it round-trips into
+the `0x0508` `type` field -- but which band each value selects, and what a
+non-zero `current` does, remain unobserved.
 
 ## Observed negative / unusable results
 

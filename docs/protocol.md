@@ -476,6 +476,10 @@ the firmware answers with `0x8405 <status>` and reports the result on the
 `tlcli compactness start|stop`, which listens for the push. The trigger is a
 sensor read -- it drives no audio.
 
+The start is **wear-gated**: `0x0405 01` with no bud in an ear is refused with
+`0x8405 0e` (live, 2026-11-15), the same in-ear gate a noise-mode write obeys.
+Start it while the buds are worn, then create the transition to see the event.
+
 ### Multipoint (paired-device list)
 
 `0x0112` returns the devices paired to the buds. The reply is

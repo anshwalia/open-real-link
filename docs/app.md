@@ -332,9 +332,11 @@ view stay simple. It holds four groups:
 * **Bass engine** — **Read** fills a table from `0x012C` (*type*, *min*, *max*,
   *current*), showing the device's own band selector and the range it keeps
   (`-5..+5`; the values are signed). **Read-only.** The `0x041B` write is
-  accepted by the device, but *which* band its `type` byte selects is not
-  verified, so a write control would be guessing at the effect — and the id this
-  was long assumed to be, `0x0124`, is never answered by an Air7 Pro.
+  accepted and round-trips — the device answers `0x841B` and pushes `0x0508` —
+  and its optional 4th byte is a band selector, but every recorded write sent a
+  band's **existing** value, so the effect of *changing* one was never observed
+  and a write control would be guessing at it. The id this was long assumed to
+  be, `0x0124`, is never answered by an Air7 Pro.
 * **Raw console** — see below.
 
 One gating rule is worth stating because it bit this view during development: a
@@ -445,7 +447,9 @@ The app inherits that platform limit: there are **two** live transports
 this platform and names the way out. Offline replay
 (`--replay fixtures/...`) works everywhere, which is how the GUI tests run.
 
-Otherwise the verified surface is fully exposed. What is **not** here is
+Otherwise the verified surface is fully exposed, with one caveat of form: the
+`0x041B` bass-engine write is verified but has no dedicated control, so it goes
+through the Expert raw console (`tlcli send 0x041B …`). What is **not** here is
 deliberately not here: `0x041E` spatial audio, `0x0412` personalized-ANC write
 and `0x040A` auto power-off are all features a user would want and none of them
 could be verified, so they are documented in `docs/protocol.md` rather than
