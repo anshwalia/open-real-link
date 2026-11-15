@@ -700,3 +700,38 @@ confirms, on this codebase:
 
 If any step fails, the `[FAIL]` row names the exception; that traceback plus the
 device state is the useful artifact.
+
+## 7. After every run — give the host its audio back
+
+**Run this at the end of every live session, before you walk away:**
+
+```console
+$ python3 tools/host_audio_check.py --fix
+```
+
+A live run connects and drops the ACL link many times — once per subcommand,
+plus every `--reset`. macOS mirrors a Bluetooth headset's **AVRCP absolute
+volume** onto a per-device control, so each reconnect re-syncs the Mac's output
+volume *from the headset*. If the buds report 0 — out of the ears, or simply at
+zero — the Mac is pinned to 0, and from then on music and video are **silent**
+while everything still looks healthy: the device is connected, A2DP is up, and
+`afplay` exits 0.
+
+Observed on 2026-11-15: after a long session the host sat at
+`output volume:0 … output muted:false` with the buds as the default output. No
+protocol command caused it — the catalogue has no absolute-volume ID — and
+nothing about the headset was wrong. The host had just lost its volume to the
+re-sync, which is why this check is part of the runbook rather than a footnote.
+
+`tools/host_audio_check.py` reads the volume, the mute flag and the default
+output device, and prints the one-line fix. It only reads unless you pass
+`--fix`, which raises a 0/muted output to 50 and nothing else — it never talks
+to the headset, so it is safe to run with the buds in an ear.
+
+Two habits that keep it from happening in the first place:
+
+* pass `--reset` **only** when you actually get `0xE00002BC`, not on every call —
+  each one is another volume re-sync;
+* if the volume snaps back to 0 right after you set it, the **buds' own volume**
+  is at zero — raise it with the touch control and the Mac will follow on the
+  next sync.

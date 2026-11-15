@@ -67,6 +67,11 @@ live-verified or removed before a release.
 - A noise-mode write (`0x0404 action=1`) is accepted only while the buds are
   **worn**; otherwise the device answers `0x8404 0e`.
 - Never write unknown commands to a worn headset.
+- **After every live session, restore the host:** `python3
+  tools/host_audio_check.py --fix`. Repeated ACL reconnects re-sync the Mac's
+  output volume from the headset, and a headset reporting 0 leaves the Mac
+  silent while the audio route still looks healthy
+  ([`docs/live-test.md`](docs/live-test.md) §7).
 
 ## 5. Token hazards
 

@@ -161,6 +161,11 @@ you would rather not activate.
 - A noise-mode write (`0x0404 action=1`) is accepted only while the buds are
   **worn**; otherwise the device answers `0x8404 0e`. The in-ear sensor trigger
   (`0x0405 action=1`) is gated the same way and answers `0x8405 0e`.
+- **After every live session, restore the host:** `python3
+  tools/host_audio_check.py --fix`. Repeated ACL reconnects (`--reset`, one per
+  subcommand) re-sync the Mac's output volume from the headset's AVRCP absolute
+  volume; a headset reporting 0 leaves the Mac silent while the audio route
+  still looks healthy. See [`docs/live-test.md`](docs/live-test.md) §7.
 
 ## Before committing
 
