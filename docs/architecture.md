@@ -55,6 +55,15 @@ no `serial`, no Qt. It takes a `Transport` object and produces/consumes bytes.
 > `android/` in the diagram are the planned per-platform shims (see §9). Both
 > live transports — macOS IOBluetooth and Windows WinSock — have been verified
 > end to end on hardware ([`live-test.md`](live-test.md)).
+
+`tltransport` also holds two modules that are **not** `Transport`
+implementations and never move a byte to the headset: `a2dp.py` (the codec the
+host is streaming, read from `bluetoothd`'s log) and `pairing.py` (the host's
+paired devices, so the app can offer a picker). They are here rather than in
+`tlapp` because both the CLI and the app need them, and the dependency only
+points one way — `tlapp` imports `tlcli`, so `tlcli` cannot import `tlapp`. The
+package is therefore "the platform layer", not strictly "the transports"; both
+modules are read-only host introspection and neither pairs nor connects.
 > `tlapp` is started but partial — its controller is Qt-free, so the widgets are
 > the only part that needs a display ([`app.md`](app.md)).
 

@@ -39,6 +39,7 @@ live-verified or removed before a release.
 | what the app exposes, and what it deliberately does not | [`docs/app.md`](docs/app.md) |
 | which models are candidates | [`docs/device-compatibility.md`](docs/device-compatibility.md) |
 | live hardware runbook | [`docs/live-test.md`](docs/live-test.md) |
+| which codec is streaming, which headset to pick (host-side) | [`docs/app.md`](docs/app.md) §"Which headset"; [`docs/live-test.md`](docs/live-test.md) §7.1 |
 | building and signing the bundles | [`docs/packaging.md`](docs/packaging.md) |
 | designing a new feature (EGM) | [`.agents/skills/open-real-link-elephant/SKILL.md`](.agents/skills/open-real-link-elephant/SKILL.md) |
 

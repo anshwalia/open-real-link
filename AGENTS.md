@@ -181,6 +181,12 @@ you would rather not activate.
   bundle inputs and icon pipelines; the macOS icon step skips off macOS).
 - `TL_REFERENCE=… python tests/test_parity_tl_frame.py` prints `PARITY: OK`
   (or skips cleanly when the reference is unavailable).
+- The suites that are not listed above run under `pytest -q` too, and each
+  prints its own banner when run directly: `test_transport_and_session.py`
+  (`TRANSPORT/SESSION: OK`), `test_device_registry.py` (`DEVICE REGISTRY: OK`),
+  `test_backup.py`, `test_buttons.py`, `test_macos_transport.py` and
+  `test_windows_transport.py`. They are not repeated here because a list that
+  names every suite goes stale the moment one is added.
 - Nothing from the "Do not add here" list is staged.
 - `python tests/test_app.py` covers the Qt-free controller, and
   `tests/test_parity_tl_frame.py::test_core_purity` is the check that keeps

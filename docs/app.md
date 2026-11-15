@@ -117,6 +117,26 @@ is reclaimed automatically, because `QLockFile` records the holder's PID. The
 path can be overridden with `OPEN_REAL_LINK_LOCK` to run two builds side by side.
 `SIGINT` and `SIGTERM` close the window cleanly and release the lock.
 
+### Which headset
+
+The connection bar lists the headsets this computer has already **paired**, so
+the address never has to be typed (it is not printed anywhere obvious, and a
+typo looks exactly like a refusal). Two Qt-free modules under `tltransport` do
+the host-side work, and they are the only ones in the app that read the machine
+rather than the headset:
+
+* `tltransport/pairing.py` — the paired-device list (IOBluetooth, with a
+  `system_profiler` fallback), filtered to audio devices and labelled against
+  `tlcore.KNOWN_DEVICES`, so the picker can say *"model 064C12"* or *"not a known
+  TL model"*;
+* `tltransport/a2dp.py` — the streaming codec, for **Expert → Audio link** and
+  `tlcli audio`. A codec is negotiated between two Bluetooth stacks and never
+  reported over TL, so it can only be read from the host.
+
+They live in `tltransport` because both the CLI and the app need them, and
+`tlapp` already imports `tlcli` — pointing the dependency the other way would
+make a cycle. Neither one pairs, connects to, or writes anything to a headset.
+
 ### Bluetooth must be on
 
 The app cannot reach a headset over a radio that is switched off, so it checks
@@ -410,9 +430,8 @@ Widgets live in `tlapp/window.py`; every device action goes through
 PySide6). Snapshot file I/O is in `tlapp/backupfile.py`, also Qt-free, so the
 format can be tested without a GUI. The Bluetooth probe is `tlapp/bluetooth.py`,
 Qt-free as well; the pre-flight screen it feeds is `tlapp/gate.py`. The
-single-instance guard is in `tlapp/instance.py`. The A2DP codec read is
-`tltransport/a2dp.py` — Qt-free, shared with `tlcli audio`, and the only module
-that reads the **host** rather than the headset. That split is what makes the app testable:
+single-instance guard is in `tlapp/instance.py`. That split is what makes the
+app testable:
 
 * `tests/test_app.py` drives the controller against recorded and synthetic
   fixtures — no display, no radio, no hardware;
