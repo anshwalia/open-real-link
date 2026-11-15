@@ -511,6 +511,53 @@ def test_bass_table_renders_signed_bands() -> None:
         window.close()
 
 
+def test_device_picker_lists_paired_heads_and_uses_the_choice(monkeypatch) -> None:
+    """The toolbar offers the paired headsets instead of demanding an address."""
+    from tltransport import pairing
+
+    air7 = pairing.PairedDevice("realme Buds Air7 Pro", "AA-BB-CC-DD-EE-FF", True,
+                                pairing.classify("realme Buds Air7 Pro"))
+    other = pairing.PairedDevice("WH-XB910N", "14-3F-A6-E2-34-C9", False, None)
+    monkeypatch.setattr(pairing, "paired_devices", lambda: [air7, other])
+
+    _app()
+    window = MainWindow(ConnectionOptions())
+    try:
+        assert window.device_combo.count() == 2
+        # supported first, and the label says why
+        assert window.device_combo.itemText(0).startswith("realme Buds Air7 Pro")
+        assert "model 064C12" in window.device_combo.itemText(0)
+        assert "not a known TL model" in window.device_combo.itemText(1)
+        # the first supported headset is preselected, and its address is used
+        assert window.selected_address() == "AA-BB-CC-DD-EE-FF"
+
+        window.device_combo.setCurrentIndex(1)
+        assert window.selected_address() == "14-3F-A6-E2-34-C9"
+
+        # typing an address still works, and is normalised
+        window.device_combo.setCurrentIndex(-1)
+        window.device_combo.setEditText("aa:bb:cc:dd:ee:ff")
+        assert window.selected_address() == "AA-BB-CC-DD-EE-FF"
+
+        # a refresh keeps the typed address rather than resetting the field
+        monkeypatch.setattr(pairing, "paired_devices", lambda: [air7])
+        window.refresh_devices()
+        assert window.device_combo.count() == 1
+        assert window.selected_address() == "AA-BB-CC-DD-EE-FF"
+    finally:
+        window.close()
+
+    # nothing paired: an honest placeholder, not an empty dropdown
+    monkeypatch.setattr(pairing, "paired_devices", lambda: [])
+    window = MainWindow(ConnectionOptions())
+    try:
+        assert window.device_combo.count() == 0
+        assert "pair" in window.device_combo.lineEdit().placeholderText().lower()
+        assert window.selected_address() is None
+    finally:
+        window.close()
+
+
 def test_audio_link_renders_the_host_side_read() -> None:
     """The audio-link group shows the host's own labels and nothing invented."""
     _app()

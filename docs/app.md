@@ -61,10 +61,31 @@ and `pip install -e ".[dev,gui]"`. The Windows transport is stdlib `ctypes`.
 Then:
 
 ```console
-$ python -m tlapp                                   # connect by hand
+$ python -m tlapp                                   # pick a paired headset, then connect
 $ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
 $ python -m tlapp --replay fixtures/spp-smoketest.jsonl
 ```
+
+The connection bar offers a **dropdown of the headset(s) already paired with this
+computer** instead of asking for an address, which is not printed anywhere
+obvious and where a typo looks exactly like a headset that refuses the link. The
+list comes from the host (IOBluetooth on macOS, `system_profiler` as a fallback)
+and is filtered to audio devices — a paired game controller is a real device but
+never a headset. Each entry says whether its advertised name matches a model this
+project covers, e.g.
+
+```
+realme Buds Air7 Pro — AA-BB-CC-DD-EE-FF — connected — model 064C12
+WH-XB910N — 14-3F-A6-E2-34-C9 — not a known TL model
+```
+
+Supported models sort first, and the first one is preselected. The field stays
+**editable** (type `AA-BB-CC-DD-EE-FF`, colons accepted and normalised), because
+a headset can be reachable without being paired, and a TL model whose advertised
+name we do not recognise still has to be usable. `⟳` re-reads the list after you
+pair something in System Settings; nothing here pairs, connects or reads the
+headset. On Windows and Linux the list is empty and the app falls back to typing
+an address.
 
 `--replay` runs the whole app against a recorded capture — no device and no
 radio — which is how it is developed and demonstrated. The window connects as

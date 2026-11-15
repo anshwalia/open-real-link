@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 )
 
 import tlcore as t
-from tltransport import a2dp
+from tltransport import a2dp, pairing
 
 from . import backupfile, theme
 from .controller import (
@@ -100,12 +100,20 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("OpenRealLink")
         self.resize(900, 780)
         self._build_toolbar()
+        self.refresh_devices()
         self._build_view_switch()
         self._build_views()
         self._set_connected(False)
-        self.statusBar().showMessage(
-            f"Ready (replay: {options.replay})." if options.replay
-            else "Ready. Enter a device address and connect.")
+        if options.replay:
+            self.statusBar().showMessage(f"Ready (replay: {options.replay}).")
+        elif self.device_combo.count():
+            self.statusBar().showMessage(
+                f"Ready. {self.device_combo.count()} paired headset(s) found — "
+                "pick one and connect.")
+        else:
+            self.statusBar().showMessage(
+                "Ready. No paired headset found — pair one in System Settings, "
+                "or type an address.")
 
     # ------------------------------------------------------------------ chrome
     def _build_toolbar(self) -> None:
@@ -113,13 +121,34 @@ class MainWindow(QMainWindow):
         bar.setMovable(False)
         self.addToolBar(bar)
         bar.addWidget(QLabel("  Device  "))
-        self.address_edit = QLineEdit(self.options.address or "")
-        self.address_edit.setPlaceholderText("AA-BB-CC-DD-EE-FF")
-        self.address_edit.setMinimumWidth(200)
+        # A picker, not a text box: the address is not something a user should
+        # have to look up, and a typo is indistinguishable from a headset that
+        # refuses the link. It stays editable, because a device can be reachable
+        # without being paired (or without being enumerable at all).
+        self.device_combo = QComboBox()
+        self.device_combo.setEditable(True)
+        self.device_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.device_combo.setMinimumWidth(320)
+        self.device_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.device_combo.setMinimumContentsLength(28)
+        if self.options.address:
+            self.device_combo.setEditText(self.options.address)
+        self.address_edit = self.device_combo.lineEdit()   # what the code reads
         theme.make_mono(self.address_edit)
+        self.address_edit.setPlaceholderText("AA-BB-CC-DD-EE-FF")
         if self.options.replay:
-            self.address_edit.setEnabled(False)
-        bar.addWidget(self.address_edit)
+            self.device_combo.setEnabled(False)
+        bar.addWidget(self.device_combo)
+        self.refresh_devices_btn = QPushButton("⟳")
+        self.refresh_devices_btn.setToolTip(
+            "Look again for paired headsets (pairing happens in System Settings)")
+        self.refresh_devices_btn.setMaximumWidth(32)
+        self.refresh_devices_btn.clicked.connect(self.refresh_devices)
+        theme.set_role(self.refresh_devices_btn, theme.GHOST)
+        if self.options.replay:
+            self.refresh_devices_btn.setEnabled(False)
+        bar.addWidget(self.refresh_devices_btn)
         self.reset_check = QCheckBox("reset link")
         if self.options.replay:
             self.reset_check.setEnabled(False)
@@ -877,6 +906,46 @@ class MainWindow(QMainWindow):
         if not self.controller.connected:
             self._toggle_connection()
 
+    # ---------------------------------------------------------- device picker
+    def refresh_devices(self) -> None:
+        """Re-read the host's paired devices. Never connects, never pairs."""
+        devices = pairing.paired_devices()
+        current = self.device_combo.currentData() or self.address_edit.text().strip()
+        self.device_combo.blockSignals(True)
+        self.device_combo.clear()
+        for device in devices:
+            self.device_combo.addItem(pairing.describe(device), device.address)
+        self.device_combo.blockSignals(False)
+        if devices:
+            index = self.device_combo.findData(current)
+            if index >= 0:
+                self.device_combo.setCurrentIndex(index)
+            elif current:
+                # A typed address that matches nothing paired: adding the first
+                # item selected it implicitly, so clear the selection too -- the
+                # text is the answer, not the item the combo fell onto.
+                self.device_combo.setCurrentIndex(-1)
+                self.device_combo.setEditText(current)
+            else:
+                self.device_combo.setCurrentIndex(0)
+        elif not pairing.PAIRING_AVAILABLE:
+            self.device_combo.setEditText("")
+            self.address_edit.setPlaceholderText(
+                "AA-BB-CC-DD-EE-FF (pairing list is macOS only)")
+        else:
+            self.device_combo.setEditText("")
+            self.address_edit.setPlaceholderText(
+                "no paired headset found — pair it in System Settings, or type an address")
+        return None
+
+    def selected_address(self) -> str | None:
+        """The address to connect to: the chosen device, or what was typed."""
+        data = self.device_combo.currentData()
+        if data:
+            return str(data)
+        typed = self.address_edit.text().strip()
+        return pairing.normalise_address(typed) or None
+
     def _toggle_connection(self) -> None:
         if self.controller.connected:
             self._stop_ringing_quietly()
@@ -885,11 +954,12 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Disconnected.")
             return
         if not self.options.replay:
-            self.options.address = self.address_edit.text().strip() or None
+            self.options.address = self.selected_address()
             if not self.options.address:
-                self._warn("Address needed",
-                           "Enter the headset's Bluetooth address (e.g. "
-                           "AA-BB-CC-DD-EE-FF), or start the app with --replay.")
+                self._warn("No headset selected",
+                           "Pick a paired headset from the list, or type its "
+                           "Bluetooth address (e.g. AA-BB-CC-DD-EE-FF). Pairing "
+                           "is done in System Settings → Bluetooth.")
                 return
         self.options.reset = self.reset_check.isChecked()
         self._run(lambda c: c.connect(), self._after_connect, require=False)

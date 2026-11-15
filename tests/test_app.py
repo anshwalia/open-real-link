@@ -1212,6 +1212,38 @@ def test_a2dp_parse_endpoints() -> None:
         [(2, "MPEG-2,4 AAC"), (4, "SBC")])
 
 
+def test_pairing_classify_and_order() -> None:
+    """The picker's verdict is the registry's, and the order puts it first."""
+    from tltransport import pairing
+
+    air7 = pairing.classify("realme Buds Air7 Pro")
+    assert air7 is not None
+    check("pairing model id", air7.model_id, "064C12")
+    check("pairing case-insensitive", pairing.classify("REALME BUDS AIR7 PRO").model_id, "064C12")
+    # the longest match wins, so the base model cannot claim the Pro
+    check("pairing longest match", pairing.classify("realme Buds Air7").model_id, "064812")
+    check("pairing unknown device", pairing.classify("AirPods Pro"), None)
+    check("pairing empty name", pairing.classify(""), None)
+
+    check("pairing address form", pairing.normalise_address("aa:bb:cc:dd:ee:ff"),
+          "AA-BB-CC-DD-EE-FF")
+    check("pairing address passthrough", pairing.normalise_address("typed-junk"), "typed-junk")
+
+    supported = pairing.PairedDevice("realme Buds Air7 Pro", "AA-BB-CC-DD-EE-FF", True, air7)
+    other = pairing.PairedDevice("WH-XB910N", "14-3F-A6-E2-34-C9", True, None)
+    idle = pairing.PairedDevice("realme Buds Air6 Pro", "06-30-12-00-00-01", False,
+                                pairing.classify("realme Buds Air6 Pro"))
+    check("pairing supported flag", supported.supported, True)
+    check("pairing unsupported flag", other.supported, False)
+    check("pairing describe names the model", "model 064C12" in pairing.describe(supported), True)
+    check("pairing describe marks the unknown",
+          "not a known TL model" in pairing.describe(other), True)
+    # supported first, then connected, then alphabetical
+    check("pairing order", pairing.sorted_devices([other, idle, supported]),
+          [supported, idle, other])
+    check("pairing gate matches platform", pairing.PAIRING_AVAILABLE, sys.platform == "darwin")
+
+
 def test_a2dp_platform_gate() -> None:
     """Off macOS the module reports unavailable and reads nothing."""
     check("a2dp available matches platform", A2DP_AVAILABLE, sys.platform == "darwin")

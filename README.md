@@ -283,7 +283,7 @@ troubleshooting, see [`docs/live-test.md`](docs/live-test.md).
 ### Desktop app
 
 ```console
-$ python -m tlapp                                     # connect by hand
+$ python -m tlapp                     # pick your paired headset from the list
 $ python -m tlapp --address AA-BB-CC-DD-EE-FF --connect
 $ python -m tlapp --replay fixtures/spp-smoketest.jsonl
 ```
@@ -291,8 +291,8 @@ $ python -m tlapp --replay fixtures/spp-smoketest.jsonl
 The app has a **General** view for everyday use — status, noise mode, equalizer,
 high volume, gestures, find-my-buds, backup/restore, and a live event monitor —
 and an **Expert** view for the diagnostic reads, the capability bitmap, the
-bass-engine read, and a guarded raw console that refuses the tone / OTA / debug
-families. On connect it runs a compatibility check against the unit's own
+bass-engine read, the host-side audio-link readout, and a guarded raw console
+that refuses the tone / OTA / debug families. On connect it runs a compatibility check against the unit's own
 capability bitmap and reports which everyday features it advertises. See
 [`docs/app.md`](docs/app.md).
 
