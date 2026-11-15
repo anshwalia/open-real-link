@@ -44,8 +44,9 @@ from PySide6.QtWidgets import (
 )
 
 import tlcore as t
+from tltransport import a2dp
 
-from . import a2dp, backupfile, theme
+from . import backupfile, theme
 from .controller import (
     EVENT_POLL_SECONDS,
     SEND_LISTEN_SECONDS,

@@ -1,9 +1,13 @@
 """What the host is actually streaming: the A2DP codec, and the link quality.
 
-Everything else in this app reads the **headset** over the TL channel. This
-module reads the **host**, and it is the only place that does, because a
-Bluetooth audio codec is negotiated between two Bluetooth stacks and is never
-reported over the protocol: no TL command selects or reports one.
+Everything else in this package moves bytes to the **headset**. This module
+reads the **host**, and it is the only place that does, because a Bluetooth
+audio codec is negotiated between two Bluetooth stacks and is never reported
+over the protocol: no TL command selects or reports one. It lives here, next to
+the platform transports, because it is platform-specific host I/O of the same
+kind -- ``log show`` instead of an RFCOMM socket -- and both the CLI (``tlcli
+audio``) and the app (Expert -> Audio link) need it without either importing the
+other.
 
 macOS exposes no public API for the negotiated codec either, but ``bluetoothd``
 logs it. A controller-info query (which ``system_profiler`` issues, and which

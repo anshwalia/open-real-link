@@ -750,7 +750,15 @@ buffer and the endpoints the headset offered at connect, read from `bluetoothd`
 rather than from the headset (no TL command reports a codec — the A2DP codec is
 negotiated between the two Bluetooth stacks).
 
-The same read is available without the GUI:
+The same read is available without the GUI — a subcommand that needs no address
+and no connection:
+
+```console
+$ python -m tlcli audio            # codec, bitrate, jitter, signal, endpoints
+$ python -m tlcli audio --json     # machine-readable
+```
+
+or straight from the log:
 
 ```console
 $ log show --last 15m --predicate 'process == "bluetoothd"' \

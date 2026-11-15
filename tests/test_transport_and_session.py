@@ -571,6 +571,62 @@ def test_compactness_session() -> None:
           any(p["cmd"] == 0x0204 for p in pushed), True)
 
 
+def test_cli_audio() -> None:
+    """`tlcli audio` reads the host, so it is stubbed rather than recorded."""
+    from unittest import mock
+
+    from tlcli.cli import main
+    from tltransport import a2dp
+
+    link = {
+        "device": "Buds", "codec": "AAC-LC", "bitrate": "224 Kbps",
+        "jitter": "150 ms", "rssi": "-45", "snr": "54", "retransmit": "23%",
+        "live": True, "observed": "12:42:59",
+        "endpoints": [(1, "SBC"), (2, "MPEG-2,4 AAC")],
+    }
+    patched = mock.patch.object(a2dp, "read_link", lambda *a, **k: dict(link))
+    patched.start()
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["audio"])
+    out = buf.getvalue()
+    check("cli audio rc", rc, 0)
+    check("cli audio codec line", "AAC-LC   (live stream)" in out, True)
+    check("cli audio bitrate line", "224 Kbps" in out, True)
+    check("cli audio endpoints keep the spaced name",
+          "SEID 2 = MPEG-2,4 AAC" in out, True)
+
+    # a JSON run names the endpoint fields instead of emitting bare pairs
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["audio", "--json"])
+    payload = json.loads(buf.getvalue())
+    check("cli audio json rc", rc, 0)
+    check("cli audio json codec", payload["codec"], "AAC-LC")
+    check("cli audio json endpoints", payload["endpoints"],
+          [{"seid": 1, "codec": "SBC"}, {"seid": 2, "codec": "MPEG-2,4 AAC"}])
+
+    # idle is stated rather than implied, and nothing found is an error
+    idle = dict(link, codec="SBC", bitrate="0 Kbps", live=False, endpoints=[])
+    patched.stop()
+    patched = mock.patch.object(a2dp, "read_link", lambda *a, **k: idle)
+    patched.start()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        main(["audio"])
+    check("cli audio idle note", "no stream is running" in buf.getvalue(), True)
+
+    patched.stop()
+    patched = mock.patch.object(a2dp, "read_link", lambda *a, **k: None)
+    patched.start()
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            check("cli audio nothing found", main(["audio"]), 1)
+    finally:
+        patched.stop()
+
+
 def test_cli_eq() -> None:
     from tlcli.cli import main
 

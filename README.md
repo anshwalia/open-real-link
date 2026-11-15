@@ -270,7 +270,12 @@ $ python -m tlcli --address AA-BB-CC-DD-EE-FF high-volume # read the loudness bo
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF events --seconds 15   # decode pushes
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF backup settings.json
 $ python -m tlcli --address AA-BB-CC-DD-EE-FF restore --dry-run settings.json
+$ python -m tlcli audio                                   # the A2DP codec the host is using
 ```
+
+`audio` is the odd one out: it needs **no address and no connection**, because the
+audio codec is negotiated between the two Bluetooth stacks and is never reported
+over the protocol. It reads macOS's `bluetoothd` log (and only works there).
 
 `python -m tlcli --help` lists every subcommand. For a hardware runbook and
 troubleshooting, see [`docs/live-test.md`](docs/live-test.md).

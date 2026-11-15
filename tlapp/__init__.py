@@ -14,13 +14,14 @@ Qt-free; only ``tlapp.window`` imports PySide6.
 """
 from __future__ import annotations
 
-from .a2dp import (
+from tltransport.a2dp import (
     A2DP_AVAILABLE,
     parse_endpoints,
     parse_link,
     read_link,
     summary,
 )
+
 from .backupfile import (
     BackupFileError,
     default_backup_dir,

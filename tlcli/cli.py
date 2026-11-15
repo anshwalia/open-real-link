@@ -136,6 +136,48 @@ def cmd_services(args) -> int:
     return 0
 
 
+def cmd_audio(args) -> int:
+    """What the host's Bluetooth stack is streaming. No device traffic at all.
+
+    The A2DP codec is negotiated between the two Bluetooth stacks and never
+    reported over TL, so this is the only way to see it. It reads ``bluetoothd``'s
+    log, needs no connection, and does not touch the headset.
+    """
+    from tltransport.a2dp import A2DP_AVAILABLE, read_link
+
+    if not A2DP_AVAILABLE:
+        raise SystemExit("the A2DP codec is only readable on macOS")
+    link = read_link(args.minutes)
+    if link is None:
+        print("no A2DP link reported -- connect the headset, play something, "
+              "then try again", file=sys.stderr)
+        return 1
+    if args.json:
+        # `parse_endpoints` yields (seid, codec) tuples; name them in JSON so a
+        # consumer does not have to know the order.
+        payload = dict(link)
+        payload["endpoints"] = [{"seid": seid, "codec": codec}
+                                for seid, codec in link.get("endpoints") or []]
+        print(json.dumps(payload, indent=2))
+        return 0
+    print(f"device   : {link['device']}")
+    state = "live stream" if link["live"] else "configured, no stream now"
+    print(f"codec    : {link['codec']}   ({state})")
+    print(f"bitrate  : {link['bitrate']}")
+    print(f"jitter   : {link['jitter']}")
+    print(f"signal   : RSSI {link['rssi']} dBm, SNR {link['snr']} dB, "
+          f"retransmit {link['retransmit']}")
+    print(f"observed : {link['observed']}")
+    if link.get("endpoints"):
+        offered = ", ".join(f"SEID {seid} = {codec}" for seid, codec in link["endpoints"])
+        print(f"offered  : {offered}")
+    if not link["live"]:
+        print()
+        print("note: no stream is running, so this is the configured codec; play "
+              "audio and re-run for the one carrying it.")
+    return 0
+
+
 def cmd_caps(args) -> int:
     transport, session = open_session(args)
     try:
@@ -1247,6 +1289,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true",
                    help="report what would be applied without writing")
     p.set_defaults(func=cmd_restore)
+
+    p = sub.add_parser("audio", parents=[common],
+                       help="the A2DP codec the host is streaming (macOS; no device traffic)")
+    p.add_argument("--minutes", type=int, default=15, metavar="N",
+                   help="how far back to look in the log (default 15)")
+    p.set_defaults(func=cmd_audio)
 
     p = sub.add_parser("mode", help="get or set the active noise mode", parents=[common])
     p.add_argument("mode_args", nargs="*", metavar="VALUE",

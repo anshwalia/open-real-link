@@ -390,8 +390,8 @@ PySide6). Snapshot file I/O is in `tlapp/backupfile.py`, also Qt-free, so the
 format can be tested without a GUI. The Bluetooth probe is `tlapp/bluetooth.py`,
 Qt-free as well; the pre-flight screen it feeds is `tlapp/gate.py`. The
 single-instance guard is in `tlapp/instance.py`. The A2DP codec read is
-`tlapp/a2dp.py`, Qt-free too, and it is the only module that reads the **host**
-rather than the headset. That split is what makes the app testable:
+`tltransport/a2dp.py` — Qt-free, shared with `tlcli audio`, and the only module
+that reads the **host** rather than the headset. That split is what makes the app testable:
 
 * `tests/test_app.py` drives the controller against recorded and synthetic
   fixtures — no display, no radio, no hardware;
