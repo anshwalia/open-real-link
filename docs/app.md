@@ -316,7 +316,7 @@ and reports it in the status bar — never a modal, because a modal opened from 
 
 Everything on this view needs protocol knowledge to read, and none of it is
 needed to use the headset. Keeping it in its own view is what lets the General
-view stay simple. It holds four groups:
+view stay simple. It holds five groups:
 
 * **Diagnostics** — six read buttons, each gated on its own capability bit: **Identity**
   (vendor id `0x0102`, protocol version `0x0104`, colour id `0x010B`),
@@ -337,6 +337,17 @@ view stay simple. It holds four groups:
   band's **existing** value, so the effect of *changing* one was never observed
   and a write control would be guessing at it. The id this was long assumed to
   be, `0x0124`, is never answered by an Air7 Pro.
+* **Audio link (host)** — the one group here that does **not** read the headset.
+  **Refresh** shows the codec this machine is actually streaming (*codec*,
+  *bitrate*, *stream state*, *jitter buffer*, *signal*, *retransmit*,
+  *observed*) and the endpoints the headset offered at connect. It is here, in
+  Expert, because a codec is negotiated between two Bluetooth stacks and is
+  never reported over TL: no command in the catalogue selects or reports one, so
+  this is not device state and must not be read as such. macOS only — elsewhere
+  the button is disabled and says so. The vendor endpoint labels are the host's
+  own words; the app does not guess which vendor codec a `VENDOR-SPECIFIC`
+  endpoint is. Manual refresh rather than polling, because each read queries the
+  system log.
 * **Raw console** — see below.
 
 One gating rule is worth stating because it bit this view during development: a
@@ -378,8 +389,9 @@ Widgets live in `tlapp/window.py`; every device action goes through
 PySide6). Snapshot file I/O is in `tlapp/backupfile.py`, also Qt-free, so the
 format can be tested without a GUI. The Bluetooth probe is `tlapp/bluetooth.py`,
 Qt-free as well; the pre-flight screen it feeds is `tlapp/gate.py`. The
-single-instance guard is in `tlapp/instance.py`. That split is what makes the
-app testable:
+single-instance guard is in `tlapp/instance.py`. The A2DP codec read is
+`tlapp/a2dp.py`, Qt-free too, and it is the only module that reads the **host**
+rather than the headset. That split is what makes the app testable:
 
 * `tests/test_app.py` drives the controller against recorded and synthetic
   fixtures — no display, no radio, no hardware;

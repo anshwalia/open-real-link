@@ -14,6 +14,13 @@ Qt-free; only ``tlapp.window`` imports PySide6.
 """
 from __future__ import annotations
 
+from .a2dp import (
+    A2DP_AVAILABLE,
+    parse_endpoints,
+    parse_link,
+    read_link,
+    summary,
+)
 from .backupfile import (
     BackupFileError,
     default_backup_dir,
@@ -46,6 +53,7 @@ from .controller import (
 )
 
 __all__ = [
+    "A2DP_AVAILABLE",
     "BackupFileError",
     "ConnectionOptions",
     "ControllerError",
@@ -63,11 +71,15 @@ __all__ = [
     "noise_choices",
     "open_bluetooth_settings",
     "parse_command",
+    "parse_endpoints",
+    "parse_link",
     "parse_payload",
+    "read_link",
     "read_snapshot",
     "set_bluetooth",
     "snapshot_summary",
     "suggested_name",
+    "summary",
     "wait_for_bluetooth",
     "write_snapshot",
 ]

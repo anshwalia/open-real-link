@@ -741,3 +741,23 @@ Two habits that keep it from happening in the first place:
 * if the volume snaps back to 0 right after you set it, the **buds' own volume**
   is at zero — raise it with the touch control and the Mac will follow on the
   next sync.
+
+### 7.1 Seeing which codec the run was actually using
+
+A by-ear judgement is only meaningful if you know what carried the audio. The
+app's **Expert → Audio link (host)** group shows the codec, bitrate, jitter
+buffer and the endpoints the headset offered at connect, read from `bluetoothd`
+rather than from the headset (no TL command reports a codec — the A2DP codec is
+negotiated between the two Bluetooth stacks).
+
+The same read is available without the GUI:
+
+```console
+$ log show --last 15m --predicate 'process == "bluetoothd"' \
+    | grep -o "AuLQ \[{[^]]*\]" | tail -1
+```
+
+`AoS 1` with a non-zero `BtRt` is a live stream; `AoS 0` / `0 Kbps` means the
+codec shown is only what was configured. Worth a glance before writing down any
+"these sound better/worse" note: on macOS the codec is whatever the Mac chose,
+which is not necessarily what the same buds use on a phone.

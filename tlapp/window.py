@@ -13,6 +13,8 @@ on hardware; those are added one at a time as they are built and live-tested.
 """
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtWidgets import (
     QApplication,
@@ -43,7 +45,7 @@ from PySide6.QtWidgets import (
 
 import tlcore as t
 
-from . import backupfile, theme
+from . import a2dp, backupfile, theme
 from .controller import (
     EVENT_POLL_SECONDS,
     SEND_LISTEN_SECONDS,
@@ -660,6 +662,32 @@ class MainWindow(QMainWindow):
         bass_outer.addWidget(self.bass_table)
         outer.addWidget(bass_box)
 
+        # -- audio link (host side) ----------------------------------------
+        link_box = QGroupBox("Audio link (host) — what this Mac is streaming")
+        link_outer = QVBoxLayout(link_box)
+        link_row = QHBoxLayout()
+        self.link_read_btn = QPushButton("Refresh")
+        self.link_read_btn.clicked.connect(self._read_audio_link)
+        link_row.addWidget(self.link_read_btn)
+        link_note = QLabel(
+            "Read from this machine's Bluetooth stack, not from the headset. The "
+            "audio codec is negotiated between the two stacks, so no TL command "
+            "reports it — and on Windows or Linux there is nothing to read.")
+        link_note.setWordWrap(True)
+        link_row.addWidget(link_note, 1)
+        link_outer.addLayout(link_row)
+        self.link_table = self._table(["Field", "Value"])
+        self.link_table.setMaximumHeight(130)
+        link_outer.addWidget(self.link_table)
+        self.lbl_link_endpoints = QLabel("")
+        self.lbl_link_endpoints.setWordWrap(True)
+        link_outer.addWidget(self.lbl_link_endpoints)
+        if not a2dp.A2DP_AVAILABLE:
+            self.link_read_btn.setEnabled(False)
+            self._add_row(self.link_table, "State",
+                          f"not available on {sys.platform} — macOS only")
+        outer.addWidget(link_box)
+
         # -- raw console ---------------------------------------------------
         raw_box = QGroupBox("Raw console")
         outer.addWidget(raw_box, 2)
@@ -723,6 +751,42 @@ class MainWindow(QMainWindow):
         #: typed is not a sweep -- but it must never be a surprise either.
         self._wear: bool | None = None
         return page
+
+    # ------------------------------------------------------ audio link (host)
+    def _read_audio_link(self) -> None:
+        """Read the host's A2DP codec.  Host-side only — never the wire."""
+        result = self._run(lambda _controller: a2dp.read_link(), require=False)
+        if result is _FAILED:
+            return
+        self._show_audio_link(result)
+
+    def _show_audio_link(self, link: dict | None) -> None:
+        self.link_table.setRowCount(0)
+        if not link:
+            self._add_row(
+                self.link_table, "State",
+                "no A2DP link reported — connect the headset and play something, "
+                "then refresh")
+            self.lbl_link_endpoints.setText("")
+            return
+        for field, value in (
+            ("Device", link["device"]),
+            ("Codec", link["codec"]),
+            ("Bitrate", link["bitrate"]),
+            ("Stream", "live" if link["live"]
+             else "configured — no stream running"),
+            ("Jitter buffer", link["jitter"]),
+            ("Signal", f"RSSI {link['rssi']} dBm, SNR {link['snr']} dB"),
+            ("Retransmit", link["retransmit"]),
+            ("Observed", link["observed"]),
+        ):
+            self._add_row(self.link_table, field, value)
+        endpoints = link.get("endpoints") or []
+        if endpoints:
+            listed = ", ".join(f"SEID {seid} = {codec}" for seid, codec in endpoints)
+            self.lbl_link_endpoints.setText(f"Endpoints offered at connect: {listed}")
+        else:
+            self.lbl_link_endpoints.setText("")
 
     # -------------------------------------------------------- diagnostics
     def _read_identity(self) -> None:

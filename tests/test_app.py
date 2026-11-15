@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT))
 
 import tlcore as t  # noqa: E402 - after the sys.path insert above
 from tlapp import (  # noqa: E402
+    A2DP_AVAILABLE,
     EQ_PRESET_MAX,
     EQ_PRESET_MIN,
     EVENT_POLL_SECONDS,
@@ -35,10 +36,13 @@ from tlapp import (  # noqa: E402
     function_choices,
     noise_choices,
     parse_command,
+    parse_endpoints,
+    parse_link,
     parse_payload,
     read_snapshot,
     snapshot_summary,
     suggested_name,
+    summary,
     write_snapshot,
 )
 
@@ -1144,6 +1148,74 @@ def test_double_connect_is_safe() -> None:
     ctrl.disconnect()
     ctrl.disconnect()  # idempotent
     check("still disconnected", ctrl.connected, False)
+
+
+#: A realistic pair of `bluetoothd` records: the AVDTP setup lines at connect,
+#: then the `AuLQ` block a controller-info query emits.  Copied from a live
+#: macOS log -- the codec name in the AAC line really does contain a space and a
+#: comma, which is what a `\\S+` pattern silently drops.
+A2DP_LOG = """\
+2026-11-15 12:01:07.066  bluetoothd: [com.apple.bluetooth:Server.A2DP] Audio Codec ID SBC for remote SEID 1
+2026-11-15 12:01:07.084  bluetoothd: [com.apple.bluetooth:Server.A2DP] Audio Codec ID MPEG-2,4 AAC for remote SEID 2
+2026-11-15 12:01:07.094  bluetoothd: [com.apple.bluetooth:Server.A2DP] Audio Codec ID VENDOR-SPECIFIC for remote SEID 3
+2026-11-15 12:42:59.720  bluetoothd: AuLQ [{Time: 2026-11-15 12:42:59, AoS 1, BtRt 224 Kbps, Codc AAC-LC, Freq ISM2.4, DvNm 'Buds', JtBf 150 ms, NsFl -99, RtmR 23%, RSSI -45, SNR 54}]
+"""
+
+
+def test_a2dp_parse_link() -> None:
+    link = parse_link(A2DP_LOG)
+    assert link is not None
+    check("a2dp codec", link["codec"], "AAC-LC")
+    check("a2dp bitrate", link["bitrate"], "224 Kbps")
+    check("a2dp device", link["device"], "Buds")
+    check("a2dp jitter", link["jitter"], "150 ms")
+    check("a2dp rssi", link["rssi"], "-45")
+    check("a2dp snr", link["snr"], "54")
+    check("a2dp retransmit", link["retransmit"], "23%")
+    check("a2dp live", link["live"], True)
+    check("a2dp observed", link["observed"], "2026-11-15 12:42:59")
+    check("a2dp summary", summary(link), "AAC-LC · 224 Kbps · live")
+
+
+def test_a2dp_idle_and_empty() -> None:
+    idle = parse_link(
+        "bluetoothd: AuLQ [{Time: 2026-11-15 12:01:07, AoS 0, BtRt 0 Kbps, "
+        "Codc SBC, DvNm 'Buds', JtBf 150 ms, RSSI -50, SNR 50}]")
+    assert idle is not None
+    check("a2dp idle codec", idle["codec"], "SBC")
+    check("a2dp idle is not live", idle["live"], False)
+    check("a2dp idle summary", summary(idle), "SBC · 0 Kbps · configured, no stream")
+    check("a2dp empty log", parse_link(""), None)
+    check("a2dp no summary", summary(None), "no A2DP link reported")
+    check("a2dp empty endpoints", parse_endpoints(""), [])
+
+
+def test_a2dp_newest_record_wins() -> None:
+    """A stale block must never be reported as the current codec."""
+    two = ("bluetoothd: AuLQ [{Time: 12:01:07, AoS 0, BtRt 0 Kbps, Codc SBC, "
+           "DvNm 'Buds'}]\n"
+           "bluetoothd: AuLQ [{Time: 12:42:59, AoS 1, BtRt 224 Kbps, "
+           "Codc AAC-LC, DvNm 'Buds'}]\n")
+    link = parse_link(two)
+    assert link is not None
+    check("a2dp newest wins", link["codec"], "AAC-LC")
+    check("a2dp newest live", link["live"], True)
+
+
+def test_a2dp_parse_endpoints() -> None:
+    """The endpoint list keeps a spaced codec name whole."""
+    check("a2dp endpoints", parse_endpoints(A2DP_LOG),
+          [(1, "SBC"), (2, "MPEG-2,4 AAC"), (3, "VENDOR-SPECIFIC")])
+    check("a2dp endpoints sorted", parse_endpoints(
+        "Audio Codec ID SBC for remote SEID 4\n"
+        "Audio Codec ID MPEG-2,4 AAC for remote SEID 2\n"),
+        [(2, "MPEG-2,4 AAC"), (4, "SBC")])
+
+
+def test_a2dp_platform_gate() -> None:
+    """Off macOS the module reports unavailable and reads nothing."""
+    check("a2dp available matches platform", A2DP_AVAILABLE, sys.platform == "darwin")
+
 
 
 def main() -> int:

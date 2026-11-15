@@ -511,6 +511,45 @@ def test_bass_table_renders_signed_bands() -> None:
         window.close()
 
 
+def test_audio_link_renders_the_host_side_read() -> None:
+    """The audio-link group shows the host's own labels and nothing invented."""
+    _app()
+    window = MainWindow(ConnectionOptions(replay="spp-smoketest.jsonl"))
+    try:
+        window._show_audio_link({
+            "device": "Buds", "codec": "AAC-LC", "bitrate": "224 Kbps",
+            "jitter": "150 ms", "rssi": "-45", "snr": "54",
+            "retransmit": "23%", "live": True, "observed": "12:42:59",
+            "endpoints": [(1, "SBC"), (2, "MPEG-2,4 AAC"), (3, "VENDOR-SPECIFIC")],
+        })
+        rows = {window.link_table.item(r, 0).text(): window.link_table.item(r, 1).text()
+                for r in range(window.link_table.rowCount())}
+        assert rows["Codec"] == "AAC-LC"
+        assert rows["Bitrate"] == "224 Kbps"
+        assert rows["Stream"] == "live"
+        # a vendor endpoint keeps the host's word -- the app does not name it
+        assert "VENDOR-SPECIFIC" in window.lbl_link_endpoints.text()
+        assert "LDAC" not in window.lbl_link_endpoints.text()
+
+        # an idle link says so rather than implying traffic
+        window._show_audio_link({
+            "device": "Buds", "codec": "SBC", "bitrate": "0 Kbps",
+            "jitter": "150 ms", "rssi": "-50", "snr": "50",
+            "retransmit": "0%", "live": False, "observed": "12:01:07",
+            "endpoints": [],
+        })
+        rows = {window.link_table.item(r, 0).text(): window.link_table.item(r, 1).text()
+                for r in range(window.link_table.rowCount())}
+        assert rows["Stream"].startswith("configured")
+
+        # nothing found is stated, not left blank
+        window._show_audio_link(None)
+        assert window.link_table.rowCount() == 1
+        assert "no A2DP link" in window.link_table.item(0, 1).text()
+    finally:
+        window.close()
+
+
 def test_instance_lock_is_exclusive() -> None:
     import tempfile
 
