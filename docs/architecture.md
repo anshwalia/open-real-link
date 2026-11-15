@@ -201,8 +201,8 @@ that reads like a fixable gap.
 ## 7. The stack
 
 **Python 3.9+ throughout, PySide6 (Qt 6) for the UI, built CLI-first.** The
-reasoning, the constraint that forced it and the alternatives that lost are in
-[`stack.md`](stack.md).
+reasoning, the constraint that forced it, the evidence for keeping the 3.9 floor
+and the alternatives that lost are in [`stack.md`](stack.md) §3–§4.
 
 The layering above is language-agnostic, which is what keeps this decision cheap
 if it ever needs revisiting. It is nevertheless not expected to change, and

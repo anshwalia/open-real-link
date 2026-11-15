@@ -129,7 +129,8 @@ non-implementation rationale.
 
 ### Requirements
 
-- **Python 3.9 or newer**
+- **Python 3.9 or newer** — the floor and the usage evidence behind it are in
+  [`docs/stack.md` §3.1](docs/stack.md)
 - **git**, to get the source
 - A **Bluetooth Classic** radio on the machine doing the talking. On macOS the
   transport uses `IOBluetooth`; on Windows the built-in WinSock Bluetooth stack.
@@ -181,8 +182,10 @@ $ pip install -e ".[dev,macos]"   # on macOS; ".[dev]" on Linux/Windows
 $ pytest -q
 ```
 
-CI runs that suite on Linux, Windows and macOS across Python 3.9 and 3.13, and
-also runs `ruff check .` over the whole tree.
+CI runs that suite on Linux, Windows and macOS across Python 3.9 and 3.13 — the
+floor and the most-used version are different things, see
+[`docs/stack.md` §3.1](docs/stack.md) — and also runs `ruff check .` over the
+whole tree.
 
 A few checks are platform- or reference-gated and **skip cleanly** when their
 input is absent, so the suite passes without any of them: the GUI test (no

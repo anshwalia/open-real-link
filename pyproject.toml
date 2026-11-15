@@ -27,6 +27,9 @@ classifiers = [
 # their own platform bindings, so they are extras rather than requirements.
 dependencies = []
 
+# Floors, not pins, on purpose: each supported interpreter resolves the newest
+# release that still supports it, so a Python 3.9 leg gets pytest 8.x / PySide6
+# 6.10 and a 3.13 leg gets pytest 9.x / PySide6 6.12.  See docs/stack.md §3.1.
 [project.optional-dependencies]
 macos = ["pyobjc-framework-IOBluetooth>=9.0"]
 gui = ["PySide6>=6.6"]

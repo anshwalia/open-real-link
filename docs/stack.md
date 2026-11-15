@@ -111,6 +111,62 @@ the genuinely annoying part. Neither affects the core, which is where the value
 is and which is why Android stays reachable later (§5). Both the macOS and
 Windows transports have been live-verified on hardware (`live-test.md`).
 
+### 3.1 The Python floor — 3.9, kept (re-checked 2026-11-15)
+
+`requires-python = ">=3.9"`, and CI's matrix tests the floor itself (3.9) plus
+3.13. The floor was re-examined against real usage data and **kept**; this is
+the evidence, so it does not have to be gathered again.
+
+**What people actually run.** PyPI download logs by interpreter, summed over 16
+high-traffic packages (`requests`, `urllib3`, `certifi`, `setuptools`, `pip`,
+`numpy`, `pandas`, `boto3`, `typing-extensions`, `six`, `pytest`,
+`cryptography`, `pillow`, `pyyaml`, `django`, `flask`) for
+2026-10-16 … 2026-11-14 — 18.0 billion downloads, read from
+`pypistats.org/api/packages/<pkg>/python_minor`:
+
+| minor | share | |
+|---|---|---|
+| **3.12** | **30.9 %** | the most-used version, and not this project's floor |
+| 3.11 | 16.4 % | |
+| 3.13 | 15.2 % | the other CI leg |
+| 3.9 | 13.7 % | the floor — mostly one runtime, see below |
+| 3.14 | 8.7 % | previous stable, released 2025-10 |
+| 3.10 | 8.5 % | EOL since 2026-10-01 |
+| 3.7 / 3.8 / 3.6 / 2.7 | 1.5 / 1.3 / 0.2 / 0.2 % | |
+| 3.15 | 0.9 % | newest release, 2026-10-09 |
+
+Roll-up: **3.10+ 80.6 %**, ≤3.9 17.0 %, unclassified 2.4 %.
+
+**The 13.7 % on 3.9 is mostly one runtime.** Of `boto3`'s own downloads, 62.5 %
+arrive on 3.9 — AWS Lambda's managed `python3.9` runtime, which is still
+available. Excluding `boto3`: 3.9 is **5.7 %**, 3.12 is **34.6 %**, 3.10+ is
+**88.3 %**. Packages that application code pulls in directly sit much further
+forward than the aggregate: `pytest` 94.8 % on 3.10+, `pillow` 92.6 %, `pyyaml`
+93.1 %, `flask` 91.8 %, `django` 90.4 %. Conda-forge, counted all-time (so it
+lags), gives 3.10 17.5 %, 3.9 15.4 %, 3.12 14.9 %, 3.11 12.5 %, 3.13 7.0 %,
+3.14 4.4 %.
+
+**Support status** (python.org developer guide / endoflife.date): 3.9 reached
+end-of-life on **2025-10-31**, 3.10 on **2026-10-01**. In support: 3.11
+(security, to 2027-10), 3.12, 3.13, and 3.14 / 3.15 (both bugfix, 3.15 being the
+newest release).
+
+**Why keep 3.9 anyway.** Because it costs nothing. The convention that makes it
+cheap is already mandatory here — `from __future__ import annotations` plus
+PEP 604 annotations ([`../AGENTS.md`](../AGENTS.md) "Conventions") — and no
+runtime API newer than 3.9 is used anywhere in `tlcore`, `tltransport`, `tlcli`
+or `tlapp`. What the floor buys is a real install base; what it must **not** buy
+is a claim that 3.9 is what people use, because 3.12 is. Revisit when a
+dependency forces the issue: on 3.9, pip already resolves PySide6 **6.10.3**,
+pytest **8.4.2** and coverage **7.10.7**, where a 3.13 install gets 6.12 / 9.2 /
+7.17.
+
+**The extras use floors, not pins — on purpose.** `pytest>=7.0`, `coverage>=7.0`,
+`ruff>=0.6`, `PySide6>=6.6`, `pyinstaller>=6.0`: each interpreter resolves the
+newest release that still supports it, so the 3.9 and 3.13 CI legs run different
+tool versions by design. A test that differs between legs should therefore be
+read as version skew first and a bug second.
+
 ---
 
 ## 4. Alternatives considered and why they lost
