@@ -165,7 +165,9 @@ you would rather not activate.
   tools/host_audio_check.py --fix`. Repeated ACL reconnects (`--reset`, one per
   subcommand) re-sync the Mac's output volume from the headset's AVRCP absolute
   volume; a headset reporting 0 leaves the Mac silent while the audio route
-  still looks healthy. See [`docs/live-test.md`](docs/live-test.md) §7.
+  still looks healthy. The control is **shared** (Mac and buds are one absolute
+  volume, last writer wins), so only 0 or muted is a fault. See
+  [`docs/live-test.md`](docs/live-test.md) §7.
 
 ## Before committing
 

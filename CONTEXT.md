@@ -70,8 +70,9 @@ live-verified or removed before a release.
 - **After every live session, restore the host:** `python3
   tools/host_audio_check.py --fix`. Repeated ACL reconnects re-sync the Mac's
   output volume from the headset, and a headset reporting 0 leaves the Mac
-  silent while the audio route still looks healthy
-  ([`docs/live-test.md`](docs/live-test.md) §7).
+  silent while the audio route still looks healthy. The control is **shared**
+  (Mac and buds are one absolute volume, last writer wins), so only 0 or muted
+  is a fault ([`docs/live-test.md`](docs/live-test.md) §7).
 
 ## 5. Token hazards
 

@@ -728,6 +728,12 @@ output device, and prints the one-line fix. It only reads unless you pass
 `--fix`, which raises a 0/muted output to 50 and nothing else — it never talks
 to the headset, so it is safe to run with the buds in an ear.
 
+Absolute volume is a **shared** control, not a Mac-side copy of one: setting it
+on the Mac moves the buds, the buds' touch control moves the Mac, and whoever
+writes last wins. So a low volume you chose on purpose is the correct state and
+the check leaves it alone — it only acts at 0 or muted. The failure above is the
+narrower reconnect case, where the Mac takes the headset's value on link-up.
+
 Two habits that keep it from happening in the first place:
 
 * pass `--reset` **only** when you actually get `0xE00002BC`, not on every call —
